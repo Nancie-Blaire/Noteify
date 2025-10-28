@@ -6,31 +6,84 @@
     android:layout_margin="8dp"
     card_view:cardCornerRadius="12dp"
     card_view:cardElevation="4dp"
-    android:background="?android:attr/selectableItemBackground">
+    card_view:cardBackgroundColor="#BBDEFB">
 
-    <LinearLayout
-        android:orientation="vertical"
-        android:padding="16dp"
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:background="@color/cardview_shadow_end_color">
 
-        <TextView
-            android:id="@+id/noteTitle"
-            android:layout_width="wrap_content"
+        <!-- Three Dots Menu (Far Right) -->
+        <ImageView
+            android:id="@+id/noteMenuButton"
+            android:layout_width="25dp"
+            android:layout_height="25dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:clickable="true"
+            android:focusable="true"
+            android:src="@drawable/three_dots"
+            android:contentDescription="More options"
+            android:padding="2dp" />
+
+        <!-- Star Icon (Left of three dots) -->
+        <ImageView
+            android:id="@+id/starIcon"
+            android:layout_width="25dp"
+            android:layout_height="24dp"
+            android:layout_toStartOf="@+id/noteMenuButton"
+            android:layout_centerVertical="true"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="4dp"
+            android:src="@drawable/ic_star"
+            android:contentDescription="Star"
+            android:padding="2dp"/>
+
+        <!-- Pin Icon (Left of star) -->
+        <ImageView
+            android:id="@+id/pinIcon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_toStartOf="@+id/starIcon"
+            android:layout_centerVertical="true"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="4dp"
+            android:src="@drawable/ic_pin"
+            android:contentDescription="Pin"
+            android:visibility="visible" />
+
+        <!-- Content Layout (Left side) -->
+        <LinearLayout
+            android:id="@+id/noteLayout"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textStyle="bold"
-            android:textSize="18sp"
-            android:textColor="#000" />
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@+id/pinIcon"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/noteContent"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#555"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:layout_marginTop="4dp"/>
+            <TextView
+                android:id="@+id/noteTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ok"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#212121" />
 
-    </LinearLayout>
+            <TextView
+                android:id="@+id/noteContent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="zjsjw"
+                android:textSize="14sp"
+                android:textColor="#757575"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
 
+    </RelativeLayout>
 </androidx.cardview.widget.CardView>

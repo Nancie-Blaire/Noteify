@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/notesMainLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FAFAFA"
+    tools:context=".Notes">
+
+    <!-- RecyclerView for displaying notes -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/notesRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        android:paddingBottom="88dp"
+        android:clipToPadding="false" />
+
+    <!-- FAB for Weekly -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabWeekly"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="220dp"
+        android:src="@drawable/common_google_signin_btn_icon_dark"
+        android:contentDescription="Add Weekly"
+        app:backgroundTint="#9C27B0"
+        app:fabSize="mini"
+        android:visibility="gone" />
+
+    <!-- FAB for To-Do -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabTodo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="160dp"
+        android:src="@drawable/ic_launcher_foreground"
+        android:contentDescription="Add Todo"
+        app:backgroundTint="#FF9800"
+        app:fabSize="mini"
+        android:visibility="gone" />
+
+    <!-- FAB for Note -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabNote"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="100dp"
+        android:src="@drawable/common_google_signin_btn_icon_light"
+        android:contentDescription="Add Note"
+        app:backgroundTint="#2196F3"
+        app:fabSize="mini"
+        android:visibility="gone" />
+
+    <!-- Floating Action Button Main -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabMain"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="24dp"
+        android:contentDescription="Add"
+        android:src="@drawable/ic_launcher_foreground"
+        app:backgroundTint="#4CAF50"
+        android:elevation="8dp" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

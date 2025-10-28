@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "134011732367",
+    "project_id": "tasksynctest-38fe7",
+    "storage_bucket": "tasksynctest-38fe7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:134011732367:android:9ced088dad4613ef480bfa",
+        "android_client_info": {
+          "package_name": "com.example.testtasksync"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDir5cznFOXva5rNujmmJ-TP1Mrl2iStw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

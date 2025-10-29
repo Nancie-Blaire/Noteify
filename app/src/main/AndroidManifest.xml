@@ -12,12 +12,32 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TESTtaskSync">
         <activity
+            android:name=".Favorites"
+            android:exported="false" />
+        <activity
+            android:name=".Notifications"
+            android:exported="false" />
+        <activity
+            android:name=".Notifs"
+            android:exported="false" />
+        <activity
+            android:name=".Calendar"
+            android:exported="false" />
+        <activity
+            android:name=".Schedule"
+            android:exported="false" />
+        <activity
+            android:name=".Account"
+            android:exported="false" />
+        <activity
+            android:name=".Settings"
+            android:exported="false" />
+        <activity
             android:name=".NoteAdapter"
             android:exported="false" />
         <activity
             android:name=".NoteActivity"
             android:exported="false" />
-
         <activity
             android:name=".Notes"
             android:exported="false" />

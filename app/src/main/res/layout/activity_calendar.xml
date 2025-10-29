@@ -7,4 +7,19 @@
     android:layout_height="match_parent"
     tools:context=".Calendar">
 
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="165dp"
+        android:layout_marginTop="336dp"
+        android:layout_marginEnd="166dp"
+        android:layout_marginBottom="373dp"
+        android:text="CALENDAR"
+        android:textSize="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

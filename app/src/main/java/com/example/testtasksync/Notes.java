@@ -3,6 +3,8 @@ package com.example.testtasksync;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -27,6 +29,14 @@ public class Notes extends AppCompatActivity {
     private NoteAdapter adapter;
     private FloatingActionButton fabMain, fabNote, fabTodo, fabWeekly;
     private boolean isFabMenuOpen = false;
+
+    ImageView btnAccount;
+    //FOR BUTTONS NAV BAR
+    ImageView btnSettings;
+    ImageView btnCalendar;
+    ImageView btnFavorites;
+    ImageView btnNotifs;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,7 +103,7 @@ public class Notes extends AppCompatActivity {
             toggleFabMenu();
         });
 
-        // Todo FAB (disabled for now)
+        // TO DO FAB DISABLED RN
         fabTodo.setOnClickListener(v -> {
             Log.d(TAG, "FAB Todo clicked");
             Toast.makeText(this, "To-do coming soon!", Toast.LENGTH_SHORT).show();
@@ -105,6 +115,45 @@ public class Notes extends AppCompatActivity {
             Log.d(TAG, "FAB Weekly clicked");
             Toast.makeText(this, "Weekly planner coming soon!", Toast.LENGTH_SHORT).show();
             toggleFabMenu();
+        });
+
+        //Account button
+        btnAccount = findViewById(R.id.userProfileIcon);
+        btnAccount.setOnClickListener(v -> {
+            Log.d(TAG, "Settings button clicked");
+            Intent intent = new Intent(Notes.this, Account.class);
+            startActivity(intent);
+        });
+
+
+        //NAV BAR BUTTONS
+        //Settings
+        btnSettings = findViewById(R.id.Settings);
+        btnSettings.setOnClickListener(v -> {
+            Log.d(TAG, "Settings button clicked");
+            Intent intent = new Intent(Notes.this, Settings.class);
+            startActivity(intent);
+        });
+
+        btnCalendar = findViewById(R.id.Calendar);
+        btnCalendar.setOnClickListener(v -> {
+            Log.d(TAG, "Settings button clicked");
+            Intent intent = new Intent(Notes.this, Calendar.class);
+            startActivity(intent);
+        });
+
+        btnFavorites = findViewById(R.id.Star);
+        btnFavorites.setOnClickListener(v -> {
+            Log.d(TAG, "Settings button clicked");
+            Intent intent = new Intent(Notes.this, Favorites.class);
+            startActivity(intent);
+        });
+
+        btnNotifs = findViewById(R.id.Notifs);
+        btnNotifs.setOnClickListener(v -> {
+            Log.d(TAG, "Settings button clicked");
+            Intent intent = new Intent(Notes.this, Notifications.class);
+            startActivity(intent);
         });
 
         // Firebase listener code

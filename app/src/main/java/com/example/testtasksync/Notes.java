@@ -49,7 +49,6 @@ public class Notes extends AppCompatActivity {
             return;
         }
 
-
         noteList = new ArrayList<>();
         adapter = new NoteAdapter(noteList, note -> {
             Intent intent = new Intent(Notes.this, NoteActivity.class);

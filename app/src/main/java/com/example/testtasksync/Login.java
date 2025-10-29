@@ -82,7 +82,7 @@ public class Login extends AppCompatActivity {
                             }
 
                             // ✅ Go to MainActivity after login
-                            startActivity(new Intent(this, Home.class));
+                            startActivity(new Intent(this, Notes.class));
                             finish();
                         } else {
                             Toast.makeText(this, "Login failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();

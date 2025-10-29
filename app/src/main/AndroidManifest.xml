@@ -17,14 +17,12 @@
         <activity
             android:name=".NoteActivity"
             android:exported="false" />
+
         <activity
             android:name=".Notes"
             android:exported="false" />
         <activity
             android:name=".Login"
-            android:exported="false" />
-        <activity
-            android:name=".Home"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

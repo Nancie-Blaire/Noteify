@@ -40,7 +40,15 @@ public class Notes extends AppCompatActivity {
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+
         FirebaseUser user = auth.getCurrentUser();
+
+        if (user == null) {
+            startActivity(new Intent(this, Login.class));
+            finish();
+            return;
+        }
+
 
         noteList = new ArrayList<>();
         adapter = new NoteAdapter(noteList, note -> {
@@ -105,6 +113,7 @@ public class Notes extends AppCompatActivity {
             db.collection("users")
                     .document(user.getUid())
                     .collection("notes")
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING) // ✅ Sort by newest first
                     .addSnapshotListener((snapshots, e) -> {
                         noteList.clear();
                         if (snapshots != null) {

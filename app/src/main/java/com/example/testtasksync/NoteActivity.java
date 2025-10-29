@@ -76,6 +76,7 @@ public class NoteActivity extends AppCompatActivity {
         Map<String, Object> noteData = new HashMap<>();
         noteData.put("title", title);
         noteData.put("content", content);
+        noteData.put("timestamp", System.currentTimeMillis());
 
         if (noteId == null) {
             // New note

@@ -3,9 +3,12 @@ package com.example.testtasksync;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.ImageView;
 import android.widget.Toast;
+import android.widget.SearchView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -24,9 +27,22 @@ public class Notes extends AppCompatActivity {
     private FirebaseAuth auth;
     private FirebaseFirestore db;
     private List<Note> noteList;
+    private List<Note> starredNoteList; // Changed from prioNoteList
     private NoteAdapter adapter;
+    private NoteAdapter starredAdapter; // Adapter for starred notes
     private FloatingActionButton fabMain, fabNote, fabTodo, fabWeekly;
     private boolean isFabMenuOpen = false;
+
+    // RecyclerViews
+    private RecyclerView prioNotesRecyclerView;
+    private RecyclerView notesRecyclerView;
+
+    ImageView btnAccount;
+    //FOR BUTTONS NAV BAR
+    ImageView btnSettings;
+    ImageView btnCalendar;
+    ImageView btnNotifs;
+    SearchView searchView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,13 +51,30 @@ public class Notes extends AppCompatActivity {
 
         Log.d(TAG, "onCreate started");
 
-        RecyclerView recyclerView = findViewById(R.id.notesRecyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        // Initialize both RecyclerViews
+        prioNotesRecyclerView = findViewById(R.id.prioNotesRecyclerView);
+        notesRecyclerView = findViewById(R.id.notesRecyclerView);
+
+        // Set layout managers
+        prioNotesRecyclerView.setLayoutManager(new GridLayoutManager(this, 2));
+        notesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
         FirebaseUser user = auth.getCurrentUser();
+
+        // SEARCH BAR
+        searchView = findViewById(R.id.searchBar);
+        searchView.clearFocus();
+
+        searchView.setOnClickListener(v -> {
+            searchView.setFocusable(true);
+            searchView.setFocusableInTouchMode(true);
+            searchView.requestFocus();
+        });
+
+
 
         if (user == null) {
             startActivity(new Intent(this, Login.class));
@@ -50,12 +83,21 @@ public class Notes extends AppCompatActivity {
         }
 
         noteList = new ArrayList<>();
+        starredNoteList = new ArrayList<>();
+
+        // Adapter for regular notes
         adapter = new NoteAdapter(noteList, note -> {
             Intent intent = new Intent(Notes.this, NoteActivity.class);
             intent.putExtra("noteId", note.getId());
             startActivity(intent);
         });
-        recyclerView.setAdapter(adapter);
+
+        // Adapter for starred notes
+        starredAdapter = new NoteAdapter(starredNoteList, note -> {
+            Intent intent = new Intent(Notes.this, NoteActivity.class);
+            intent.putExtra("noteId", note.getId());
+            startActivity(intent);
+        }, true);
 
         // Setup FAB functionality
         fabMain = findViewById(R.id.fabMain);
@@ -93,7 +135,7 @@ public class Notes extends AppCompatActivity {
             toggleFabMenu();
         });
 
-        // Todo FAB (disabled for now)
+        // TO DO FAB DISABLED RN
         fabTodo.setOnClickListener(v -> {
             Log.d(TAG, "FAB Todo clicked");
             Toast.makeText(this, "To-do coming soon!", Toast.LENGTH_SHORT).show();
@@ -107,14 +149,52 @@ public class Notes extends AppCompatActivity {
             toggleFabMenu();
         });
 
+        //Account button
+        btnAccount = findViewById(R.id.userProfileIcon);
+        btnAccount.setOnClickListener(v -> {
+            Log.d(TAG, "Account button clicked");
+            Intent intent = new Intent(Notes.this, Account.class);
+            startActivity(intent);
+        });
+
+        //NAV BAR BUTTONS
+        //Settings
+        btnSettings = findViewById(R.id.Settings);
+        btnSettings.setOnClickListener(v -> {
+            Log.d(TAG, "Settings button clicked");
+            Intent intent = new Intent(Notes.this, Settings.class);
+            startActivity(intent);
+        });
+
+        btnCalendar = findViewById(R.id.Calendar);
+        btnCalendar.setOnClickListener(v -> {
+            Log.d(TAG, "Calendar button clicked");
+            Intent intent = new Intent(Notes.this, Calendar.class);
+            startActivity(intent);
+        });
+
+        btnNotifs = findViewById(R.id.Notifs);
+        btnNotifs.setOnClickListener(v -> {
+            Log.d(TAG, "Notifications button clicked");
+            Intent intent = new Intent(Notes.this, Notifications.class);
+            startActivity(intent);
+        });
+
         // Firebase listener code
         if (user != null) {
             db.collection("users")
                     .document(user.getUid())
                     .collection("notes")
-                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING) // ✅ Sort by newest first
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                     .addSnapshotListener((snapshots, e) -> {
+                        if (e != null) {
+                            Log.w(TAG, "Listen failed.", e);
+                            return;
+                        }
+
                         noteList.clear();
+                        starredNoteList.clear();
+
                         if (snapshots != null) {
                             for (QueryDocumentSnapshot doc : snapshots) {
                                 Note note = new Note(
@@ -122,11 +202,53 @@ public class Notes extends AppCompatActivity {
                                         doc.getString("title"),
                                         doc.getString("content")
                                 );
+
+                                // Get the starred state from Firebase
+                                Boolean isStarred = doc.getBoolean("isStarred");
+                                if (isStarred != null && isStarred) {
+                                    note.setStarred(true);
+                                    starredNoteList.add(note); // Add to starred list
+                                }
+
+                                // Add all notes to regular list (you can modify this if you want)
                                 noteList.add(note);
                             }
                         }
-                        adapter.notifyDataSetChanged();
+
+                        // Update UI based on note availability
+                        updateUI();
                     });
+        }
+    }
+
+    /**
+     * Update UI based on available notes
+     */
+    private void updateUI() {
+        // Handle Starred/Prios Section
+        if (starredNoteList.isEmpty()) {
+            // Show welcome card in prio section if no starred notes
+            Log.d(TAG, "No starred notes - showing welcome card in prio section");
+            defaultCardAdapter prioWelcomeAdapter = new defaultCardAdapter(true);
+            prioNotesRecyclerView.setAdapter(prioWelcomeAdapter);
+        } else {
+            // Show actual starred notes
+            Log.d(TAG, "Starred notes found: " + starredNoteList.size());
+            prioNotesRecyclerView.setAdapter(starredAdapter);
+            starredAdapter.notifyDataSetChanged();
+        }
+
+        // Handle Recent Section
+        if (noteList.isEmpty()) {
+            // Show welcome card in recent section if no regular notes
+            Log.d(TAG, "No regular notes - showing welcome card in recent section");
+            defaultCardAdapter recentWelcomeAdapter = new defaultCardAdapter(false);
+            notesRecyclerView.setAdapter(recentWelcomeAdapter);
+        } else {
+            // Show actual notes
+            Log.d(TAG, "Regular notes found: " + noteList.size());
+            notesRecyclerView.setAdapter(adapter);
+            adapter.notifyDataSetChanged();
         }
     }
 
@@ -150,4 +272,6 @@ public class Notes extends AppCompatActivity {
 
         Log.d(TAG, "FAB menu state after toggle: " + isFabMenuOpen);
     }
+
+
 }

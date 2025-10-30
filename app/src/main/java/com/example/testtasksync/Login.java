@@ -22,28 +22,37 @@ public class Login extends AppCompatActivity {
     Button loginBtn, registerBtn;
     FirebaseAuth auth;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_login);
 
-        // Handle system bar insets properly
+        // AUTO-REDIRECT IF USER IS ALREADY LOGGED IN
+        auth = FirebaseAuth.getInstance();
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            Intent intent = new Intent(Login.this, Notes.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+            return;
+        }
+
+        // Handle system bar insets
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.login), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
 
-        // Initialize UI elements
+        // Initialize UI
         emailInput = findViewById(R.id.emailInput);
         passwordInput = findViewById(R.id.passwordInput);
         loginBtn = findViewById(R.id.loginBtn);
         registerBtn = findViewById(R.id.registerBtn);
-        auth = FirebaseAuth.getInstance();
 
-        // Register new user
+        //  Register new user
         registerBtn.setOnClickListener(v -> {
             String email = emailInput.getText().toString().trim();
             String password = passwordInput.getText().toString().trim();
@@ -76,13 +85,15 @@ public class Login extends AppCompatActivity {
             auth.signInWithEmailAndPassword(email, password)
                     .addOnCompleteListener(task -> {
                         if (task.isSuccessful()) {
-                            FirebaseUser user = auth.getCurrentUser();
-                            if (user != null) {
-                                Log.d("UID", "User ID: " + user.getUid());
+                            FirebaseUser u = auth.getCurrentUser();
+                            if (u != null) {
+                                Log.d("UID", "User ID: " + u.getUid());
                             }
 
-                            // ✅ Go to MainActivity after login
-                            startActivity(new Intent(this, Notes.class));
+                            // Open Notes after login
+                            Intent intent = new Intent(this, Notes.class);
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                            startActivity(intent);
                             finish();
                         } else {
                             Toast.makeText(this, "Login failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();

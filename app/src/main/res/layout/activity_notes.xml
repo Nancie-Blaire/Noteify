@@ -54,17 +54,23 @@
                     app:cardElevation="2dp"
                     app:cardBackgroundColor="#FFFFFF">
 
-                    <EditText
-                        android:id="@+id/searchBar"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:hint="Search"
-                        android:background="@android:color/transparent"
-                        android:paddingStart="16dp"
-                        android:paddingEnd="16dp"
-                        android:textSize="14sp"
-                        android:inputType="text"
-                        android:imeOptions="actionSearch" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+
+                        <SearchView
+                            android:id="@+id/searchBar"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="16dp"
+                            android:textSize="14sp"
+                            android:inputType="text"/>
+                    </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
                 <!-- Theme Toggle Icon -->
@@ -79,20 +85,20 @@
                     android:contentDescription="Toggle Theme" />
             </LinearLayout>
 
-            <!-- Pinned Notes Section -->
+            <!-- Prio Notes Section -->
             <TextView
-                android:id="@+id/pinnedNotesHeader"
+                android:id="@+id/prioNotesHeader"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Pin notes"
+                android:text="Prios"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="#424242"
                 android:layout_marginBottom="12dp" />
 
-            <!-- Grid RecyclerView for Pinned Notes -->
+            <!-- Grid RecyclerView for Prio Notes -->
             <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/pinnedNotesRecyclerView"
+                android:id="@+id/prioNotesRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nestedScrollingEnabled="false"
@@ -103,7 +109,7 @@
                 android:id="@+id/recentNotesHeader"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Recent"
+                android:text="Recently Open"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="#424242"
@@ -121,8 +127,9 @@
 
     <!-- Bottom Navigation Bar with Custom Curved Shape -->
     <FrameLayout
+        android:id="@+id/bottomNavbar"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="80dp"
         android:layout_gravity="bottom">
 
         <!-- Curved Background -->
@@ -139,18 +146,16 @@
     <!-- Main FAB - Perfect Circle Overlapping the bottom nav -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabMain"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="70dp"
+        android:layout_marginBottom="60dp"
         android:contentDescription="Add Note"
         android:src="@drawable/add"
         app:backgroundTint="#26E9D8"
         app:tint="#FFFFFF"
-        app:fabCustomSize="64dp"
-        app:maxImageSize="32dp"
-        app:elevation="16dp"
-        android:translationZ="16dp" />
+        app:fabCustomSize="55dp"
+        app:maxImageSize="55dp"/>
 
     <!-- Sub FAB: Note (closest to main FAB) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -199,93 +204,78 @@
         android:layout_height="match_parent"
         android:gravity="center|bottom"
         android:orientation="horizontal"
-        android:paddingStart="32dp"
-        android:paddingEnd="32dp"
-        android:paddingBottom="20dp">
+        android:paddingStart="30dp"
+        android:paddingEnd="30dp"
+        android:paddingBottom="8dp"
+        app:layout_anchor="@+id/bottomNavbar"
+        app:layout_anchorGravity="center">
 
         <!-- Home Icon -->
         <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1">
 
             <ImageView
                 android:id="@+id/Home"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="60dp"
+                android:layout_height="45dp"
                 android:layout_gravity="center"
                 android:background="@drawable/circle_bg"
                 android:backgroundTint="#FFFFFF"
                 android:contentDescription="Nav Calendar"
-                android:elevation="8dp"
-                android:padding="12dp"
-                android:src="@drawable/ic_home"
-                android:translationZ="16dp" />
+                android:padding="8dp"
+                android:src="@drawable/ic_home" />
         </FrameLayout>
 
         <!-- Calendar Icon -->
         <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1">
 
             <ImageView
                 android:id="@+id/Calendar"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="60dp"
+                android:layout_height="45dp"
                 android:layout_gravity="center"
                 android:contentDescription="Nav Item 2"
-                android:padding="12dp"
-                android:src="@drawable/ic_calendar" />
+                android:padding="9dp"
+                android:src="@drawable/ic_calendar"/>
         </FrameLayout>
 
-        <!-- Star Icon -->
-        <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1">
-
-            <ImageView
-                android:id="@+id/Star"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_gravity="center"
-                android:contentDescription="Nav Item 3"
-                android:padding="12dp"
-                android:src="@drawable/ic_star" />
-        </FrameLayout>
 
         <!-- Notification Icon -->
         <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1">
 
             <ImageView
                 android:id="@+id/Notifs"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="60dp"
+                android:layout_height="45dp"
                 android:layout_gravity="center"
                 android:contentDescription="Nav Item 4"
-                android:padding="12dp"
+                android:padding="9dp"
                 android:src="@drawable/ic_notif" />
         </FrameLayout>
 
         <!-- Settings Icon -->
         <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1">
 
             <ImageView
                 android:id="@+id/Settings"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="60dp"
+                android:layout_height="45dp"
                 android:layout_gravity="center"
-                android:contentDescription="Settings"
-                android:padding="12dp"
                 android:clickable="true"
+                android:contentDescription="Settings"
                 android:focusable="true"
+                android:padding="9dp"
                 android:src="@drawable/ic_settings" />
         </FrameLayout>
     </LinearLayout>

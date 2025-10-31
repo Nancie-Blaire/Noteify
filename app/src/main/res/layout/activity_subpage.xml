@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/subpageLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FAFAFA"
+    tools:context=".SubpageActivity">
+
+    <!-- Top Bar with Check Button -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:background="#FAFAFA"
+        android:elevation="2dp">
+
+        <ImageView
+            android:id="@+id/backBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_check"
+            android:contentDescription="Back"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Subpage"
+            android:textSize="16sp"
+            android:textColor="#666"
+            android:gravity="center"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/checkBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_check"
+            android:contentDescription="Save"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="#4CAF50" />
+
+    </LinearLayout>
+
+    <!-- Main Content Area -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/topBar"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Subpage Title -->
+        <EditText
+            android:id="@+id/subpageTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Subpage Title"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:inputType="textCapSentences"
+            android:background="@android:color/transparent"
+            android:padding="8dp"
+            android:textColor="#000"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Subpage Content -->
+        <EditText
+            android:id="@+id/subpageContent"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:hint="Start typing..."
+            android:gravity="top"
+            android:textSize="16sp"
+            android:inputType="textMultiLine"
+            android:background="@android:color/transparent"
+            android:padding="8dp"
+            android:textColor="#333"
+            android:overScrollMode="always" />
+
+    </LinearLayout>
+
+</RelativeLayout>

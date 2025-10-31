@@ -24,7 +24,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     private FirebaseAuth auth;
     private boolean isGridLayout; // NEW: Flag to determine layout type
 
-    // 🔹 Interface for handling clicks
+    // ðŸ”¹ Interface for handling clicks
     public interface OnNoteClickListener {
         void onNoteClick(Note note);
     }
@@ -123,5 +123,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         });
             }
         }
+
     }
 }

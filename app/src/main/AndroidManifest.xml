@@ -12,6 +12,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TESTtaskSync">
         <activity
+            android:name=".SignUp"
+            android:exported="false" />
+        <activity
+            android:name=".BiometricSetupActivity"
+            android:exported="false" />
+        <activity
             android:name=".SubpageActivity"
             android:exported="false" />
         <activity

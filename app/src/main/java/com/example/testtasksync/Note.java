@@ -9,11 +9,13 @@ public class Note {
     private String content;
     private boolean isPrio;
     private boolean isStarred;
+    private boolean isLocked;  // Add this field for lock feature
     private List<String> subpageIds; // Optional: to track subpage IDs
 
     // Empty constructor for Firestore
     public Note() {
         this.subpageIds = new ArrayList<>();
+        this.isLocked = false;  // Initialize as unlocked
     }
 
     public Note(String id, String title, String content) {
@@ -21,6 +23,7 @@ public class Note {
         this.title = title;
         this.content = content;
         this.subpageIds = new ArrayList<>();
+        this.isLocked = false;
     }
 
     public Note(String id, String title, String content, boolean isPrio) {
@@ -29,6 +32,7 @@ public class Note {
         this.content = content;
         this.isPrio = isPrio;
         this.subpageIds = new ArrayList<>();
+        this.isLocked = false;
     }
 
     // Getters
@@ -37,6 +41,7 @@ public class Note {
     public String getContent() { return content; }
     public boolean isPrio() { return isPrio; }
     public boolean isStarred() { return isStarred; }
+    public boolean isLocked() { return isLocked; }  // Add this getter
     public List<String> getSubpageIds() { return subpageIds; }
 
     // Setters
@@ -45,6 +50,7 @@ public class Note {
     public void setContent(String content) { this.content = content; }
     public void setPrio(boolean prio) { isPrio = prio; }
     public void setStarred(boolean starred) { isStarred = starred; }
+    public void setLocked(boolean locked) { isLocked = locked; }  // Add this setter
     public void setSubpageIds(List<String> subpageIds) { this.subpageIds = subpageIds; }
 
     // Helper methods

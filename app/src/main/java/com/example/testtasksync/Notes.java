@@ -210,7 +210,13 @@ public class Notes extends AppCompatActivity {
                                     starredNoteList.add(note); // Add to starred list
                                 }
 
-                                // Add all notes to regular list (you can modify this if you want)
+                                // ✅ FIX: Get the locked state from Firebase
+                                Boolean isLocked = doc.getBoolean("isLocked");
+                                if (isLocked != null && isLocked) {
+                                    note.setLocked(true);
+                                }
+
+                                // Add all notes to regular list
                                 noteList.add(note);
                             }
                         }
@@ -272,6 +278,5 @@ public class Notes extends AppCompatActivity {
 
         Log.d(TAG, "FAB menu state after toggle: " + isFabMenuOpen);
     }
-
 
 }

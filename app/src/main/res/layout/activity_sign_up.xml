@@ -17,7 +17,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Welcome Back"
+            android:text="Create Account"
             android:textSize="32sp"
             android:textStyle="bold"
             android:textColor="#333333"
@@ -27,7 +27,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Login to your account"
+            android:text="Sign up to get started"
             android:textSize="16sp"
             android:textColor="#757575"
             android:layout_marginBottom="40dp"/>
@@ -53,7 +53,7 @@
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_dialog_email"
                     android:layout_marginEnd="12dp"
-                    android:tint="#757575"/>
+                    app:tint="#757575"/>
 
                 <EditText
                     android:id="@+id/etEmail"
@@ -71,7 +71,7 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
+            android:layout_marginBottom="16dp"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp"
             app:cardBackgroundColor="#FFFFFF">
@@ -88,7 +88,7 @@
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_lock_idle_lock"
                     android:layout_marginEnd="12dp"
-                    android:tint="#757575"/>
+                    app:tint="#757575"/>
 
                 <EditText
                     android:id="@+id/etPassword"
@@ -102,27 +102,47 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Forgot Password -->
-        <TextView
-            android:id="@+id/tvForgotPassword"
-            android:layout_width="wrap_content"
+        <!-- Confirm Password Input -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:text="Forgot Password?"
-            android:textSize="14sp"
-            android:textColor="#26E9D8"
-            android:textStyle="bold"
-            android:clickable="true"
-            android:focusable="true"
             android:layout_marginBottom="24dp"
-            android:padding="8dp"/>
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="#FFFFFF">
 
-        <!-- Login Button -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_lock_idle_lock"
+                    android:layout_marginEnd="12dp"
+                    app:tint="#757575"/>
+
+                <EditText
+                    android:id="@+id/etConfirmPassword"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Confirm Password"
+                    android:inputType="textPassword"
+                    android:textSize="16sp"
+                    android:background="@android:color/transparent"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Sign Up Button -->
         <Button
-            android:id="@+id/btnLogin"
+            android:id="@+id/btnSignUp"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:text="Login"
+            android:text="Sign Up"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#FFFFFF"
@@ -138,26 +158,25 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp"/>
 
-        <!-- Sign Up Redirect -->
+        <!-- Login Redirect -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginTop="24dp">
+            android:gravity="center">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Don't have an account? "
+                android:text="Already have an account? "
                 android:textSize="14sp"
                 android:textColor="#757575"/>
 
             <TextView
-                android:id="@+id/tvSignUpRedirect"
+                android:id="@+id/tvLoginRedirect"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Sign Up"
+                android:text="Login"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:textColor="#26E9D8"

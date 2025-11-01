@@ -2,49 +2,76 @@
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:card_view="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="150dp"
-    android:layout_margin="8dp"
-    card_view:cardCornerRadius="16dp"
-    card_view:cardElevation="2dp"
-    card_view:cardBackgroundColor="#B3D4FC">
+    android:layout_height="wrap_content"
+
+    android:layout_margin="5dp"
+    card_view:cardCornerRadius="12dp"
+    card_view:cardElevation="4dp"
+    card_view:cardBackgroundColor="#BBDEFB">
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="150dp"
+        android:layout_height="120dp"
         android:padding="12dp">
 
 
+        <!-- Star Icon (Top Right) -->
         <ImageView
             android:id="@+id/starIcon"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_alignParentEnd="true"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:layout_alignParentTop="true"
+            android:layout_alignParentEnd="true"
             android:clickable="true"
-            android:focusable="true"
             android:contentDescription="Star"
+            android:focusable="true"
             android:padding="2dp"
-            android:src="@drawable/ic_star"/>
+            android:src="@drawable/ic_star_outline" />
+
+        <!-- Three Dots Menu (Below Star) -->
+        <ImageView
+            android:id="@+id/noteMenuButton"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_below="@id/starIcon"
+            android:layout_alignParentEnd="true"
+            android:layout_marginTop="4dp"
+            android:clickable="true"
+            android:contentDescription="More options"
+            android:focusable="true"
+            android:padding="2dp"
+            android:src="@drawable/three_dots" />
+
+        <!-- Lock Icon (Below Three Dots) -->
+        <ImageView
+            android:id="@+id/lockIcon"
+            android:layout_width="58dp"
+            android:layout_height="34dp"
+            android:layout_below="@id/noteMenuButton"
+            android:layout_alignParentStart="true"
+            android:layout_marginTop="4dp"
+            android:contentDescription="Locked"
+            android:src="@android:drawable/ic_lock_lock"
+            android:visibility="gone"
+           />
 
 
+        <!-- Content Layout -->
         <LinearLayout
             android:id="@+id/noteLayout"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_centerVertical="true"
-            android:layout_toStartOf="@id/starIcon"
-            android:layout_marginEnd="15dp"
-            android:orientation="vertical"
-            android:gravity="start">
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:layout_marginEnd="40dp"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/noteTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:gravity="start"
-                android:maxLines="1"
-                android:text="Note Title"
+                android:maxLines="2"
+                android:text="Title"
                 android:textColor="#212121"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -53,13 +80,12 @@
                 android:id="@+id/noteContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Note content"
-                android:textSize="12sp"
-                android:textColor="#757575"
-                android:layout_marginTop="4dp"
-                android:maxLines="3"
+                android:layout_marginTop="6dp"
                 android:ellipsize="end"
-                android:gravity="start"/>
+                android:maxLines="3"
+                android:text="Content"
+                android:textColor="#757575"
+                android:textSize="13sp" />
         </LinearLayout>
 
     </RelativeLayout>

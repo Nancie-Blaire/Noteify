@@ -1,52 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5"
     android:fillViewport="true">
 
-    <LinearLayout
+    <ScrollView
+        android:id="@+id/scrollView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp"
-        android:gravity="center">
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:padding="32dp">
+
+        <!--logo-->
+        <ImageView
+            android:id="@+id/ivLogo"
+            android:layout_width="140dp"
+            android:layout_height="140dp"
+            android:layout_marginTop="40dp"
+            android:layout_marginBottom="10dp"
+            android:contentDescription="Noteify Logo"
+            android:src="@drawable/logo_noteify"/>
 
         <!-- Logo or App Name -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Create Account"
+            android:text="NOTEIFY"
             android:textSize="32sp"
             android:textStyle="bold"
             android:textColor="#333333"
-            android:layout_marginTop="60dp"
+            android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"/>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Sign up to get started"
+            android:text="Stay organized. Stay on time."
             android:textSize="16sp"
             android:textColor="#757575"
             android:layout_marginBottom="40dp"/>
 
         <!-- Email Input -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="#FFFFFF">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:background="@drawable/input_border_default">
 
                 <ImageView
                     android:layout_width="24dp"
@@ -65,23 +74,17 @@
                     android:textSize="16sp"
                     android:background="@android:color/transparent"/>
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
         <!-- Password Input -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="#FFFFFF">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
-                android:gravity="center_vertical">
+                android:focusable="true"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:background="@drawable/input_border_default">
 
                 <ImageView
                     android:layout_width="24dp"
@@ -99,24 +102,25 @@
                     android:inputType="textPassword"
                     android:textSize="16sp"
                     android:background="@android:color/transparent"/>
+                <ImageView
+                    android:id="@+id/ivTogglePassword"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center_vertical"
+                    android:src="@drawable/ic_password_eye_off"
+                    android:contentDescription="Toggle password visibility" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
         <!-- Confirm Password Input -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="#FFFFFF">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
-                android:gravity="center_vertical">
+                android:focusable="true"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:background="@drawable/input_border_default">
 
                 <ImageView
                     android:layout_width="24dp"
@@ -134,21 +138,31 @@
                     android:inputType="textPassword"
                     android:textSize="16sp"
                     android:background="@android:color/transparent"/>
+                <ImageView
+                    android:id="@+id/ivToggleConfirmPassword"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center_vertical"
+                    android:src="@drawable/ic_password_eye_off"
+                    android:contentDescription="Toggle password visibility" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
         <!-- Sign Up Button -->
         <Button
             android:id="@+id/btnSignUp"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Sign Up"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#FFFFFF"
-            android:background="@drawable/button_primary"
-            android:backgroundTint="#26E9D8"
-            android:layout_marginBottom="16dp"/>
+            android:backgroundTint="#00BFA5"
+            android:paddingStart="64dp"
+            android:paddingEnd="64dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="50dp"/>
 
         <!-- Progress Bar -->
         <ProgressBar
@@ -157,33 +171,47 @@
             android:layout_height="wrap_content"
             android:visibility="gone"
             android:layout_marginBottom="16dp"/>
-
-        <!-- Login Redirect -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Already have an account? "
-                android:textSize="14sp"
-                android:textColor="#757575"/>
-
-            <TextView
-                android:id="@+id/tvLoginRedirect"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Login"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="#26E9D8"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="4dp"/>
         </LinearLayout>
+    </ScrollView>
 
-    </LinearLayout>
-</ScrollView>
+
+
+        <!-- Bottom navbar Section with log-in -->
+        <RelativeLayout
+            android:id="@+id/bottomNavBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="0dp"
+            android:background="@drawable/curved_navbar">
+
+            <!-- Login Redirect -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:layout_marginTop="40dp"
+                android:gravity="center_horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Already have an account? "
+                    android:textColor="#000000"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tvLoginRedirect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="4dp"
+                    android:text="Login"
+                    android:textColor="#5046E5"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </RelativeLayout>
+
+</RelativeLayout>

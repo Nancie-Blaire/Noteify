@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:fillViewport="true">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp"
+            android:orientation="vertical">
+
+            <!-- Search Bar Container - Centered -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="25dp"
+                android:gravity="center_horizontal">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="2dp"
+                    app:strokeColor="#000000"
+                    app:strokeWidth="1.5dp"
+                    app:cardBackgroundColor="#FFFFFF">
+
+                <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <SearchView
+                            android:id="@+id/searchBar"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="16dp"
+                            android:textSize="14sp"
+                            android:inputType="text"
+                            android:foreground="@android:color/transparent"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Settings Title -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Settings"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#000000"
+                android:layout_marginStart="4dp"
+                android:layout_marginBottom="16dp"/>
+
+            <!-- First Row: Bin, Profile, Theme -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="8dp">
+
+                <!-- Bin Button -->
+                <LinearLayout
+                    android:id="@+id/btnBin"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="20dp"
+                    android:layout_margin="6dp"
+                    android:background="@drawable/settings_blue_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="71dp"
+                        android:layout_height="63dp"
+                        android:layout_marginBottom="8dp"
+                        android:src="@drawable/ic_settings_bin"
+                        app:tint="#FFFFFF" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:text="Bin"
+                        android:textColor="#333333"
+                        android:textSize="14sp"/>
+                </LinearLayout>
+
+                <!-- Profile Button -->
+                <LinearLayout
+                    android:id="@+id/userProfileIcon"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="20dp"
+                    android:layout_margin="6dp"
+                    android:background="@drawable/settings_blue_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="71dp"
+                        android:layout_height="63dp"
+                        android:src="@drawable/ic_settings_account"
+                        app:tint="#FFFFFF"
+                        android:layout_marginBottom="8dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:text="Profile"
+                        android:textColor="#333333"
+                        android:textSize="14sp"/>
+                </LinearLayout>
+
+                <!-- Theme Button -->
+                <LinearLayout
+                    android:id="@+id/btnTheme"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="20dp"
+                    android:layout_margin="6dp"
+                    android:background="@drawable/settings_blue_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="71dp"
+                        android:layout_height="63dp"
+                        android:src="@drawable/ic_settings_theme"
+                        app:tint="#FFFFFF"
+                        android:layout_marginBottom="8dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:text="Theme"
+                        android:textColor="#333333"
+                        android:textSize="14sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Second Row: Security (Centered) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="50dp">
+
+                <!-- Empty Space (Left) -->
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"/>
+
+                <!-- Security Button -->
+                <LinearLayout
+                    android:id="@+id/btnSecurity"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="20dp"
+                    android:layout_margin="6dp"
+                    android:background="@drawable/settings_blue_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="71dp"
+                        android:layout_height="63dp"
+                        android:layout_marginBottom="8dp"
+                        android:src="@drawable/ic_settings_security"
+                        app:tint="#FFFFFF" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:text="Security"
+                        android:textColor="#333333"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <!-- Empty Space (Right) -->
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"/>
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+</RelativeLayout>

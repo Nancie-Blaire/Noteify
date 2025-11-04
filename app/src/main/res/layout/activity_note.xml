@@ -102,7 +102,7 @@
                     android:id="@+id/addSubpageBtn"
                     android:layout_width="32dp"
                     android:layout_height="32dp"
-                    android:src="@drawable/add"
+                    android:src="@drawable/ic_add_fab"
                     android:padding="6dp"
                     android:background="@drawable/circle_bg"
                     android:contentDescription="Add Subpage" />

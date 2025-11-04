@@ -32,7 +32,6 @@ public class Account extends AppCompatActivity {
         btnLogout.setOnClickListener(v -> {
             FirebaseAuth.getInstance().signOut();
             Intent intent = new Intent(Account.this, Login.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
             finish(); // prevent going back to settings
         });

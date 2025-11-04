@@ -3,10 +3,10 @@
     <item
         android:id="@+id/menu_delete"
         android:title="Delete"
-        android:icon="@android:drawable/ic_menu_delete" />
+        android:icon="@drawable/ic_settings_bin"/>
 
     <item
         android:id="@+id/menu_lock"
         android:title="Lock"
-        android:icon="@android:drawable/ic_lock_lock" />
+        android:icon="@drawable/ic_settings_security" />
 </menu>

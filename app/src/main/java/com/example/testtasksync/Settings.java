@@ -1,40 +1,65 @@
 package com.example.testtasksync;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Button;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
-import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 
 import com.google.firebase.auth.FirebaseAuth;
 
-public class Settings extends AppCompatActivity {
+public class Settings extends Fragment {
 
-    Button btnLogout;
+    private LinearLayout userProfileIcon, btnTheme, btnSecutiy, btnBin;
+
+    @Nullable
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_settings);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_settings, container, false);
 
-        //LogOut Button
-        btnLogout = findViewById(R.id.btnLogout);
-        btnLogout.setOnClickListener(v -> {
-            FirebaseAuth.getInstance().signOut();
-            Intent intent = new Intent(Settings.this, Login.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish(); // prevent going back to settings
-        });
 
+        btnBin = view.findViewById(R.id.btnBin);
+        userProfileIcon = view.findViewById(R.id.userProfileIcon);
+        btnTheme = view.findViewById(R.id.btnTheme);
+        btnSecutiy = view.findViewById(R.id.btnSecurity);
+
+        // Bin action (example)
+        if (btnBin != null) {
+            btnBin.setOnClickListener(v -> {
+                // do bin action
+            });
+        }
+
+        // Profile -> open Account normally (NO flags)
+        if (userProfileIcon != null) {
+            userProfileIcon.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), Account.class);
+                startActivity(intent); 
+            });
+        }
+
+        // Theme action
+        if (btnTheme != null) {
+            btnTheme.setOnClickListener(v -> {
+                // toggle theme or open settings
+            });
+        }
+
+        // Security action
+        if (btnSecutiy != null) {
+            btnTheme.setOnClickListener(v -> {
+                // open security screen
+            });
+        }
+
+        return view;
     }
 }

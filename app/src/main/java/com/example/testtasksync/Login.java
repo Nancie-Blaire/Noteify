@@ -1,15 +1,22 @@
 package com.example.testtasksync;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.Log;
 import android.util.Patterns;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ScrollView;
+import android.text.method.PasswordTransformationMethod;
+import android.graphics.Rect;
+import android.view.WindowManager;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -21,10 +28,16 @@ public class Login extends AppCompatActivity {
     private static final String TAG = "Login";
 
     private EditText etEmail, etPassword;
+    private ImageView ivTogglePassword;
     private Button btnLogin;
     private TextView tvSignUpRedirect, tvForgotPassword;
     private ProgressBar progressBar;
     private FirebaseAuth auth;
+    private boolean isPasswordVisible = false;
+    private ScrollView scrollView;
+    private View emailContainer, passwordContainer;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,50 +47,142 @@ public class Login extends AppCompatActivity {
         // Initialize Firebase
         auth = FirebaseAuth.getInstance();
 
-        // Initialize views
+        //request adjustResize at runtime
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+        // Initialize views (defensive)
         etEmail = findViewById(R.id.etEmail);
         etPassword = findViewById(R.id.etPassword);
+        ivTogglePassword = findViewById(R.id.ivTogglePassword);
         btnLogin = findViewById(R.id.btnLogin);
         tvSignUpRedirect = findViewById(R.id.tvSignUpRedirect);
         tvForgotPassword = findViewById(R.id.tvForgotPassword);
         progressBar = findViewById(R.id.progressBar);
+        scrollView = findViewById(R.id.scrollView);
+
+        // Check for null references
+
+        if (etEmail == null || etPassword == null || btnLogin == null ||
+                tvSignUpRedirect == null || tvForgotPassword == null || progressBar == null) {
+            Log.e(TAG, "One or more view references are null. Check activity_login.xml IDs.");
+        }
+
+        // Safely get parent views (may be null)
+        final View emailContainer = (etEmail != null && etEmail.getParent() instanceof View) ? (View) etEmail.getParent() : null;
+        final View passwordContainer = (etPassword != null && etPassword.getParent() instanceof View) ? (View) etPassword.getParent() : null;
+
+        // Setup password toggle
+        if (ivTogglePassword != null && etPassword != null) {
+            ivTogglePassword.setOnClickListener(v -> togglePasswordVisibility());
+        }
+
+        // Setup focus listeners for Email (if container exists)
+        if (etEmail != null) {
+            etEmail.setOnFocusChangeListener((v, hasFocus) -> {
+                if (emailContainer != null) {
+                    scrollToView(v);
+                    emailContainer.setBackgroundResource(hasFocus ? R.drawable.input_border_focused : R.drawable.input_border_default);
+                }
+            });
+        }
+
+        // Setup focus listeners for Password (if container exists)
+        if (etPassword != null) {
+            etPassword.setOnFocusChangeListener((v, hasFocus) -> {
+                if (passwordContainer != null) {
+                    scrollToView(v);
+                    passwordContainer.setBackgroundResource(hasFocus ? R.drawable.input_border_focused : R.drawable.input_border_default);
+                }
+            });
+        }
 
         // Login button click
-        btnLogin.setOnClickListener(v -> {
-            String email = etEmail.getText().toString().trim();
-            String password = etPassword.getText().toString().trim();
+        if (btnLogin != null) {
+            btnLogin.setOnClickListener(v -> {
+                String email = etEmail != null ? etEmail.getText().toString().trim() : "";
+                String password = etPassword != null ? etPassword.getText().toString().trim() : "";
 
-            if (validateInput(email, password)) {
-                loginUser(email, password);
-            }
-        });
+                if (validateInput(email, password)) {
+                    loginUser(email, password);
+                }
+            });
+        }
 
         // Redirect to Sign Up
-        tvSignUpRedirect.setOnClickListener(v -> {
-            startActivity(new Intent(Login.this, SignUp.class));
-        });
+        if (tvSignUpRedirect != null) {
+            tvSignUpRedirect.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(Login.this, SignUp.class));
+                } catch (ActivityNotFoundException ex) {
+                    Log.e(TAG, "SignUp Activity not found: " + ex.getMessage(), ex);
+                    Toast.makeText(Login.this, "SignUp activity missing — check AndroidManifest", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
 
         // Forgot Password
-        tvForgotPassword.setOnClickListener(v -> {
-            String email = etEmail.getText().toString().trim();
+        if (tvForgotPassword != null) {
+            tvForgotPassword.setOnClickListener(v -> {
+                String email = etEmail != null ? etEmail.getText().toString().trim() : "";
 
-            if (email.isEmpty()) {
-                Toast.makeText(this, "Please enter your email first", Toast.LENGTH_SHORT).show();
-                etEmail.requestFocus();
-                return;
-            }
+                if (email.isEmpty()) {
+                    Toast.makeText(this, "Please enter your email first", Toast.LENGTH_SHORT).show();
+                    if (etEmail != null) etEmail.requestFocus();
+                    return;
+                }
 
-            if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show();
-                etEmail.requestFocus();
-                return;
-            }
+                if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                    Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show();
+                    if (etEmail != null) etEmail.requestFocus();
+                    return;
+                }
 
-            resetPassword(email);
+                resetPassword(email);
+            });
+        }
+    }
+
+    private void togglePasswordVisibility() {
+        if (etPassword == null || ivTogglePassword == null) return;
+
+        if (isPasswordVisible) {
+            // Hide password
+            etPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            ivTogglePassword.setImageResource(R.drawable.ic_password_eye_off);
+            isPasswordVisible = false;
+        } else {
+            // Show password
+            etPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+            ivTogglePassword.setImageResource(R.drawable.ic_password_eye_on);
+            isPasswordVisible = true;
+        }
+
+        // Move cursor to end of text
+        etPassword.setSelection(etPassword.getText().length());
+    }
+
+    private void scrollToView(View view) {
+        if (scrollView == null || view == null) return;
+
+        scrollView.post(() -> {
+            // Compute the rectangle of the view relative to the ScrollView
+            Rect rect = new Rect();
+            view.getDrawingRect(rect);
+            scrollView.offsetDescendantRectToMyCoords(view, rect);
+
+            // Optionally add a small offset so the field isn't flush to the keyboard
+            int extraOffset = 32; // px, adjust as needed
+            scrollView.smoothScrollTo(0, Math.max(0, rect.top - extraOffset));
         });
     }
 
+
     private boolean validateInput(String email, String password) {
+        if (etEmail == null || etPassword == null) {
+            Toast.makeText(this, "Unexpected error: views not initialized", Toast.LENGTH_LONG).show();
+            return false;
+        }
+
         if (email.isEmpty()) {
             etEmail.setError("Email is required");
             etEmail.requestFocus();
@@ -106,22 +211,34 @@ public class Login extends AppCompatActivity {
     }
 
     private void loginUser(String email, String password) {
-        progressBar.setVisibility(View.VISIBLE);
-        btnLogin.setEnabled(false);
+        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+        if (btnLogin != null) btnLogin.setEnabled(false);
+
+        if (auth == null) {
+            Toast.makeText(this, "Auth not initialized", Toast.LENGTH_LONG).show();
+            if (progressBar != null) progressBar.setVisibility(View.GONE);
+            if (btnLogin != null) btnLogin.setEnabled(true);
+            return;
+        }
 
         auth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnLogin.setEnabled(true);
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    if (btnLogin != null) btnLogin.setEnabled(true);
 
                     if (task.isSuccessful()) {
                         Toast.makeText(Login.this, "Login successful!", Toast.LENGTH_SHORT).show();
                         Log.d(TAG, "Login successful");
 
-                        // ✅ UPDATED: Always go to Notes after login
-                        // Security setup only happens when user clicks Lock button
-                        startActivity(new Intent(Login.this, Notes.class));
-                        finish();
+                        // Start MainActivity (Activity) — NOT a Fragment
+                        Intent intent = new Intent(Login.this, MainActivity.class);
+                        try {
+                            startActivity(intent);
+                            finish();
+                        } catch (ActivityNotFoundException ex) {
+                            Log.e(TAG, "MainActivity not found: " + ex.getMessage(), ex);
+                            Toast.makeText(Login.this, "MainActivity not found — check AndroidManifest", Toast.LENGTH_LONG).show();
+                        }
                     } else {
                         String errorMessage = task.getException() != null ?
                                 task.getException().getMessage() : "Login failed";
@@ -132,11 +249,16 @@ public class Login extends AppCompatActivity {
     }
 
     private void resetPassword(String email) {
-        progressBar.setVisibility(View.VISIBLE);
+        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+        if (auth == null) {
+            Toast.makeText(this, "Auth not initialized", Toast.LENGTH_LONG).show();
+            if (progressBar != null) progressBar.setVisibility(View.GONE);
+            return;
+        }
 
         auth.sendPasswordResetEmail(email)
                 .addOnCompleteListener(task -> {
-                    progressBar.setVisibility(View.GONE);
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
 
                     if (task.isSuccessful()) {
                         Toast.makeText(this, "Password reset email sent!", Toast.LENGTH_LONG).show();
@@ -154,11 +276,16 @@ public class Login extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         // Check if user is already logged in
-        FirebaseUser currentUser = auth.getCurrentUser();
+        FirebaseUser currentUser = auth != null ? auth.getCurrentUser() : null;
         if (currentUser != null) {
-            // ✅ UPDATED: Always go to Notes if already logged in
-            startActivity(new Intent(this, Notes.class));
-            finish();
+            Intent intent = new Intent(this, MainActivity.class);
+            try {
+                startActivity(intent);
+                finish();
+            } catch (ActivityNotFoundException ex) {
+                Log.e(TAG, "MainActivity not found onStart: " + ex.getMessage(), ex);
+                Toast.makeText(this, "MainActivity not found — check AndroidManifest", Toast.LENGTH_LONG).show();
+            }
         }
     }
 }

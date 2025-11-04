@@ -3,16 +3,19 @@ package com.example.testtasksync;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
-import android.widget.Toast;
 import android.widget.SearchView;
 
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -21,51 +24,52 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Notes extends AppCompatActivity {
+public class Notes extends Fragment {
 
-    private static final String TAG = "Notes";
+    private static final String TAG = "NotesFragment";
     private FirebaseAuth auth;
     private FirebaseFirestore db;
     private List<Note> noteList;
-    private List<Note> starredNoteList; // Changed from prioNoteList
+    private List<Note> starredNoteList;
     private NoteAdapter adapter;
-    private NoteAdapter starredAdapter; // Adapter for starred notes
-    private FloatingActionButton fabMain, fabNote, fabTodo, fabWeekly;
-    private boolean isFabMenuOpen = false;
+    private NoteAdapter starredAdapter;
 
     // RecyclerViews
     private RecyclerView prioNotesRecyclerView;
     private RecyclerView notesRecyclerView;
 
-    ImageView btnAccount;
-    //FOR BUTTONS NAV BAR
-    ImageView btnSettings;
-    ImageView btnCalendar;
-    ImageView btnNotifs;
-    SearchView searchView;
+    // UI Elements
+    private SearchView searchView;
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        // Inflate the notes layout
+        return inflater.inflate(R.layout.fragment_notes, container, false);
+    }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_notes);
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
 
-        Log.d(TAG, "onCreate started");
+        Log.d(TAG, "onViewCreated started");
 
-        // Initialize both RecyclerViews
-        prioNotesRecyclerView = findViewById(R.id.prioNotesRecyclerView);
-        notesRecyclerView = findViewById(R.id.notesRecyclerView);
+        // Initialize RecyclerViews
+        prioNotesRecyclerView = view.findViewById(R.id.prioNotesRecyclerView);
+        notesRecyclerView = view.findViewById(R.id.notesRecyclerView);
 
         // Set layout managers
-        prioNotesRecyclerView.setLayoutManager(new GridLayoutManager(this, 2));
-        notesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        prioNotesRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
+        notesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
+        // Initialize Firebase
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
         FirebaseUser user = auth.getCurrentUser();
 
-        // SEARCH BAR
-        searchView = findViewById(R.id.searchBar);
+        // Initialize search bar
+        searchView = view.findViewById(R.id.searchBar);
         searchView.clearFocus();
 
         searchView.setOnClickListener(v -> {
@@ -74,113 +78,32 @@ public class Notes extends AppCompatActivity {
             searchView.requestFocus();
         });
 
-
-
+        // Check if user is logged in
         if (user == null) {
-            startActivity(new Intent(this, Login.class));
-            finish();
+            startActivity(new Intent(getContext(), Login.class));
+            requireActivity().finish();
             return;
         }
 
+        // Initialize note lists
         noteList = new ArrayList<>();
         starredNoteList = new ArrayList<>();
 
         // Adapter for regular notes
         adapter = new NoteAdapter(noteList, note -> {
-            Intent intent = new Intent(Notes.this, NoteActivity.class);
+            Intent intent = new Intent(getContext(), NoteActivity.class);
             intent.putExtra("noteId", note.getId());
             startActivity(intent);
         });
 
         // Adapter for starred notes
         starredAdapter = new NoteAdapter(starredNoteList, note -> {
-            Intent intent = new Intent(Notes.this, NoteActivity.class);
+            Intent intent = new Intent(getContext(), NoteActivity.class);
             intent.putExtra("noteId", note.getId());
             startActivity(intent);
         }, true);
 
-        // Setup FAB functionality
-        fabMain = findViewById(R.id.fabMain);
-        fabNote = findViewById(R.id.fabNote);
-        fabTodo = findViewById(R.id.fabTodo);
-        fabWeekly = findViewById(R.id.fabWeekly);
-
-        Log.d(TAG, "FABs found: fabMain=" + (fabMain != null) +
-                ", fabNote=" + (fabNote != null) +
-                ", fabTodo=" + (fabTodo != null) +
-                ", fabWeekly=" + (fabWeekly != null));
-
-        if (fabMain == null || fabNote == null || fabTodo == null || fabWeekly == null) {
-            Toast.makeText(this, "ERROR: FABs not found!", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        // Ensure FABs start hidden
-        fabNote.hide();
-        fabTodo.hide();
-        fabWeekly.hide();
-
-        // Main FAB toggles the menu
-        fabMain.setOnClickListener(v -> {
-            Log.d(TAG, "FAB Main clicked! Current state: " + isFabMenuOpen);
-            Toast.makeText(this, "FAB clicked!", Toast.LENGTH_SHORT).show();
-            toggleFabMenu();
-        });
-
-        // Note FAB opens NoteActivity
-        fabNote.setOnClickListener(v -> {
-            Log.d(TAG, "FAB Note clicked");
-            Intent intent = new Intent(Notes.this, NoteActivity.class);
-            startActivity(intent);
-            toggleFabMenu();
-        });
-
-        // TO DO FAB DISABLED RN
-        fabTodo.setOnClickListener(v -> {
-            Log.d(TAG, "FAB Todo clicked");
-            Toast.makeText(this, "To-do coming soon!", Toast.LENGTH_SHORT).show();
-            toggleFabMenu();
-        });
-
-        // Weekly FAB (disabled for now)
-        fabWeekly.setOnClickListener(v -> {
-            Log.d(TAG, "FAB Weekly clicked");
-            Toast.makeText(this, "Weekly planner coming soon!", Toast.LENGTH_SHORT).show();
-            toggleFabMenu();
-        });
-
-        //Account button
-        btnAccount = findViewById(R.id.userProfileIcon);
-        btnAccount.setOnClickListener(v -> {
-            Log.d(TAG, "Account button clicked");
-            Intent intent = new Intent(Notes.this, Account.class);
-            startActivity(intent);
-        });
-
-        //NAV BAR BUTTONS
-        //Settings
-        btnSettings = findViewById(R.id.Settings);
-        btnSettings.setOnClickListener(v -> {
-            Log.d(TAG, "Settings button clicked");
-            Intent intent = new Intent(Notes.this, Settings.class);
-            startActivity(intent);
-        });
-
-        btnCalendar = findViewById(R.id.Calendar);
-        btnCalendar.setOnClickListener(v -> {
-            Log.d(TAG, "Calendar button clicked");
-            Intent intent = new Intent(Notes.this, Calendar.class);
-            startActivity(intent);
-        });
-
-        btnNotifs = findViewById(R.id.Notifs);
-        btnNotifs.setOnClickListener(v -> {
-            Log.d(TAG, "Notifications button clicked");
-            Intent intent = new Intent(Notes.this, Notifications.class);
-            startActivity(intent);
-        });
-
-        // Firebase listener code
+        // Firebase listener - load notes from Firestore
         if (user != null) {
             db.collection("users")
                     .document(user.getUid())
@@ -203,14 +126,14 @@ public class Notes extends AppCompatActivity {
                                         doc.getString("content")
                                 );
 
-                                // Get the starred state from Firebase
+                                // Get starred state from Firebase
                                 Boolean isStarred = doc.getBoolean("isStarred");
                                 if (isStarred != null && isStarred) {
                                     note.setStarred(true);
-                                    starredNoteList.add(note); // Add to starred list
+                                    starredNoteList.add(note);
                                 }
 
-                                // ✅ FIX: Get the locked state from Firebase
+                                // Get locked state from Firebase
                                 Boolean isLocked = doc.getBoolean("isLocked");
                                 if (isLocked != null && isLocked) {
                                     note.setLocked(true);
@@ -233,12 +156,10 @@ public class Notes extends AppCompatActivity {
     private void updateUI() {
         // Handle Starred/Prios Section
         if (starredNoteList.isEmpty()) {
-            // Show welcome card in prio section if no starred notes
             Log.d(TAG, "No starred notes - showing welcome card in prio section");
             defaultCardAdapter prioWelcomeAdapter = new defaultCardAdapter(true);
             prioNotesRecyclerView.setAdapter(prioWelcomeAdapter);
         } else {
-            // Show actual starred notes
             Log.d(TAG, "Starred notes found: " + starredNoteList.size());
             prioNotesRecyclerView.setAdapter(starredAdapter);
             starredAdapter.notifyDataSetChanged();
@@ -246,37 +167,13 @@ public class Notes extends AppCompatActivity {
 
         // Handle Recent Section
         if (noteList.isEmpty()) {
-            // Show welcome card in recent section if no regular notes
             Log.d(TAG, "No regular notes - showing welcome card in recent section");
             defaultCardAdapter recentWelcomeAdapter = new defaultCardAdapter(false);
             notesRecyclerView.setAdapter(recentWelcomeAdapter);
         } else {
-            // Show actual notes
             Log.d(TAG, "Regular notes found: " + noteList.size());
             notesRecyclerView.setAdapter(adapter);
             adapter.notifyDataSetChanged();
         }
     }
-
-    private void toggleFabMenu() {
-        Log.d(TAG, "toggleFabMenu called. isFabMenuOpen: " + isFabMenuOpen);
-
-        if (isFabMenuOpen) {
-            // Close menu
-            Log.d(TAG, "Closing FAB menu");
-            fabNote.hide();
-            fabTodo.hide();
-            fabWeekly.hide();
-        } else {
-            // Open menu
-            Log.d(TAG, "Opening FAB menu");
-            fabNote.show();
-            fabTodo.show();
-            fabWeekly.show();
-        }
-        isFabMenuOpen = !isFabMenuOpen;
-
-        Log.d(TAG, "FAB menu state after toggle: " + isFabMenuOpen);
-    }
-
 }

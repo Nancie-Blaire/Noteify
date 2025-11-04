@@ -3,14 +3,20 @@ package com.example.testtasksync;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.Log;
 import android.util.Patterns;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ScrollView;
+import android.text.method.PasswordTransformationMethod;
+import android.graphics.Rect;
+import android.view.WindowManager;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -25,11 +31,18 @@ public class SignUp extends AppCompatActivity {
 
     private static final String TAG = "SignUp";
     private EditText etEmail, etPassword, etConfirmPassword;
+    private ImageView ivTogglePassword, ivToggleConfirmPassword;
     private Button btnSignUp;
     private TextView tvLoginRedirect;
     private ProgressBar progressBar;
     private FirebaseAuth auth;
     private FirebaseFirestore db;
+    private boolean isPasswordVisible = false;
+    private boolean isConfirmPasswordVisible = false;
+    private ScrollView scrollView;
+
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,6 +53,10 @@ public class SignUp extends AppCompatActivity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
+        //request adjustResize at runtime
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+
         // Initialize views
         etEmail = findViewById(R.id.etEmail);
         etPassword = findViewById(R.id.etPassword);
@@ -47,6 +64,15 @@ public class SignUp extends AppCompatActivity {
         btnSignUp = findViewById(R.id.btnSignUp);
         tvLoginRedirect = findViewById(R.id.tvLoginRedirect);
         progressBar = findViewById(R.id.progressBar);
+        ivTogglePassword = findViewById(R.id.ivTogglePassword);
+        ivToggleConfirmPassword = findViewById(R.id.ivToggleConfirmPassword);
+        scrollView = findViewById(R.id.scrollView);
+
+
+        // Get parent LinearLayouts
+        View emailContainer = (View) etEmail.getParent();
+        View passwordContainer = (View) etPassword.getParent();
+        View confirmContainer = (View) etConfirmPassword.getParent();
 
         // Sign up button click
         btnSignUp.setOnClickListener(v -> {
@@ -64,7 +90,103 @@ public class SignUp extends AppCompatActivity {
             startActivity(new Intent(SignUp.this, Login.class));
             finish();
         });
+
+        // Setup password toggle
+        if (ivTogglePassword != null && etPassword != null) {
+            ivTogglePassword.setOnClickListener(v -> togglePasswordVisibility());
+        }
+
+        // Setup password toggle
+        if (ivToggleConfirmPassword != null && etConfirmPassword != null) {
+            ivToggleConfirmPassword.setOnClickListener(v -> toggleConfirmPasswordVisibility());
+        }
+
+        // Setup focus listeners for Email
+        etEmail.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                scrollToView(v);
+                emailContainer.setBackgroundResource(R.drawable.input_border_focused);
+            } else {
+                emailContainer.setBackgroundResource(R.drawable.input_border_default);
+            }
+        });
+
+
+        // Setup focus listeners for Password
+        etPassword.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                scrollToView(v);
+                passwordContainer.setBackgroundResource(R.drawable.input_border_focused);
+            } else {
+                passwordContainer.setBackgroundResource(R.drawable.input_border_default);
+            }
+        });
+
+        etConfirmPassword.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                scrollToView(v);
+                confirmContainer.setBackgroundResource(R.drawable.input_border_focused);
+            } else {
+                confirmContainer.setBackgroundResource(R.drawable.input_border_default);
+            }
+        });
     }
+
+    private void togglePasswordVisibility() {
+        if (etPassword == null || ivTogglePassword == null) return;
+
+        if (isPasswordVisible) {
+            // Hide password
+            etPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            ivTogglePassword.setImageResource(R.drawable.ic_password_eye_off);
+            isPasswordVisible = false;
+        } else {
+            // Show password
+            etPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+            ivTogglePassword.setImageResource(R.drawable.ic_password_eye_on);
+            isPasswordVisible = true;
+        }
+
+        // Move cursor to end of text
+        etPassword.setSelection(etPassword.getText().length());
+    }
+
+    private void toggleConfirmPasswordVisibility() {
+        if (etConfirmPassword == null || ivToggleConfirmPassword == null) return;
+
+        if (isConfirmPasswordVisible) {
+            // Hide confirm password
+            etConfirmPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            ivToggleConfirmPassword.setImageResource(R.drawable.ic_password_eye_off);
+            isConfirmPasswordVisible = false;
+        } else {
+            // Show confirm password
+            etConfirmPassword.setTransformationMethod(null);
+            etConfirmPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+            ivToggleConfirmPassword.setImageResource(R.drawable.ic_password_eye_on);
+            isConfirmPasswordVisible = true;
+        }
+
+        // Move cursor to end of text
+        etConfirmPassword.setSelection(etConfirmPassword.getText().length());
+    }
+
+
+    private void scrollToView(View view) {
+        if (scrollView == null || view == null) return;
+
+        scrollView.post(() -> {
+            // Compute the rectangle of the view relative to the ScrollView
+            Rect rect = new Rect();
+            view.getDrawingRect(rect);
+            scrollView.offsetDescendantRectToMyCoords(view, rect);
+
+            // Optionally add a small offset so the field isn't flush to the keyboard
+            int extraOffset = 32; // px, adjust as needed
+            scrollView.smoothScrollTo(0, Math.max(0, rect.top - extraOffset));
+        });
+    }
+
 
     private boolean validateInput(String email, String password, String confirmPassword) {
         if (email.isEmpty()) {
@@ -170,7 +292,7 @@ public class SignUp extends AppCompatActivity {
         FirebaseUser currentUser = auth.getCurrentUser();
         if (currentUser != null) {
             // ✅ Always go to Notes if already logged in
-            startActivity(new Intent(this, Notes.class));
+            startActivity(new Intent(this, MainActivity.class));
             finish();
         }
     }

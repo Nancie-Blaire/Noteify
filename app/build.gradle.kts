@@ -49,5 +49,6 @@ dependencies {
     implementation(libs.firebase.messaging)
     implementation(libs.work.runtime)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("com.google.android.material:material:1.12.0")
 
 }

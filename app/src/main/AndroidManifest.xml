@@ -27,9 +27,6 @@
             android:name=".Notifications"
             android:exported="false" />
         <activity
-            android:name=".Notifs"
-            android:exported="false" />
-        <activity
             android:name=".Calendar"
             android:exported="false" />
         <activity
@@ -49,6 +46,9 @@
             android:exported="false" />
         <activity
             android:name=".Notes"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity"
             android:exported="false" />
         <activity
             android:name=".Login"

@@ -1,5 +1,7 @@
 package com.example.testtasksync;
 
+
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
@@ -15,6 +17,8 @@ import android.widget.Toast;
 import android.widget.ScrollView;
 import android.graphics.Rect;
 import android.view.WindowManager;
+import com.example.testtasksync.R;
+
 
 import androidx.appcompat.app.AppCompatActivity;
 

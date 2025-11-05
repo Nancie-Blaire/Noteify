@@ -18,13 +18,15 @@ import android.graphics.Rect;
 import android.view.WindowManager;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.exceptions.GetCredentialException;
 
-import com.google.android.gms.auth.api.signin.GoogleSignIn;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-import com.google.android.gms.auth.api.signin.GoogleSignInClient;
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.common.api.ApiException;
-import com.google.android.gms.tasks.Task;
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -33,11 +35,12 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class Login extends AppCompatActivity {
 
     private static final String TAG = "Login";
-    private static final int RC_SIGN_IN = 9001;
 
     private EditText etEmail, etPassword;
     private ImageView ivTogglePassword;
@@ -46,7 +49,7 @@ public class Login extends AppCompatActivity {
     private ProgressBar progressBar;
     private FirebaseAuth auth;
     private FirebaseFirestore db;
-    private GoogleSignInClient mGoogleSignInClient;
+    private CredentialManager credentialManager;
     private boolean isPasswordVisible = false;
     private ScrollView scrollView;
 
@@ -59,12 +62,8 @@ public class Login extends AppCompatActivity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        // Configure Google Sign-In
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build();
-        mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
+        // Initialize Credential Manager
+        credentialManager = CredentialManager.create(this);
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
@@ -162,31 +161,67 @@ public class Login extends AppCompatActivity {
         }
     }
 
-    // Google Sign-In
+    // Google Sign-In using new Credential Manager API
     private void signInWithGoogle() {
-        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-        startActivityForResult(signInIntent, RC_SIGN_IN);
+        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+
+        // Configure Google ID option
+        GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
+                .setFilterByAuthorizedAccounts(false)
+                .setServerClientId("134011732367-cpsc0tjk4v70fqoqdm4h1so339a69c7n.apps.googleusercontent.com")
+                .build();
+
+        // Build credential request
+        GetCredentialRequest request = new GetCredentialRequest.Builder()
+                .addCredentialOption(googleIdOption)
+                .build();
+
+        // Create executor for callback
+        Executor executor = Executors.newSingleThreadExecutor();
+
+        // Request credentials
+        credentialManager.getCredentialAsync(
+                this,
+                request,
+                null,
+                executor,
+                new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                    @Override
+                    public void onResult(GetCredentialResponse result) {
+                        handleGoogleSignIn(result);
+                    }
+
+                    @Override
+                    public void onError(GetCredentialException e) {
+                        runOnUiThread(() -> {
+                            if (progressBar != null) progressBar.setVisibility(View.GONE);
+                            Log.e(TAG, "Google sign in failed", e);
+                            Toast.makeText(Login.this, "Google sign in failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                }
+        );
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+    private void handleGoogleSignIn(GetCredentialResponse result) {
+        try {
+            GoogleIdTokenCredential googleIdTokenCredential =
+                    GoogleIdTokenCredential.createFrom(result.getCredential().getData());
 
-        if (requestCode == RC_SIGN_IN) {
-            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-            try {
-                GoogleSignInAccount account = task.getResult(ApiException.class);
-                firebaseAuthWithGoogle(account.getIdToken());
-            } catch (ApiException e) {
-                Log.w(TAG, "Google sign in failed", e);
-                Toast.makeText(this, "Google sign in failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
+            String idToken = googleIdTokenCredential.getIdToken();
+            firebaseAuthWithGoogle(idToken);
+
+        } catch (Exception e) {
+            // Handles any parsing or unexpected errors
+            runOnUiThread(() -> {
+                if (progressBar != null) progressBar.setVisibility(View.GONE);
+                Log.e(TAG, "Failed to parse Google credentials", e);
+                Toast.makeText(Login.this, "Failed to parse Google credentials", Toast.LENGTH_SHORT).show();
+            });
         }
     }
 
     private void firebaseAuthWithGoogle(String idToken) {
-        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
-
         AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
         auth.signInWithCredential(credential)
                 .addOnCompleteListener(this, task -> {

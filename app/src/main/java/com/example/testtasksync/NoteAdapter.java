@@ -37,6 +37,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     private boolean isGridLayout;
     private static final String PREFS_NAME = "NoteSecurityPrefs";
     private static final String MASTER_PASSWORD_KEY = "master_password";
+    private static final String BIOMETRIC_ENABLED_KEY = "biometric_enabled";
     private static final String SECURITY_SETUP_COMPLETE = "security_setup_complete";
 
     public interface OnNoteClickListener {
@@ -87,7 +88,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
     public static class NoteViewHolder extends RecyclerView.ViewHolder {
         TextView noteTitle, noteContent;
-        ImageView starIcon, menuButton, lockIcon, LockIcon;
+        ImageView starIcon, menuButton, lockIcon;
 
         public NoteViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -103,31 +104,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                          NoteAdapter adapter) {
             noteTitle.setText(note.getTitle());
 
-            // Show lock icon if note is locked - ONLY for grid (Prios)
-            ImageView lockIcon = itemView.findViewById(R.id.lockIcon);
+            // Show lock icon if note is locked
             if (lockIcon != null) {
                 lockIcon.setVisibility(note.isLocked() ? View.VISIBLE : View.GONE);
             }
 
-            // Adjust title & content margin based on lock state - ONLY for list view (Recently Open)
-            if (!isGridLayout && lockIcon != null) {
-                ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) noteTitle.getLayoutParams();
-                if (note.isLocked()) {
-                    // Add space for lock icon
-                    params.setMarginStart((int) (32 * noteTitle.getContext().getResources().getDisplayMetrics().density)); // 32dp
-                    params.setMarginStart((int) (32 * noteContent.getContext().getResources().getDisplayMetrics().density));
-                } else {
-                    // Normal padding when not locked
-                    params.setMarginStart((int) (1 * noteTitle.getContext().getResources().getDisplayMetrics().density));
-                    params.setMarginStart((int) (1 * noteContent.getContext().getResources().getDisplayMetrics().density));// 1dp
-                }
-                noteTitle.setLayoutParams(params);
-                noteContent.setLayoutParams(params);
-            }
-
             // Show locked content differently
             if (note.isLocked()) {
-                noteContent.setText(" Locked");
+                noteContent.setText("Locked");
             } else {
                 noteContent.setText(note.getContent());
             }
@@ -160,38 +144,74 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             });
         }
 
-        // Helper method to get user-specific preference key
+        // ✅ Helper method to get user-specific preference key
         private String getUserKey(Context context, FirebaseAuth auth, String baseKey) {
             FirebaseUser user = auth.getCurrentUser();
             if (user != null) {
                 return user.getUid() + "_" + baseKey;
             }
-            return baseKey; // Fallback
+            return baseKey;
         }
 
-        private boolean isSecuritySetupComplete(Context context, FirebaseAuth auth) {
+        // ✅ UPDATED: Async security check with Firestore fallback
+        private void isSecuritySetupComplete(Context context, FirebaseAuth auth,
+                                             SecurityCheckCallback callback) {
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) {
                 Log.d("NoteAdapter", "No user logged in");
-                return false;
+                callback.onResult(false);
+                return;
             }
 
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String userKey = getUserKey(context, auth, SECURITY_SETUP_COMPLETE);
             String passwordKey = getUserKey(context, auth, MASTER_PASSWORD_KEY);
 
-            boolean setupComplete = prefs.getBoolean(userKey, false);
-            String masterPassword = prefs.getString(passwordKey, null);
+            boolean localSetup = prefs.getBoolean(userKey, false);
+            String localPassword = prefs.getString(passwordKey, null);
 
-            Log.d("NoteAdapter", "Security Check - User: " + user.getUid());
-            Log.d("NoteAdapter", "Setup Complete Key: " + userKey + " = " + setupComplete);
-            Log.d("NoteAdapter", "Password Key: " + passwordKey + " = " + (masterPassword != null ? "EXISTS" : "NULL"));
+            // ✅ Check local first (faster)
+            if (localSetup && localPassword != null && !localPassword.isEmpty()) {
+                Log.d("NoteAdapter", "✅ Security setup found locally");
+                callback.onResult(true);
+                return;
+            }
 
-            // Setup is complete only if BOTH flag is true AND password exists
-            boolean isComplete = setupComplete && masterPassword != null && !masterPassword.isEmpty();
-            Log.d("NoteAdapter", "Final Result: " + isComplete);
+            // ✅ If not local, check Firestore
+            Log.d("NoteAdapter", "Checking Firestore for security settings...");
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            db.collection("users")
+                    .document(user.getUid())
+                    .collection("security")
+                    .document("settings")
+                    .get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            String masterPassword = documentSnapshot.getString("masterPassword");
+                            Boolean setupComplete = documentSnapshot.getBoolean("securitySetupComplete");
 
-            return isComplete;
+                            if (masterPassword != null && setupComplete != null && setupComplete) {
+                                // ✅ Sync to local storage
+                                prefs.edit()
+                                        .putString(passwordKey, masterPassword)
+                                        .putBoolean(userKey, true)
+                                        .apply();
+
+                                Log.d("NoteAdapter", "✅ Security settings synced from Firestore");
+                                callback.onResult(true);
+                            } else {
+                                Log.d("NoteAdapter", "❌ Firestore data incomplete");
+                                callback.onResult(false);
+                            }
+                        } else {
+                            Log.d("NoteAdapter", "❌ No Firestore security data");
+                            callback.onResult(false);
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e("NoteAdapter", "Failed to check Firestore", e);
+                        callback.onResult(false);
+                    });
         }
 
         private void redirectToSecuritySetup(Context context) {
@@ -201,37 +221,60 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             context.startActivity(intent);
         }
 
-        private void authenticateAndOpen(Context context, Note note, OnNoteClickListener listener, FirebaseAuth auth) {
-            // Check if security setup is complete FOR THIS USER
-            if (!isSecuritySetupComplete(context, auth)) {
-                redirectToSecuritySetup(context);
-                return;
-            }
-
+        // ✅ NEW: Check if biometric should be used on THIS device
+        private boolean shouldUseBiometric(Context context, FirebaseAuth auth) {
+            // ✅ STEP 1: Check if user ENABLED biometric for THIS device in app
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), null);
+            String biometricKey = getUserKey(context, auth, BIOMETRIC_ENABLED_KEY);
+            boolean enabledInApp = prefs.getBoolean(biometricKey, false); // ✅ Default is FALSE
 
-            if (savedPassword == null) {
-                // This shouldn't happen if setup is complete, but just in case
-                redirectToSecuritySetup(context);
-                return;
+            if (!enabledInApp) {
+                Log.d("NoteAdapter", "❌ Biometric NOT enabled for this device - using password");
+                return false; // User hasn't enabled it yet = password only
             }
 
-            // Try biometric first
-            if (isBiometricAvailable(context)) {
-                showBiometricPrompt(context, note, listener, auth);
-            } else {
-                // Fallback to password
-                showPasswordDialog(context, note, listener, savedPassword);
-            }
-        }
-
-        private boolean isBiometricAvailable(Context context) {
+            // ✅ STEP 2: Check if device actually has enrolled fingerprints
             BiometricManager biometricManager = BiometricManager.from(context);
             int canAuthenticate = biometricManager.canAuthenticate(
-                    BiometricManager.Authenticators.BIOMETRIC_STRONG |
-                            BiometricManager.Authenticators.DEVICE_CREDENTIAL);
-            return canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS;
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG);
+
+            if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
+                Log.d("NoteAdapter", "❌ Device has no enrolled fingerprints - biometric status: " + canAuthenticate);
+                return false; // No fingerprints enrolled = password only
+            }
+
+            Log.d("NoteAdapter", "✅ Biometric enabled AND device has fingerprints - using biometric");
+            return true; // ✅ Both conditions met = use biometric
+        }
+
+        // ✅ UPDATED: Use async security check
+        private void authenticateAndOpen(Context context, Note note, OnNoteClickListener listener, FirebaseAuth auth) {
+            // Check if security setup is complete (now async)
+            isSecuritySetupComplete(context, auth, new SecurityCheckCallback() {
+                @Override
+                public void onResult(boolean isComplete) {
+                    if (!isComplete) {
+                        redirectToSecuritySetup(context);
+                        return;
+                    }
+
+                    SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                    String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), null);
+
+                    if (savedPassword == null) {
+                        redirectToSecuritySetup(context);
+                        return;
+                    }
+
+                    // ✅ UPDATED: Check if biometric is enabled for THIS device
+                    if (shouldUseBiometric(context, auth)) {
+                        showBiometricPrompt(context, note, listener, auth);
+                    } else {
+                        // Password only (biometric not enabled or no fingerprints)
+                        showPasswordDialog(context, note, listener, savedPassword);
+                    }
+                }
+            });
         }
 
         private void showBiometricPrompt(Context context, Note note, OnNoteClickListener listener, FirebaseAuth auth) {
@@ -263,7 +306,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         @Override
                         public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
                             super.onAuthenticationError(errorCode, errString);
-                            // Fallback to password
                             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                             String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), "");
                             showPasswordDialog(context, note, listener, savedPassword);
@@ -309,10 +351,9 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             PopupMenu popupMenu = new PopupMenu(view.getContext(), view);
             popupMenu.getMenuInflater().inflate(R.menu.note_menu, popupMenu.getMenu());
 
-            // Update lock menu item text based on current state
             android.view.MenuItem lockItem = popupMenu.getMenu().findItem(R.id.menu_lock);
             if (lockItem != null) {
-                lockItem.setTitle(note.isLocked() ? " Unlock" : " Lock");
+                lockItem.setTitle(note.isLocked() ? "🔓 Unlock" : "🔒 Lock");
             }
 
             popupMenu.setOnMenuItemClickListener(item -> {
@@ -331,7 +372,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             popupMenu.show();
         }
 
-        // ✅ IMPROVED: Lock with security check, Unlock requires authentication
+        // ✅ UPDATED: Use async security check for locking
         private void toggleLock(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
                                 List<Note> noteList, NoteAdapter adapter) {
             Context context = view.getContext();
@@ -345,18 +386,24 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
             // ✅ SCENARIO 1: User wants to LOCK a note
             if (newLockState) {
-                // Check if security is set up before allowing lock
-                if (!isSecuritySetupComplete(context, auth)) {
-                    redirectToSecuritySetup(context);
-                    return;
-                }
-                // Security is set up, proceed with locking
-                updateLockState(note, true, db, user, view, noteList, adapter);
+                isSecuritySetupComplete(context, auth, new SecurityCheckCallback() {
+                    @Override
+                    public void onResult(boolean isComplete) {
+                        if (!isComplete) {
+                            redirectToSecuritySetup(context);
+                        } else {
+                            updateLockState(note, true, db, user, view, noteList, adapter);
+                        }
+                    }
+                });
             }
             // ✅ SCENARIO 2: User wants to UNLOCK a note - NEED AUTH
             else {
-                authenticateToUnlock(context, auth, () -> {
-                    updateLockState(note, false, db, user, view, noteList, adapter);
+                authenticateToUnlock(context, auth, new Runnable() {
+                    @Override
+                    public void run() {
+                        updateLockState(note, false, db, user, view, noteList, adapter);
+                    }
                 });
             }
         }
@@ -365,7 +412,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), null);
 
-            // ✅ If no password setup (for old users), redirect to setup
             if (savedPassword == null || savedPassword.isEmpty()) {
                 Toast.makeText(context, "Please set up security first", Toast.LENGTH_LONG).show();
                 Intent intent = new Intent(context, BiometricSetupActivity.class);
@@ -374,11 +420,11 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 return;
             }
 
-            // Try biometric first if available
-            if (isBiometricAvailable(context) && context instanceof FragmentActivity) {
+            // ✅ UPDATED: Check if biometric is enabled for THIS device
+            if (shouldUseBiometric(context, auth) && context instanceof FragmentActivity) {
                 showBiometricPromptForUnlock(context, auth, onSuccess);
             } else {
-                // Fallback to password
+                // Password only (biometric not enabled or no fingerprints)
                 showPasswordDialogForUnlock(context, savedPassword, onSuccess);
             }
         }
@@ -412,7 +458,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         @Override
                         public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
                             super.onAuthenticationError(errorCode, errString);
-                            // Fallback to password
                             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                             String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), "");
                             showPasswordDialogForUnlock(context, savedPassword, onSuccess);
@@ -453,15 +498,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.show();
         }
 
-        // ✅ IMPROVED updateLockState with better error handling and UI feedback
         private void updateLockState(Note note, boolean newLockState, FirebaseFirestore db,
                                      FirebaseUser user, View view, List<Note> noteList,
                                      NoteAdapter adapter) {
-
-            // Disable interaction during update
             view.setEnabled(false);
-
-            // Show loading state
             Context context = view.getContext();
 
             db.collection("users")
@@ -470,30 +510,23 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     .document(note.getId())
                     .update("isLocked", newLockState)
                     .addOnSuccessListener(aVoid -> {
-                        // Update local note object
                         note.setLocked(newLockState);
 
-                        // Update the note in the list
                         int position = getAdapterPosition();
                         if (position != RecyclerView.NO_POSITION) {
                             noteList.set(position, note);
                             adapter.notifyItemChanged(position);
                         }
 
-                        // Re-enable interaction
                         view.setEnabled(true);
 
-                        // Show success message with emoji
                         String message = newLockState ? "Note locked 🔒" : "Note unlocked 🔓";
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
                         Log.d("NoteAdapter", "Lock state updated successfully for note: " + note.getId()
                                 + " to " + newLockState);
                     })
                     .addOnFailureListener(e -> {
-                        // Re-enable interaction
                         view.setEnabled(true);
-
-                        // Show error message
                         Log.e("NoteAdapter", "Failed to update lock state for note: " + note.getId(), e);
                         Toast.makeText(context, "✗ Failed to update lock state. Please try again.",
                                 Toast.LENGTH_SHORT).show();
@@ -507,7 +540,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 String userId = user.getUid();
                 String noteId = note.getId();
 
-                // First, delete all subpages (if they exist)
                 db.collection("users")
                         .document(userId)
                         .collection("notes")
@@ -515,21 +547,18 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         .collection("subpages")
                         .get()
                         .addOnSuccessListener(querySnapshot -> {
-                            // Delete each subpage
                             for (com.google.firebase.firestore.QueryDocumentSnapshot document : querySnapshot) {
                                 document.getReference().delete()
                                         .addOnFailureListener(e ->
                                                 Log.e("NoteAdapter", "Failed to delete subpage: " + document.getId(), e));
                             }
 
-                            // After deleting subpages, delete the main note document
                             db.collection("users")
                                     .document(userId)
                                     .collection("notes")
                                     .document(noteId)
                                     .delete()
                                     .addOnSuccessListener(aVoid -> {
-                                        // Remove from list and notify adapter
                                         int position = getAdapterPosition();
                                         if (position != RecyclerView.NO_POSITION) {
                                             noteList.remove(position);
@@ -548,7 +577,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         })
                         .addOnFailureListener(e -> {
                             Log.e("NoteAdapter", "Failed to fetch subpages", e);
-                            // Even if subpages fetch fails, try to delete the main note
                             db.collection("users")
                                     .document(userId)
                                     .collection("notes")

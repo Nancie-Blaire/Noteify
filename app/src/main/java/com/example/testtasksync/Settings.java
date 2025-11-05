@@ -55,8 +55,9 @@ public class Settings extends Fragment {
 
         // Security action
         if (btnSecutiy != null) {
-            btnTheme.setOnClickListener(v -> {
-                // open security screen
+            btnSecutiy.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), SecuritySettingsActivity.class);
+                startActivity(intent);
             });
         }
 

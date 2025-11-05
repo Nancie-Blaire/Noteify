@@ -47,73 +47,117 @@
                 android:text="Stay organized. Stay on time."
                 android:textSize="14sp"
                 android:textColor="#757575"
-                android:layout_marginBottom="40dp"/>
+                android:layout_marginBottom="32dp"/>
+
+            <!-- Google Sign-In Button -->
+            <Button
+                android:id="@+id/btnGoogleSignIn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Continue with Google"
+                android:textSize="16sp"
+                android:textColor="#757575"
+                android:textStyle="bold"
+                android:backgroundTint="#FFFFFF"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:drawableLeft="@drawable/ic_google"
+                android:drawablePadding="8dp"
+                android:gravity="center"
+                android:layout_marginBottom="16dp"/>
+
+            <!-- Divider -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#E0E0E0"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OR"
+                    android:textColor="#757575"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"/>
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#E0E0E0"/>
+            </LinearLayout>
 
             <!-- Email Input -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical"
+                android:background="@drawable/input_border_default">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_dialog_email"
+                    android:layout_marginEnd="12dp"
+                    android:tint="#999999"/>
+
+                <EditText
+                    android:id="@+id/etEmail"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="16dp"
-                    android:gravity="center_vertical"
-                    android:background="@drawable/input_border_default">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@android:drawable/ic_dialog_email"
-                        android:layout_marginEnd="12dp"
-                        android:tint="#999999"/>
-
-                    <EditText
-                        android:id="@+id/etEmail"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="Email"
-                        android:inputType="textEmailAddress"
-                        android:textSize="16sp"
-                        android:textColorHint="#CCCCCC"
-                        android:background="@android:color/transparent" />
-                </LinearLayout>
+                    android:layout_weight="1"
+                    android:hint="Email"
+                    android:inputType="textEmailAddress"
+                    android:textSize="16sp"
+                    android:textColorHint="#CCCCCC"
+                    android:background="@android:color/transparent" />
+            </LinearLayout>
 
             <!-- Password Input -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/input_border_default"
+                android:padding="16dp"
+                android:gravity="center_vertical"
+                android:layout_marginTop="12dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_lock_idle_lock"
+                    android:layout_marginEnd="12dp"
+                    app:tint="#999999"/>
+
+                <EditText
+                    android:id="@+id/etPassword"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/input_border_default"
-                    android:padding="16dp"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="12dp">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@android:drawable/ic_lock_idle_lock"
-                        android:layout_marginEnd="12dp"
-                        android:tint="#999999"/>
-
-                    <EditText
-                        android:id="@+id/etPassword"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="Password"
-                        android:inputType="textPassword"
-                        android:textSize="16sp"
-                        android:textColorHint="#CCCCCC"
-                        android:background="@android:color/transparent"/>
-                    <ImageView
-                        android:id="@+id/ivTogglePassword"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_gravity="center_vertical"
-                        android:src="@drawable/ic_password_eye_off"
-                        android:contentDescription="Toggle password visibility" />
-                </LinearLayout>
+                    android:layout_weight="1"
+                    android:hint="Password"
+                    android:inputType="textPassword"
+                    android:textSize="16sp"
+                    android:textColorHint="#CCCCCC"
+                    android:background="@android:color/transparent"/>
+                <ImageView
+                    android:id="@+id/ivTogglePassword"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center_vertical"
+                    android:src="@drawable/ic_password_eye_off"
+                    android:contentDescription="Toggle password visibility" />
+            </LinearLayout>
 
             <!-- Forgot Password -->
             <TextView
@@ -153,7 +197,7 @@
                 android:layout_height="wrap_content"
                 android:visibility="gone"/>
 
-           </LinearLayout>
+        </LinearLayout>
     </ScrollView>
 
     <!-- Bottom Wave Section with Sign Up -->

@@ -19,41 +19,115 @@
             android:gravity="center_horizontal"
             android:padding="32dp">
 
-        <!--logo-->
-        <ImageView
-            android:id="@+id/ivLogo"
-            android:layout_width="140dp"
-            android:layout_height="140dp"
-            android:layout_marginTop="40dp"
-            android:layout_marginBottom="10dp"
-            android:contentDescription="Noteify Logo"
-            android:src="@drawable/logo_noteify"/>
+            <!--logo-->
+            <ImageView
+                android:id="@+id/ivLogo"
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                android:layout_marginTop="40dp"
+                android:layout_marginBottom="10dp"
+                android:contentDescription="Noteify Logo"
+                android:src="@drawable/logo_noteify"/>
 
-        <!-- Logo or App Name -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="NOTEIFY"
-            android:textSize="32sp"
-            android:textStyle="bold"
-            android:textColor="#333333"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="8dp"/>
+            <!-- Logo or App Name -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NOTEIFY"
+                android:textSize="32sp"
+                android:textStyle="bold"
+                android:textColor="#333333"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="8dp"/>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Stay organized. Stay on time."
-            android:textSize="16sp"
-            android:textColor="#757575"
-            android:layout_marginBottom="40dp"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stay organized. Stay on time."
+                android:textSize="16sp"
+                android:textColor="#757575"
+                android:layout_marginBottom="32dp"/>
 
-        <!-- Email Input -->
+            <!-- Google Sign-In Button -->
+            <Button
+                android:id="@+id/btnGoogleSignIn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Continue with Google"
+                android:textSize="16sp"
+                android:textColor="#757575"
+                android:textStyle="bold"
+                android:backgroundTint="#FFFFFF"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:drawableLeft="@drawable/ic_google"
+                android:drawablePadding="8dp"
+                android:gravity="center"
+                android:layout_marginBottom="16dp"/>
+
+            <!-- Divider -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#E0E0E0"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OR"
+                    android:textColor="#757575"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"/>
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#E0E0E0"/>
+            </LinearLayout>
+
+            <!-- Full Name Input -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
+                android:gravity="center_vertical"
+                android:background="@drawable/input_border_default">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_edit"
+                    android:layout_marginEnd="12dp"
+                    app:tint="#757575"/>
+
+                <EditText
+                    android:id="@+id/etFullName"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Full Name"
+                    android:inputType="textPersonName"
+                    android:textSize="16sp"
+                    android:background="@android:color/transparent"/>
+            </LinearLayout>
+
+            <!-- Email Input -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:layout_marginTop="12dp"
                 android:gravity="center_vertical"
                 android:background="@drawable/input_border_default">
 
@@ -75,7 +149,7 @@
                     android:background="@android:color/transparent"/>
             </LinearLayout>
 
-        <!-- Password Input -->
+            <!-- Password Input -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -111,7 +185,7 @@
                     android:contentDescription="Toggle password visibility" />
             </LinearLayout>
 
-        <!-- Confirm Password Input -->
+            <!-- Confirm Password Input -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -147,71 +221,69 @@
                     android:contentDescription="Toggle password visibility" />
             </LinearLayout>
 
-        <!-- Sign Up Button -->
-        <Button
-            android:id="@+id/btnSignUp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Sign Up"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#00BFA5"
-            android:paddingStart="64dp"
-            android:paddingEnd="64dp"
-            android:paddingTop="14dp"
-            android:paddingBottom="14dp"
-            android:layout_marginTop="18dp"
-            android:layout_marginBottom="50dp"/>
+            <!-- Sign Up Button -->
+            <Button
+                android:id="@+id/btnSignUp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sign Up"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#00BFA5"
+                android:paddingStart="64dp"
+                android:paddingEnd="64dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="50dp"/>
 
-        <!-- Progress Bar -->
-        <ProgressBar
-            android:id="@+id/progressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            android:layout_marginBottom="16dp"/>
+            <!-- Progress Bar -->
+            <ProgressBar
+                android:id="@+id/progressBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginBottom="16dp"/>
         </LinearLayout>
     </ScrollView>
 
+    <!-- Bottom navbar Section with log-in -->
+    <RelativeLayout
+        android:id="@+id/bottomNavBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="0dp"
+        android:background="@drawable/curved_navbar">
 
-
-        <!-- Bottom navbar Section with log-in -->
-        <RelativeLayout
-            android:id="@+id/bottomNavBar"
-            android:layout_width="match_parent"
+        <!-- Login Redirect -->
+        <LinearLayout
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            android:layout_marginBottom="0dp"
-            android:background="@drawable/curved_navbar">
+            android:layout_centerInParent="true"
+            android:layout_marginTop="40dp"
+            android:gravity="center_horizontal">
 
-            <!-- Login Redirect -->
-            <LinearLayout
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                android:layout_marginTop="40dp"
-                android:gravity="center_horizontal">
+                android:text="Already have an account? "
+                android:textColor="#000000"
+                android:textSize="14sp" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Already have an account? "
-                    android:textColor="#000000"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/tvLoginRedirect"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:padding="4dp"
-                    android:text="Login"
-                    android:textColor="#5046E5"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </RelativeLayout>
+            <TextView
+                android:id="@+id/tvLoginRedirect"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="4dp"
+                android:text="Login"
+                android:textColor="#5046E5"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </RelativeLayout>
 
 </RelativeLayout>

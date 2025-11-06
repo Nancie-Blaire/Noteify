@@ -5,5 +5,16 @@
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
     </style>
 
-    <style name="Theme.TESTtaskSync" parent="Base.Theme.TESTtaskSync" />
+
+    <style name="Theme.TESTtaskSync" parent="Base.Theme.TESTtaskSync">
+        <!-- Add popup menu styling -->
+        <item name="popupMenuStyle">@style/CustomPopupMenu</item>
+        <item name="android:textAppearanceLargePopupMenu">@style/CustomMenuTextAppearance</item>
+        <item name="android:textAppearanceSmallPopupMenu">@style/CustomMenuTextAppearance</item>
+        <item name="android:listPreferredItemPaddingLeft">16dp</item>
+        <item name="android:listPreferredItemPaddingRight">16dp</item>
+        <item name="android:listPreferredItemPaddingStart">16dp</item>
+        <item name="android:listPreferredItemPaddingEnd">16dp</item>
+    </style>
+
 </resources>

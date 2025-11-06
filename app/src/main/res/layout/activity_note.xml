@@ -60,6 +60,16 @@
             android:padding="20dp"
             android:paddingBottom="80dp">
 
+            <!-- Icon -->
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/ic_fab_notes"
+                android:contentDescription="Todo icon"
+                android:layout_gravity="start"
+                android:layout_marginBottom="16dp"
+                android:tint="#000000" />
+
             <!-- Note Title -->
             <EditText
                 android:id="@+id/noteTitle"
@@ -79,14 +89,14 @@
                 android:id="@+id/noteContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="200dp"
-                android:hint="Start typing your note..."
-                android:gravity="top"
-                android:textSize="16sp"
-                android:inputType="textMultiLine"
                 android:background="@android:color/transparent"
+                android:gravity="top"
+                android:hint="Start typing your note..."
+                android:inputType="textMultiLine"
+                android:minHeight="200dp"
                 android:padding="8dp"
-                android:textColor="#333" />
+                android:textColor="#333"
+                android:textSize="16sp" />
 
             <!-- Add Subpage Button (inline after content) -->
             <LinearLayout

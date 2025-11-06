@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:gravity="center_vertical">
+
+    <CheckBox
+        android:id="@+id/todoCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:buttonTint="#000000" />
+
+    <EditText
+        android:id="@+id/todoEditText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:hint="To-do"
+        android:textColor="#808080"
+        android:textColorHint="#B0B0B0"
+        android:textSize="14sp"
+        android:background="@android:color/transparent"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:maxLines="3"
+        android:inputType="textCapSentences|textMultiLine" />
+
+    <ImageView
+        android:id="@+id/deleteTodoButton"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:contentDescription="Delete task"
+        android:visibility="gone"
+        android:layout_marginStart="8dp" />
+
+</LinearLayout>

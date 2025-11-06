@@ -253,17 +253,19 @@ public class MainActivity extends AppCompatActivity {
             closeFABMenu();
         });
 
-        // Todo FAB (disabled for now)
+        // TodoActivity FAB (disabled for now)
         fabTodo.setOnClickListener(v -> {
-            Log.d(TAG, "FAB Todo clicked");
-            Toast.makeText(this, "To-do coming soon!", Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "FAB clicked");
+            Intent intent = new Intent(MainActivity.this, TodoActivity.class);
+            startActivity(intent);
             closeFABMenu();
         });
 
         // Weekly FAB (disabled for now)
         fabWeekly.setOnClickListener(v -> {
             Log.d(TAG, "FAB Weekly clicked");
-            Toast.makeText(this, "Weekly planner coming soon!", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(MainActivity.this, WeeklyActivity.class);
+            startActivity(intent);
             closeFABMenu();
         });
     }

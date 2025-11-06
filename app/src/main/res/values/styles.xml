@@ -3,4 +3,19 @@
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>
     </style>
+
+    <style name="CustomPopupMenu" parent="Widget.MaterialComponents.PopupMenu">
+        <item name="android:popupBackground">@drawable/menu_popup_background</item>
+        <item name="android:dropDownVerticalOffset">8dp</item>
+        <item name="android:dropDownHorizontalOffset">-8dp</item>
+        <item name="android:popupElevation">8dp</item>
+    </style>
+
+    <!-- Menu Item Text Style -->
+    <style name="CustomMenuTextAppearance" parent="TextAppearance.MaterialComponents.Body1">
+        <item name="android:textColor">@color/menu_text_color</item>
+        <item name="android:textSize">15sp</item>
+        <item name="fontFamily">@font/inter_regular</item>
+        <item name="android:fontFamily">@font/inter_itallic</item>
+    </style>
 </resources>

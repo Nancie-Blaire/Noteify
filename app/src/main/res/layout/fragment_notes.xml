@@ -43,12 +43,11 @@
                     app:strokeWidth="1.5dp"
                     app:cardBackgroundColor="#FFFFFF">
 
-                <LinearLayout
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:orientation="horizontal"
                         android:gravity="center_vertical">
-
 
                         <SearchView
                             android:id="@+id/searchBar"
@@ -100,10 +99,99 @@
                 android:id="@+id/notesRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false" />
+                android:nestedScrollingEnabled="false"
+                android:layout_marginBottom="24dp" />
+
+            <!-- To-Do List Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:id="@+id/todoSectionTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="To-Do List"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#424242"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/viewAllTodo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="View All"
+                    android:textSize="13sp"
+                    android:textColor="#4CAF50"
+                    android:textStyle="bold"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <!-- To-Do RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/todoRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:padding="8dp"
+                android:elevation="2dp"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone" />
+
+            <!-- Weekly Plan Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:id="@+id/weeklyPlanTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Weekly Plan"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#424242"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/viewAllWeekly"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="View All"
+                    android:textSize="13sp"
+                    android:textColor="#4CAF50"
+                    android:textStyle="bold"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <!-- Weekly Plan RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/weeklyRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:padding="8dp"
+                android:elevation="2dp"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone" />
 
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
 
+    </androidx.core.widget.NestedScrollView>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

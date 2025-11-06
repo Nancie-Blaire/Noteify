@@ -57,6 +57,17 @@
             android:name=".MainActivity"
             android:exported="false" />
         <activity
+            android:name=".WeeklyActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".WeeklyTask"
+            android:exported="false" />
+        <activity
+            android:name=".TodoActivity"
+            android:exported="false"/>
+        <activity
             android:name=".Login"
             android:exported="true">
             <intent-filter>

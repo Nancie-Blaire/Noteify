@@ -2,4 +2,11 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+
+    <!-- Menu colors -->
+    <color name="menu_text_color">#333333</color>
+    <color name="menu_icon_tint">#546E7A</color>
+    <color name="menu_background">#FFFFFF</color>
+    <color name="menu_item_pressed">#E3F2FD</color>
 </resources>

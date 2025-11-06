@@ -13,6 +13,15 @@ import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.Toast;
 import android.widget.EditText;
+import android.view.MenuItem;
+import androidx.core.content.ContextCompat;
+
+
+import android.view.ContextThemeWrapper;
+import android.view.Gravity;
+import android.graphics.PorterDuff;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
@@ -348,17 +357,52 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
         private void showPopupMenu(View view, Note note, FirebaseFirestore db, FirebaseAuth auth,
                                    List<Note> noteList, NoteAdapter adapter) {
-            PopupMenu popupMenu = new PopupMenu(view.getContext(), view);
+            ContextThemeWrapper wrapper = new ContextThemeWrapper(view.getContext(), R.style.CustomPopupMenu);
+            PopupMenu popupMenu = new PopupMenu(wrapper, view, Gravity.END);
             popupMenu.getMenuInflater().inflate(R.menu.note_menu, popupMenu.getMenu());
 
-            android.view.MenuItem lockItem = popupMenu.getMenu().findItem(R.id.menu_lock);
-            if (lockItem != null) {
-                lockItem.setTitle(note.isLocked() ? "🔓 Unlock" : "🔒 Lock");
+            // Force show icons using reflection
+            try {
+                Field popup = PopupMenu.class.getDeclaredField("mPopup");
+                popup.setAccessible(true);
+                Object menuHelper = popup.get(popupMenu);
+                Method setForceShowIcon = menuHelper.getClass().getDeclaredMethod("setForceShowIcon", boolean.class);
+                setForceShowIcon.invoke(menuHelper, true);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
 
+            // Update lock/unlock item
+            MenuItem lockItem = popupMenu.getMenu().findItem(R.id.menu_lock);
+            if (lockItem != null) {
+                if (note.isLocked()) {
+                    lockItem.setTitle("Unlock");
+                    lockItem.setIcon(R.drawable.ic_privacy_unlock);
+                } else {
+                    lockItem.setTitle("Lock");
+                    lockItem.setIcon(R.drawable.ic_privacy_lock);
+                }
+
+                if (lockItem.getIcon() != null) {
+                    lockItem.getIcon().setColorFilter(
+                            ContextCompat.getColor(view.getContext(), R.color.menu_icon_tint),
+                            PorterDuff.Mode.SRC_IN
+                    );
+                }
+            }
+
+            // Update delete icon
+            MenuItem deleteItem = popupMenu.getMenu().findItem(R.id.menu_delete);
+            if (deleteItem != null && deleteItem.getIcon() != null) {
+                deleteItem.getIcon().setColorFilter(
+                        ContextCompat.getColor(view.getContext(), R.color.menu_icon_tint),
+                        PorterDuff.Mode.SRC_IN
+                );
+            }
+
+            // Handle menu actions
             popupMenu.setOnMenuItemClickListener(item -> {
                 int itemId = item.getItemId();
-
                 if (itemId == R.id.menu_delete) {
                     deleteNote(note, db, auth, view, noteList, adapter);
                     return true;
@@ -371,6 +415,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
             popupMenu.show();
         }
+
 
         // ✅ UPDATED: Use async security check for locking
         private void toggleLock(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,

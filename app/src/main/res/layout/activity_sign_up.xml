@@ -9,8 +9,7 @@
     <ScrollView
         android:id="@+id/scrollView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fillViewport="true">
+        android:layout_height="wrap_content">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -19,80 +18,37 @@
             android:gravity="center_horizontal"
             android:padding="32dp">
 
-            <!--logo-->
+            <!-- Logo -->
             <ImageView
                 android:id="@+id/ivLogo"
                 android:layout_width="140dp"
-                android:layout_height="140dp"
-                android:layout_marginTop="40dp"
+                android:layout_height="160dp"
                 android:layout_marginBottom="10dp"
                 android:contentDescription="Noteify Logo"
-                android:src="@drawable/logo_noteify"/>
+                android:src="@drawable/logo_noteify" />
 
-            <!-- Logo or App Name -->
+            <!-- App Name -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="NOTEIFY"
-                android:textSize="32sp"
+                android:fontFamily="@font/inter_regular"
+                android:letterSpacing=".3"
+                android:textSize="30sp"
                 android:textStyle="bold"
                 android:textColor="#333333"
                 android:layout_marginTop="20dp"
-                android:layout_marginBottom="8dp"/>
+                android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Stay organized. Stay on time."
-                android:textSize="16sp"
+                android:fontFamily="@font/inter_itallic"
+                android:letterSpacing=".1"
+                android:textSize="14sp"
                 android:textColor="#757575"
-                android:layout_marginBottom="32dp"/>
-
-            <!-- Google Sign-In Button -->
-            <Button
-                android:id="@+id/btnGoogleSignIn"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Continue with Google"
-                android:textSize="16sp"
-                android:textColor="#757575"
-                android:textStyle="bold"
-                android:backgroundTint="#FFFFFF"
-                android:paddingTop="14dp"
-                android:paddingBottom="14dp"
-                android:drawableLeft="@drawable/ic_google"
-                android:drawablePadding="8dp"
-                android:gravity="center"
-                android:layout_marginBottom="16dp"/>
-
-            <!-- Divider -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="16dp">
-
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1"
-                    android:background="#E0E0E0"/>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="OR"
-                    android:textColor="#757575"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"/>
-
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1"
-                    android:background="#E0E0E0"/>
-            </LinearLayout>
+                android:layout_marginBottom="32dp" />
 
             <!-- Full Name Input -->
             <LinearLayout
@@ -108,7 +64,7 @@
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_menu_edit"
                     android:layout_marginEnd="12dp"
-                    app:tint="#757575"/>
+                    app:tint="#757575" />
 
                 <EditText
                     android:id="@+id/etFullName"
@@ -118,10 +74,10 @@
                     android:hint="Full Name"
                     android:inputType="textPersonName"
                     android:textSize="16sp"
-                    android:background="@android:color/transparent"/>
+                    android:background="@android:color/transparent" />
             </LinearLayout>
 
-            <!-- Email Input -->
+            <!-- ✅ Email Input (kept hers) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -136,17 +92,19 @@
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_dialog_email"
                     android:layout_marginEnd="12dp"
-                    app:tint="#757575"/>
+                    app:tint="#757575" />
 
                 <EditText
                     android:id="@+id/etEmail"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:hint="Email"
+                    android:hint="Email Address"
+                    android:fontFamily="@font/inter_regular"
+                    android:letterSpacing="0.1"
                     android:inputType="textEmailAddress"
                     android:textSize="16sp"
-                    android:background="@android:color/transparent"/>
+                    android:background="@android:color/transparent" />
             </LinearLayout>
 
             <!-- Password Input -->
@@ -165,7 +123,7 @@
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_lock_idle_lock"
                     android:layout_marginEnd="12dp"
-                    app:tint="#757575"/>
+                    app:tint="#757575" />
 
                 <EditText
                     android:id="@+id/etPassword"
@@ -175,7 +133,8 @@
                     android:hint="Password"
                     android:inputType="textPassword"
                     android:textSize="16sp"
-                    android:background="@android:color/transparent"/>
+                    android:background="@android:color/transparent" />
+
                 <ImageView
                     android:id="@+id/ivTogglePassword"
                     android:layout_width="24dp"
@@ -201,7 +160,7 @@
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_lock_idle_lock"
                     android:layout_marginEnd="12dp"
-                    app:tint="#757575"/>
+                    app:tint="#757575" />
 
                 <EditText
                     android:id="@+id/etConfirmPassword"
@@ -211,7 +170,8 @@
                     android:hint="Confirm Password"
                     android:inputType="textPassword"
                     android:textSize="16sp"
-                    android:background="@android:color/transparent"/>
+                    android:background="@android:color/transparent" />
+
                 <ImageView
                     android:id="@+id/ivToggleConfirmPassword"
                     android:layout_width="24dp"
@@ -224,19 +184,67 @@
             <!-- Sign Up Button -->
             <Button
                 android:id="@+id/btnSignUp"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Sign Up"
-                android:textSize="16sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFF"
+                android:fontFamily="@font/inter_regular"
+                android:letterSpacing=".1"
                 android:backgroundTint="#00BFA5"
                 android:paddingStart="64dp"
                 android:paddingEnd="64dp"
                 android:paddingTop="14dp"
                 android:paddingBottom="14dp"
-                android:layout_marginTop="18dp"
-                android:layout_marginBottom="50dp"/>
+                android:layout_marginTop="30dp"
+                android:layout_marginBottom="10dp"/>
+
+            <!-- Divider -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#E0E0E0" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OR"
+                    android:textColor="#757575"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#E0E0E0" />
+            </LinearLayout>
+
+            <!-- 🟢 Google Sign-In (moved here) -->
+            <Button
+                android:id="@+id/btnGoogleSignIn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Continue with Google"
+                android:textSize="16sp"
+                android:textColor="#757575"
+                android:textStyle="bold"
+                android:backgroundTint="#FFFFFF"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:drawableLeft="@drawable/ic_google"
+                android:drawablePadding="8dp"
+                android:gravity="center"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="50dp" />
 
             <!-- Progress Bar -->
             <ProgressBar
@@ -244,7 +252,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                android:layout_marginBottom="16dp"/>
+                android:layout_marginBottom="16dp" />
         </LinearLayout>
     </ScrollView>
 
@@ -254,10 +262,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_marginBottom="0dp"
         android:background="@drawable/curved_navbar">
 
-        <!-- Login Redirect -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -269,6 +275,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Already have an account? "
+                android:fontFamily="@font/inter_regular"
                 android:textColor="#000000"
                 android:textSize="14sp" />
 
@@ -279,11 +286,12 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:padding="4dp"
-                android:text="Login"
-                android:textColor="#5046E5"
+                android:text="@string/underlined_text_login"
+                android:fontFamily="@font/inter_regular"
+                android:letterSpacing=".2"
+                android:textColor="#000000"
                 android:textSize="14sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </RelativeLayout>
-
 </RelativeLayout>

@@ -29,6 +29,8 @@ firebase-firestore = { module = "com.google.firebase:firebase-firestore", versio
 firebase-messaging = { module = "com.google.firebase:firebase-messaging", version = "24.0.0" }
 work-runtime = { module = "androidx.work:work-runtime", version = "2.9.0" }
 
+material-calendar = { module = "com.google.android.material:material", version = "1.11.0" }
+joda-time = { module = "joda-time:joda-time", version = "2.12.5" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

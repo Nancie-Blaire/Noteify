@@ -9,4 +9,9 @@
     <color name="menu_icon_tint">#546E7A</color>
     <color name="menu_background">#FFFFFF</color>
     <color name="menu_item_pressed">#E3F2FD</color>
+    <color name="holiday_banner">#FFEBEE</color>
+    <color name="holiday_text">#C62828</color>
+    <color name="border_color">#E0E0E0</color>
+    <color name="red">#F44336</color>
+    <color name="primary_color">#36F4E4</color>
 </resources>

@@ -1,5 +1,6 @@
 package com.example.testtasksync;
 
+import android.app.DatePickerDialog;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -10,19 +11,24 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class TodoActivity extends AppCompatActivity {
@@ -36,8 +42,12 @@ public class TodoActivity extends AppCompatActivity {
     private EditText todoTitle;
     private ImageView saveButton, backButton;
     private LinearLayout tasksContainer, addTaskButton;
+    private LinearLayout dueDateSection;
+    private TextView dueDateText;
+    private ImageView clearDateButton;
 
     private List<TodoTask> taskList = new ArrayList<>();
+    private Calendar dueDate = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,11 +68,18 @@ public class TodoActivity extends AppCompatActivity {
         backButton = findViewById(R.id.backButton);
         tasksContainer = findViewById(R.id.tasksContainer);
         addTaskButton = findViewById(R.id.addTaskButton);
+        dueDateSection = findViewById(R.id.dueDateSection);
+        dueDateText = findViewById(R.id.dueDateText);
+        clearDateButton = findViewById(R.id.clearDateButton);
 
         // Set up buttons
         saveButton.setOnClickListener(v -> saveTodoList());
         backButton.setOnClickListener(v -> finish());
         addTaskButton.setOnClickListener(v -> addTask());
+
+        // Set up due date picker
+        dueDateSection.setOnClickListener(v -> showDatePicker());
+        clearDateButton.setOnClickListener(v -> clearDueDate());
 
         // Load existing list or add default tasks
         if (isNewList) {
@@ -72,6 +89,40 @@ public class TodoActivity extends AppCompatActivity {
         } else {
             loadTodoList();
         }
+    }
+
+    private void showDatePicker() {
+        Calendar calendar = dueDate != null ? dueDate : Calendar.getInstance();
+
+        DatePickerDialog datePickerDialog = new DatePickerDialog(
+                this,
+                (view, year, month, dayOfMonth) -> {
+                    dueDate = Calendar.getInstance();
+                    dueDate.set(year, month, dayOfMonth);
+                    updateDueDateDisplay();
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+        );
+
+        datePickerDialog.show();
+    }
+
+    private void updateDueDateDisplay() {
+        if (dueDate != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+            dueDateText.setText("Due: " + sdf.format(dueDate.getTime()));
+            clearDateButton.setVisibility(View.VISIBLE);
+        } else {
+            dueDateText.setText("Set due date (optional)");
+            clearDateButton.setVisibility(View.GONE);
+        }
+    }
+
+    private void clearDueDate() {
+        dueDate = null;
+        updateDueDateDisplay();
     }
 
     private void loadTodoList() {
@@ -93,6 +144,14 @@ public class TodoActivity extends AppCompatActivity {
                         String title = documentSnapshot.getString("title");
                         if (title != null && !title.isEmpty()) {
                             todoTitle.setText(title);
+                        }
+
+                        // Load due date if exists
+                        Timestamp dueDateTimestamp = documentSnapshot.getTimestamp("dueDate");
+                        if (dueDateTimestamp != null) {
+                            dueDate = Calendar.getInstance();
+                            dueDate.setTime(dueDateTimestamp.toDate());
+                            updateDueDateDisplay();
                         }
                     }
 
@@ -256,6 +315,13 @@ public class TodoActivity extends AppCompatActivity {
         listData.put("taskCount", totalTasks);
         listData.put("completedCount", completedTasks);
 
+        // Add due date if set
+        if (dueDate != null) {
+            listData.put("dueDate", new Timestamp(dueDate.getTime()));
+        } else {
+            listData.put("dueDate", null);
+        }
+
         // Generate new ID if this is a new list
         if (isNewList) {
             listId = db.collection("users")
@@ -266,6 +332,8 @@ public class TodoActivity extends AppCompatActivity {
 
         final String finalTitle = title;
         final String finalListId = listId;
+        final int finalTotalTasks = totalTasks;
+        final int finalCompletedTasks = completedTasks;
 
         db.collection("users")
                 .document(user.getUid())
@@ -274,7 +342,7 @@ public class TodoActivity extends AppCompatActivity {
                 .set(listData)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "Todo list saved successfully");
-                    saveTasks(user.getUid(), finalListId);
+                    saveTasks(user.getUid(), finalListId, finalTitle, finalTotalTasks, finalCompletedTasks);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to save todo list", e);
@@ -282,7 +350,7 @@ public class TodoActivity extends AppCompatActivity {
                 });
     }
 
-    private void saveTasks(String userId, String listId) {
+    private void saveTasks(String userId, String listId, String listTitle, int totalTasks, int completedTasks) {
         // First, delete all existing tasks
         db.collection("users")
                 .document(userId)
@@ -304,8 +372,13 @@ public class TodoActivity extends AppCompatActivity {
                     }
 
                     if (tasksToSave == 0) {
-                        Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
-                        finish();
+                        // Create calendar schedule if due date is set
+                        if (dueDate != null) {
+                            createScheduleFromTodo(userId, listId, listTitle, totalTasks, completedTasks);
+                        } else {
+                            Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
+                            finish();
+                        }
                         return;
                     }
 
@@ -327,8 +400,13 @@ public class TodoActivity extends AppCompatActivity {
                                     .addOnSuccessListener(documentReference -> {
                                         savedCount[0]++;
                                         if (savedCount[0] == finalTasksToSave) {
-                                            Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
-                                            finish();
+                                            // Create calendar schedule if due date is set
+                                            if (dueDate != null) {
+                                                createScheduleFromTodo(userId, listId, listTitle, totalTasks, completedTasks);
+                                            } else {
+                                                Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
+                                                finish();
+                                            }
                                         }
                                     })
                                     .addOnFailureListener(e -> {
@@ -340,6 +418,80 @@ public class TodoActivity extends AppCompatActivity {
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to delete old tasks", e);
                     Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void createScheduleFromTodo(String userId, String listId, String listTitle,
+                                        int totalTasks, int completedTasks) {
+        if (dueDate == null) {
+            Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+
+        // Create schedule data
+        Map<String, Object> scheduleData = new HashMap<>();
+        scheduleData.put("title", listTitle);
+        scheduleData.put("description", totalTasks + " tasks (" + completedTasks + " completed)");
+        scheduleData.put("date", new Timestamp(dueDate.getTime()));
+        scheduleData.put("time", ""); // All day event
+        scheduleData.put("category", "todo");
+        scheduleData.put("isCompleted", completedTasks == totalTasks && totalTasks > 0);
+        scheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        scheduleData.put("sourceId", listId);
+        scheduleData.put("hasReminder", true);
+        scheduleData.put("reminderMinutes", 60); // 1 hour before
+
+        // Check if schedule already exists for this todo list
+        db.collection("users")
+                .document(userId)
+                .collection("schedules")
+                .whereEqualTo("sourceId", listId)
+                .whereEqualTo("category", "todo")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        // Update existing schedule
+                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                        db.collection("users")
+                                .document(userId)
+                                .collection("schedules")
+                                .document(scheduleId)
+                                .update(scheduleData)
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "Schedule updated for todo list");
+                                    Toast.makeText(this, "✓ To-Do list and schedule saved",
+                                            Toast.LENGTH_SHORT).show();
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to update schedule", e);
+                                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                });
+                    } else {
+                        // Create new schedule
+                        db.collection("users")
+                                .document(userId)
+                                .collection("schedules")
+                                .add(scheduleData)
+                                .addOnSuccessListener(documentReference -> {
+                                    Log.d(TAG, "Schedule created for todo list");
+                                    Toast.makeText(this, "✓ To-Do list and schedule saved",
+                                            Toast.LENGTH_SHORT).show();
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to create schedule", e);
+                                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                });
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to check existing schedule", e);
+                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
+                    finish();
                 });
     }
 }

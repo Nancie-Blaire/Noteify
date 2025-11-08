@@ -8,12 +8,10 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
-import android.widget.LinearLayout;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
-import androidx.core.content.ContextCompat;
 
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -95,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
         Calendar.setOnClickListener(v -> {
             Log.d(TAG, "Calendar icon clicked");
             closeFABMenu(); // Close FAB menu when navigating
-            loadFragment(new Calendar());
+            loadFragment(new CalendarFragment());
             updateSelectedIcon(Calendar);
             selectedNavId = R.id.Calendar;
         });
@@ -168,7 +166,7 @@ public class MainActivity extends AppCompatActivity {
         Fragment fragment;
 
         if (selectedNavId == R.id.Calendar) {
-            fragment = new Calendar();
+            fragment = new CalendarFragment();
             selectedIcon = Calendar;
         } else if (selectedNavId == R.id.Notifs) {
             fragment = new Notifications();

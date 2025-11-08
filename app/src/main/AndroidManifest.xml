@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -11,6 +13,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.TESTtaskSync">
+        <activity
+            android:name=".CalendarFragment"
+            android:exported="false" />
         <activity
             android:name=".EditProfileActivity"
             android:exported="false" />
@@ -31,9 +36,6 @@
             android:exported="false" />
         <activity
             android:name=".Notifications"
-            android:exported="false" />
-        <activity
-            android:name=".Calendar"
             android:exported="false" />
         <activity
             android:name=".Schedule"
@@ -60,13 +62,12 @@
             android:name=".WeeklyActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
-
         <activity
             android:name=".WeeklyTask"
             android:exported="false" />
         <activity
             android:name=".TodoActivity"
-            android:exported="false"/>
+            android:exported="false" />
         <activity
             android:name=".Login"
             android:exported="true">

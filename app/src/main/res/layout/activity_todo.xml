@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     android:background="#F5F5F5">
 
@@ -22,7 +23,7 @@
             android:layout_height="40dp"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             android:contentDescription="Back"
-            android:tint="#000000"
+            app:tint="#000000"
             android:padding="8dp"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
@@ -63,7 +64,7 @@
                 android:contentDescription="Todo icon"
                 android:layout_gravity="start"
                 android:layout_marginBottom="16dp"
-                android:tint="#000000" />
+                app:tint="#000000" />
 
             <!-- Title -->
             <EditText
@@ -78,7 +79,44 @@
                 android:inputType="textCapWords"
                 android:maxLines="2"
                 android:layout_marginBottom="32dp" />
+            <LinearLayout
+                android:id="@+id/dueDateSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/input_background"
+                android:padding="16dp"
+                android:layout_margin="16dp"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true">
 
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_star"
+                    android:layout_marginEnd="12dp"
+                    app:tint="@color/primary_color"/>
+
+                <TextView
+                    android:id="@+id/dueDateText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Set due date (optional)"
+                    android:textSize="16sp"
+                    android:textColor="@color/red"/>
+
+                <ImageView
+                    android:id="@+id/clearDateButton"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_star"
+                    android:visibility="gone"
+                    android:clickable="true"
+                    android:padding="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"/>
+            </LinearLayout>
             <!-- Tasks Container -->
             <LinearLayout
                 android:id="@+id/tasksContainer"

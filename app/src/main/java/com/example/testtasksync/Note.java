@@ -10,8 +10,9 @@ public class Note {
     private boolean isPrio;
     private boolean isStarred;
     private boolean isLocked;  // Add this field for lock feature
-    private List<String> subpageIds; // Optional: to track subpage IDs
+    private List<String> subpageIds;// Optional: to track subpage IDs
 
+    private long timestamp;
     // Empty constructor for Firestore
     public Note() {
         this.subpageIds = new ArrayList<>();
@@ -63,5 +64,13 @@ public class Note {
 
     public boolean hasSubpages() {
         return subpageIds != null && !subpageIds.isEmpty();
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
     }
 }

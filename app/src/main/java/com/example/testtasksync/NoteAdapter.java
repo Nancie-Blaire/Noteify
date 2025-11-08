@@ -153,7 +153,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             });
         }
 
-        // ✅ Helper method to get user-specific preference key
+        // Ã¢Å“â€¦ Helper method to get user-specific preference key
         private String getUserKey(Context context, FirebaseAuth auth, String baseKey) {
             FirebaseUser user = auth.getCurrentUser();
             if (user != null) {
@@ -162,7 +162,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             return baseKey;
         }
 
-        // ✅ UPDATED: Async security check with Firestore fallback
+        // Ã¢Å“â€¦ UPDATED: Async security check with Firestore fallback
         private void isSecuritySetupComplete(Context context, FirebaseAuth auth,
                                              SecurityCheckCallback callback) {
             FirebaseUser user = auth.getCurrentUser();
@@ -179,14 +179,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             boolean localSetup = prefs.getBoolean(userKey, false);
             String localPassword = prefs.getString(passwordKey, null);
 
-            // ✅ Check local first (faster)
+            // Ã¢Å“â€¦ Check local first (faster)
             if (localSetup && localPassword != null && !localPassword.isEmpty()) {
-                Log.d("NoteAdapter", "✅ Security setup found locally");
+                Log.d("NoteAdapter", "Ã¢Å“â€¦ Security setup found locally");
                 callback.onResult(true);
                 return;
             }
 
-            // ✅ If not local, check Firestore
+            // Ã¢Å“â€¦ If not local, check Firestore
             Log.d("NoteAdapter", "Checking Firestore for security settings...");
             FirebaseFirestore db = FirebaseFirestore.getInstance();
             db.collection("users")
@@ -200,20 +200,20 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                             Boolean setupComplete = documentSnapshot.getBoolean("securitySetupComplete");
 
                             if (masterPassword != null && setupComplete != null && setupComplete) {
-                                // ✅ Sync to local storage
+                                // Ã¢Å“â€¦ Sync to local storage
                                 prefs.edit()
                                         .putString(passwordKey, masterPassword)
                                         .putBoolean(userKey, true)
                                         .apply();
 
-                                Log.d("NoteAdapter", "✅ Security settings synced from Firestore");
+                                Log.d("NoteAdapter", "Ã¢Å“â€¦ Security settings synced from Firestore");
                                 callback.onResult(true);
                             } else {
-                                Log.d("NoteAdapter", "❌ Firestore data incomplete");
+                                Log.d("NoteAdapter", "Ã¢ÂÅ’ Firestore data incomplete");
                                 callback.onResult(false);
                             }
                         } else {
-                            Log.d("NoteAdapter", "❌ No Firestore security data");
+                            Log.d("NoteAdapter", "Ã¢ÂÅ’ No Firestore security data");
                             callback.onResult(false);
                         }
                     })
@@ -230,33 +230,33 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             context.startActivity(intent);
         }
 
-        // ✅ NEW: Check if biometric should be used on THIS device
+        // Ã¢Å“â€¦ NEW: Check if biometric should be used on THIS device
         private boolean shouldUseBiometric(Context context, FirebaseAuth auth) {
-            // ✅ STEP 1: Check if user ENABLED biometric for THIS device in app
+            // Ã¢Å“â€¦ STEP 1: Check if user ENABLED biometric for THIS device in app
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String biometricKey = getUserKey(context, auth, BIOMETRIC_ENABLED_KEY);
-            boolean enabledInApp = prefs.getBoolean(biometricKey, false); // ✅ Default is FALSE
+            boolean enabledInApp = prefs.getBoolean(biometricKey, false); // Ã¢Å“â€¦ Default is FALSE
 
             if (!enabledInApp) {
-                Log.d("NoteAdapter", "❌ Biometric NOT enabled for this device - using password");
+                Log.d("NoteAdapter", "Ã¢ÂÅ’ Biometric NOT enabled for this device - using password");
                 return false; // User hasn't enabled it yet = password only
             }
 
-            // ✅ STEP 2: Check if device actually has enrolled fingerprints
+            // Ã¢Å“â€¦ STEP 2: Check if device actually has enrolled fingerprints
             BiometricManager biometricManager = BiometricManager.from(context);
             int canAuthenticate = biometricManager.canAuthenticate(
                     BiometricManager.Authenticators.BIOMETRIC_STRONG);
 
             if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
-                Log.d("NoteAdapter", "❌ Device has no enrolled fingerprints - biometric status: " + canAuthenticate);
+                Log.d("NoteAdapter", "Ã¢ÂÅ’ Device has no enrolled fingerprints - biometric status: " + canAuthenticate);
                 return false; // No fingerprints enrolled = password only
             }
 
-            Log.d("NoteAdapter", "✅ Biometric enabled AND device has fingerprints - using biometric");
-            return true; // ✅ Both conditions met = use biometric
+            Log.d("NoteAdapter", "Ã¢Å“â€¦ Biometric enabled AND device has fingerprints - using biometric");
+            return true; // Ã¢Å“â€¦ Both conditions met = use biometric
         }
 
-        // ✅ UPDATED: Use async security check
+        // Ã¢Å“â€¦ UPDATED: Use async security check
         private void authenticateAndOpen(Context context, Note note, OnNoteClickListener listener, FirebaseAuth auth) {
             // Check if security setup is complete (now async)
             isSecuritySetupComplete(context, auth, new SecurityCheckCallback() {
@@ -275,7 +275,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         return;
                     }
 
-                    // ✅ UPDATED: Check if biometric is enabled for THIS device
+                    // Ã¢Å“â€¦ UPDATED: Check if biometric is enabled for THIS device
                     if (shouldUseBiometric(context, auth)) {
                         showBiometricPrompt(context, note, listener, auth);
                     } else {
@@ -302,14 +302,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         @Override
                         public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                             super.onAuthenticationSucceeded(result);
-                            Toast.makeText(context, "✓ Authentication successful", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "Ã¢Å“â€œ Authentication successful", Toast.LENGTH_SHORT).show();
                             listener.onNoteClick(note);
                         }
 
                         @Override
                         public void onAuthenticationFailed() {
                             super.onAuthenticationFailed();
-                            Toast.makeText(context, "✗ Authentication failed", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "Ã¢Å“â€” Authentication failed", Toast.LENGTH_SHORT).show();
                         }
 
                         @Override
@@ -322,7 +322,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     });
 
             BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("🔓 Unlock Note")
+                    .setTitle("Ã°Å¸â€â€œ Unlock Note")
                     .setSubtitle("Use your fingerprint to access this locked note")
                     .setNegativeButtonText("Use Password")
                     .build();
@@ -333,7 +333,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         private void showPasswordDialog(Context context, Note note, OnNoteClickListener listener,
                                         String savedPassword) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
-            builder.setTitle("🔐 Enter Master Password");
+            builder.setTitle("Ã°Å¸â€Â Enter Master Password");
 
             final EditText input = new EditText(context);
             input.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
@@ -344,10 +344,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.setPositiveButton("Unlock", (dialog, which) -> {
                 String enteredPassword = input.getText().toString();
                 if (enteredPassword.equals(savedPassword)) {
-                    Toast.makeText(context, "✓ Unlocked!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "Ã¢Å“â€œ Unlocked!", Toast.LENGTH_SHORT).show();
                     listener.onNoteClick(note);
                 } else {
-                    Toast.makeText(context, "✗ Incorrect password", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "Ã¢Å“â€” Incorrect password", Toast.LENGTH_SHORT).show();
                 }
             });
 
@@ -417,7 +417,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         }
 
 
-        // ✅ UPDATED: Use async security check for locking
+        // Ã¢Å“â€¦ UPDATED: Use async security check for locking
         private void toggleLock(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
                                 List<Note> noteList, NoteAdapter adapter) {
             Context context = view.getContext();
@@ -429,7 +429,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
             boolean newLockState = !note.isLocked();
 
-            // ✅ SCENARIO 1: User wants to LOCK a note
+            // Ã¢Å“â€¦ SCENARIO 1: User wants to LOCK a note
             if (newLockState) {
                 isSecuritySetupComplete(context, auth, new SecurityCheckCallback() {
                     @Override
@@ -442,7 +442,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     }
                 });
             }
-            // ✅ SCENARIO 2: User wants to UNLOCK a note - NEED AUTH
+            // Ã¢Å“â€¦ SCENARIO 2: User wants to UNLOCK a note - NEED AUTH
             else {
                 authenticateToUnlock(context, auth, new Runnable() {
                     @Override
@@ -465,7 +465,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 return;
             }
 
-            // ✅ UPDATED: Check if biometric is enabled for THIS device
+            // Ã¢Å“â€¦ UPDATED: Check if biometric is enabled for THIS device
             if (shouldUseBiometric(context, auth) && context instanceof FragmentActivity) {
                 showBiometricPromptForUnlock(context, auth, onSuccess);
             } else {
@@ -490,14 +490,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         @Override
                         public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                             super.onAuthenticationSucceeded(result);
-                            Toast.makeText(context, "✓ Authentication successful", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "Ã¢Å“â€œ Authentication successful", Toast.LENGTH_SHORT).show();
                             onSuccess.run();
                         }
 
                         @Override
                         public void onAuthenticationFailed() {
                             super.onAuthenticationFailed();
-                            Toast.makeText(context, "✗ Authentication failed", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "Ã¢Å“â€” Authentication failed", Toast.LENGTH_SHORT).show();
                         }
 
                         @Override
@@ -510,7 +510,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     });
 
             BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("🔓 Authenticate to Unlock")
+                    .setTitle("Ã°Å¸â€â€œ Authenticate to Unlock")
                     .setSubtitle("Verify your identity to unlock this note")
                     .setNegativeButtonText("Use Password")
                     .build();
@@ -520,7 +520,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
         private void showPasswordDialogForUnlock(Context context, String savedPassword, Runnable onSuccess) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
-            builder.setTitle("🔐 Verify Master Password");
+            builder.setTitle("Ã°Å¸â€Â Verify Master Password");
             builder.setMessage("Enter your master password to unlock this note");
 
             final EditText input = new EditText(context);
@@ -532,10 +532,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.setPositiveButton("Unlock", (dialog, which) -> {
                 String enteredPassword = input.getText().toString();
                 if (enteredPassword.equals(savedPassword)) {
-                    Toast.makeText(context, "✓ Verified!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "Ã¢Å“â€œ Verified!", Toast.LENGTH_SHORT).show();
                     onSuccess.run();
                 } else {
-                    Toast.makeText(context, "✗ Incorrect password", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "Ã¢Å“â€” Incorrect password", Toast.LENGTH_SHORT).show();
                 }
             });
 
@@ -565,7 +565,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
                         view.setEnabled(true);
 
-                        String message = newLockState ? "Note locked 🔒" : "Note unlocked 🔓";
+                        String message = newLockState ? "Note locked Ã°Å¸â€â€™" : "Note unlocked Ã°Å¸â€â€œ";
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
                         Log.d("NoteAdapter", "Lock state updated successfully for note: " + note.getId()
                                 + " to " + newLockState);
@@ -573,7 +573,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     .addOnFailureListener(e -> {
                         view.setEnabled(true);
                         Log.e("NoteAdapter", "Failed to update lock state for note: " + note.getId(), e);
-                        Toast.makeText(context, "✗ Failed to update lock state. Please try again.",
+                        Toast.makeText(context, "Ã¢Å“â€” Failed to update lock state. Please try again.",
                                 Toast.LENGTH_SHORT).show();
                     });
         }
@@ -611,12 +611,12 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                                         }
 
                                         Log.d("NoteAdapter", "Note and all subpages deleted successfully");
-                                        Toast.makeText(view.getContext(), "✓ Note deleted",
+                                        Toast.makeText(view.getContext(), "Ã¢Å“â€œ Note deleted",
                                                 Toast.LENGTH_SHORT).show();
                                     })
                                     .addOnFailureListener(e -> {
                                         Log.e("NoteAdapter", "Failed to delete note", e);
-                                        Toast.makeText(view.getContext(), "✗ Failed to delete note",
+                                        Toast.makeText(view.getContext(), "Ã¢Å“â€” Failed to delete note",
                                                 Toast.LENGTH_SHORT).show();
                                     });
                         })
@@ -633,11 +633,11 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                                             noteList.remove(position);
                                             adapter.notifyItemRemoved(position);
                                         }
-                                        Toast.makeText(view.getContext(), "✓ Note deleted",
+                                        Toast.makeText(view.getContext(), "Ã¢Å“â€œ Note deleted",
                                                 Toast.LENGTH_SHORT).show();
                                     })
                                     .addOnFailureListener(deleteError -> {
-                                        Toast.makeText(view.getContext(), "✗ Failed to delete note",
+                                        Toast.makeText(view.getContext(), "Ã¢Å“â€” Failed to delete note",
                                                 Toast.LENGTH_SHORT).show();
                                     });
                         });

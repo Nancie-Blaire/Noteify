@@ -14,6 +14,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -22,6 +23,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -320,6 +322,8 @@ public class WeeklyActivity extends AppCompatActivity {
 
         final String finalTitle = title;
         final String finalPlanId = planId;
+        final int finalTotalTasks = totalTasks;
+        final int finalCompletedTasks = completedTasks;
 
         db.collection("users")
                 .document(user.getUid())
@@ -328,7 +332,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 .set(planData)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "Weekly plan saved successfully");
-                    saveTasks(user.getUid(), finalPlanId);
+                    saveTasks(user.getUid(), finalPlanId, finalTitle, finalTotalTasks, finalCompletedTasks);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to save weekly plan", e);
@@ -336,7 +340,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 });
     }
 
-    private void saveTasks(String userId, String planId) {
+    private void saveTasks(String userId, String planId, String planTitle, int totalTasks, int completedTasks) {
         // First, delete all existing tasks
         db.collection("users")
                 .document(userId)
@@ -363,8 +367,8 @@ public class WeeklyActivity extends AppCompatActivity {
                     }
 
                     if (tasksToSave == 0) {
-                        Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
-                        finish();
+                        // Create calendar schedules even if no tasks
+                        createSchedulesFromWeeklyPlan(userId, planId, planTitle, totalTasks, completedTasks);
                         return;
                     }
 
@@ -390,8 +394,9 @@ public class WeeklyActivity extends AppCompatActivity {
                                             .addOnSuccessListener(documentReference -> {
                                                 savedCount[0]++;
                                                 if (savedCount[0] == finalTasksToSave) {
-                                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                                    finish();
+                                                    // Create calendar schedules after all tasks saved
+                                                    createSchedulesFromWeeklyPlan(userId, planId, planTitle,
+                                                            totalTasks, completedTasks);
                                                 }
                                             })
                                             .addOnFailureListener(e -> {
@@ -406,5 +411,145 @@ public class WeeklyActivity extends AppCompatActivity {
                     Log.e(TAG, "Failed to delete old tasks", e);
                     Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
                 });
+    }
+
+    private void createSchedulesFromWeeklyPlan(String userId, String planId, String planTitle,
+                                               int totalTasks, int completedTasks) {
+        // Get current week's calendar
+        Calendar calendar = Calendar.getInstance();
+        int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+
+        // Calculate start of current week (Monday)
+        int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
+        calendar.add(Calendar.DAY_OF_MONTH, -daysToMonday);
+
+        // First, delete existing schedules for this weekly plan
+        db.collection("users")
+                .document(userId)
+                .collection("schedules")
+                .whereEqualTo("sourceId", planId)
+                .whereEqualTo("category", "weekly")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    // Delete old schedules
+                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                        doc.getReference().delete();
+                    }
+
+                    // Create new schedules for each day with tasks
+                    int schedulesToCreate = 0;
+                    for (String day : days) {
+                        List<WeeklyTask> tasks = dayTasks.get(day);
+                        if (tasks != null && !tasks.isEmpty()) {
+                            int nonEmptyTasks = 0;
+                            int completedTasksForDay = 0;
+
+                            for (WeeklyTask task : tasks) {
+                                if (!task.getTaskText().trim().isEmpty()) {
+                                    nonEmptyTasks++;
+                                    if (task.isCompleted()) {
+                                        completedTasksForDay++;
+                                    }
+                                }
+                            }
+
+                            if (nonEmptyTasks > 0) {
+                                schedulesToCreate++;
+                            }
+                        }
+                    }
+
+                    if (schedulesToCreate == 0) {
+                        Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                        finish();
+                        return;
+                    }
+
+                    final int[] createdCount = {0};
+                    Calendar dayCalendar = (Calendar) calendar.clone();
+
+                    for (String day : days) {
+                        List<WeeklyTask> tasks = dayTasks.get(day);
+                        if (tasks != null && !tasks.isEmpty()) {
+                            int nonEmptyTasks = 0;
+                            int completedTasksForDay = 0;
+
+                            for (WeeklyTask task : tasks) {
+                                if (!task.getTaskText().trim().isEmpty()) {
+                                    nonEmptyTasks++;
+                                    if (task.isCompleted()) {
+                                        completedTasksForDay++;
+                                    }
+                                }
+                            }
+
+                            if (nonEmptyTasks > 0) {
+                                // Create schedule for this day
+                                Map<String, Object> scheduleData = new HashMap<>();
+                                scheduleData.put("title", planTitle + " - " + day);
+                                scheduleData.put("description", nonEmptyTasks + " tasks (" +
+                                        completedTasksForDay + " completed)");
+                                scheduleData.put("date", new Timestamp(dayCalendar.getTime()));
+                                scheduleData.put("time", ""); // All day
+                                scheduleData.put("category", "weekly");
+                                scheduleData.put("isCompleted", completedTasksForDay == nonEmptyTasks);
+                                scheduleData.put("createdAt",
+                                        com.google.firebase.firestore.FieldValue.serverTimestamp());
+                                scheduleData.put("sourceId", planId);
+                                scheduleData.put("hasReminder", true);
+                                scheduleData.put("reminderMinutes", 30); // 30 minutes before
+
+                                int finalSchedulesToCreate = schedulesToCreate;
+                                db.collection("users")
+                                        .document(userId)
+                                        .collection("schedules")
+                                        .add(scheduleData)
+                                        .addOnSuccessListener(documentReference -> {
+                                            createdCount[0]++;
+                                            Log.d(TAG, "Schedule created for " + day);
+
+                                            if (createdCount[0] == finalSchedulesToCreate) {
+                                                Toast.makeText(this,
+                                                        "✓ Weekly plan and schedules saved",
+                                                        Toast.LENGTH_SHORT).show();
+                                                finish();
+                                            }
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.e(TAG, "Failed to create schedule for " + day, e);
+                                            createdCount[0]++;
+
+                                            if (createdCount[0] == finalSchedulesToCreate) {
+                                                Toast.makeText(this,
+                                                        "✓ Weekly plan saved (some schedules failed)",
+                                                        Toast.LENGTH_SHORT).show();
+                                                finish();
+                                            }
+                                        });
+                            }
+                        }
+
+                        // Move to next day
+                        dayCalendar.add(Calendar.DAY_OF_MONTH, 1);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to delete old schedules", e);
+                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+    }
+
+    private int getDayOfWeekNumber(String day) {
+        switch (day) {
+            case "Sun": return Calendar.SUNDAY;
+            case "Mon": return Calendar.MONDAY;
+            case "Tues": return Calendar.TUESDAY;
+            case "Wed": return Calendar.WEDNESDAY;
+            case "Thur": return Calendar.THURSDAY;
+            case "Fri": return Calendar.FRIDAY;
+            case "Sat": return Calendar.SATURDAY;
+            default: return Calendar.MONDAY;
+        }
     }
 }

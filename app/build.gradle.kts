@@ -61,4 +61,8 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 
+    //time
+    implementation(libs.material.calendar)
+    implementation(libs.joda.time)
+
 }

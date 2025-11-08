@@ -33,6 +33,17 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
+        <!-- Color Palette Button -->
+        <ImageView
+            android:id="@+id/colorPaletteBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_feature_palette"
+            android:contentDescription="Change Color"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="#757575" />
+
         <ImageView
             android:id="@+id/checkBtn"
             android:layout_width="48dp"
@@ -44,6 +55,138 @@
             app:tint="#4CAF50" />
 
     </LinearLayout>
+
+    <!-- Color Picker Panel (Initially Hidden) -->
+    <HorizontalScrollView
+        android:id="@+id/colorPickerPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/topBar"
+        android:background="#FFFFFF"
+        android:elevation="4dp"
+        android:padding="12dp"
+        android:visibility="gone"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- Default/White -->
+            <View
+                android:id="@+id/colorDefault"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#FAFAFA"
+                android:tag="#FAFAFA" />
+
+            <!-- Red -->
+            <View
+                android:id="@+id/colorRed"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#FFCDD2"
+                android:tag="#FFCDD2" />
+
+            <!-- Pink -->
+            <View
+                android:id="@+id/colorPink"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#F8BBD0"
+                android:tag="#F8BBD0" />
+
+            <!-- Purple -->
+            <View
+                android:id="@+id/colorPurple"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#E1BEE7"
+                android:tag="#E1BEE7" />
+
+            <!-- Blue -->
+            <View
+                android:id="@+id/colorBlue"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#BBDEFB"
+                android:tag="#BBDEFB" />
+
+            <!-- Cyan -->
+            <View
+                android:id="@+id/colorCyan"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#B2EBF2"
+                android:tag="#B2EBF2" />
+
+            <!-- Green -->
+            <View
+                android:id="@+id/colorGreen"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#C8E6C9"
+                android:tag="#C8E6C9" />
+
+            <!-- Yellow -->
+            <View
+                android:id="@+id/colorYellow"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#FFF9C4"
+                android:tag="#FFF9C4" />
+
+            <!-- Orange -->
+            <View
+                android:id="@+id/colorOrange"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#FFE0B2"
+                android:tag="#FFE0B2" />
+
+            <!-- Brown -->
+            <View
+                android:id="@+id/colorBrown"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#D7CCC8"
+                android:tag="#D7CCC8" />
+
+            <!-- Grey -->
+            <View
+                android:id="@+id/colorGrey"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="6dp"
+                android:background="@drawable/themes_circle_bg"
+                android:backgroundTint="#CFD8DC"
+                android:tag="#CFD8DC" />
+
+        </LinearLayout>
+
+    </HorizontalScrollView>
 
     <!-- Scrollable Content Area -->
     <ScrollView
@@ -98,7 +241,7 @@
                 android:textColor="#333"
                 android:textSize="16sp" />
 
-            <!-- Add Subpage Button (inline after content) -->
+            <!-- Add Subpage Button -->
             <LinearLayout
                 android:id="@+id/addSubpageContainer"
                 android:layout_width="match_parent"
@@ -112,7 +255,7 @@
                     android:id="@+id/addSubpageBtn"
                     android:layout_width="32dp"
                     android:layout_height="32dp"
-                    android:src="@drawable/ic_add_fab"
+                    android:src="@drawable/ic_fab_add"
                     android:padding="6dp"
                     android:background="@drawable/circle_bg"
                     android:contentDescription="Add Subpage" />
@@ -135,7 +278,6 @@
                 android:orientation="vertical"
                 android:layout_marginTop="8dp">
 
-                <!-- Subpages List -->
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/subpagesRecyclerView"
                     android:layout_width="match_parent"

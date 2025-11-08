@@ -8,12 +8,10 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
-import android.widget.LinearLayout;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
-import androidx.core.content.ContextCompat;
 
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -294,7 +292,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Change main FAB to red with minus icon
         fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FF5757"))); // Red
-        fabMain.setImageResource(R.drawable.ic_remove_fab); // Change to minus icon
+        fabMain.setImageResource(R.drawable.ic_fab_remove); // Change to minus icon
 
         // Optional: Rotate icon for smooth transition
         fabMain.animate().rotation(180f).setDuration(200).start();
@@ -325,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Change main FAB back to cyan with plus icon
         fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#26E9D8"))); // Cyan
-        fabMain.setImageResource(R.drawable.ic_add_fab); // Change back to plus icon
+        fabMain.setImageResource(R.drawable.ic_fab_add); // Change back to plus icon
 
         // Optional: Reset rotation
         fabMain.animate().rotation(0f).setDuration(200).start();

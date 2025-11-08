@@ -33,7 +33,7 @@
             android:layout_gravity="bottom|center_horizontal"
             android:layout_marginBottom="55dp"
             android:contentDescription="Add Note"
-            android:src="@drawable/ic_add_fab"
+            android:src="@drawable/ic_fab_add"
             app:backgroundTint="#26E9D8"
             app:tint="#FFFFFF"
             app:shapeAppearanceOverlay="@style/CircleFAB"

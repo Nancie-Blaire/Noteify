@@ -1,11 +1,14 @@
 package com.example.testtasksync;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -27,12 +30,18 @@ public class NoteActivity extends AppCompatActivity {
     private EditText noteTitle, noteContent;
     private ImageView checkBtn, backBtn, addSubpageBtn;
     private LinearLayout addSubpageContainer;
+    private RelativeLayout noteLayout;
+    private View colorPickerPanel;
+    private ImageView colorPaletteBtn;
+    private String currentColor = "#FAFAFA"; // Default color
     private RecyclerView subpagesRecyclerView;
     private SubpageAdapter subpageAdapter;
     private FirebaseFirestore db;
     private FirebaseAuth auth;
     private String noteId = null;
     private boolean hasSubpages = false; // Track if note has subpages
+    private String currentNoteColor = "#FAFAFA";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +51,9 @@ public class NoteActivity extends AppCompatActivity {
         // Initialize views
         noteTitle = findViewById(R.id.noteTitle);
         noteContent = findViewById(R.id.noteContent);
+        noteLayout = findViewById(R.id.noteLayout);
+        colorPickerPanel = findViewById(R.id.colorPickerPanel);
+        colorPaletteBtn = findViewById(R.id.colorPaletteBtn);
         checkBtn = findViewById(R.id.checkBtn);
         backBtn = findViewById(R.id.backBtn);
         addSubpageBtn = findViewById(R.id.addSubpageBtn);
@@ -51,6 +63,11 @@ public class NoteActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
         noteId = getIntent().getStringExtra("noteId");
+
+        loadNoteColor();
+        colorPaletteBtn.setOnClickListener(v -> toggleColorPicker());
+        setupColorPicker();
+
 
         // If new note, generate noteId in advance
         if (noteId == null) {
@@ -215,5 +232,61 @@ public class NoteActivity extends AppCompatActivity {
                 .collection("notes")
                 .document(noteId)
                 .set(noteData);
+    }
+
+    private void toggleColorPicker() {
+        if (colorPickerPanel.getVisibility() == View.VISIBLE) {
+            colorPickerPanel.setVisibility(View.GONE);
+        } else {
+            colorPickerPanel.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void setupColorPicker() {
+        int[] colorViewIds = {
+                R.id.colorDefault, R.id.colorRed, R.id.colorPink,
+                R.id.colorPurple, R.id.colorBlue, R.id.colorCyan,
+                R.id.colorGreen, R.id.colorYellow, R.id.colorOrange,
+                R.id.colorBrown, R.id.colorGrey
+        };
+
+        for (int colorViewId : colorViewIds) {
+            View colorView = findViewById(colorViewId);
+            colorView.setOnClickListener(v -> {
+                String colorHex = (String) v.getTag();
+                applyNoteColor(colorHex);
+                colorPickerPanel.setVisibility(View.GONE);
+            });
+        }
+    }
+
+    private void applyNoteColor(String colorHex) {
+        currentNoteColor = colorHex;
+        noteLayout.setBackgroundColor(Color.parseColor(colorHex));
+
+        // Also update top bar to match
+        View topBar = findViewById(R.id.topBar);
+        topBar.setBackgroundColor(Color.parseColor(colorHex));
+
+        // Save color preference
+        saveNoteColor(colorHex);
+    }
+
+    private void saveNoteColor(String colorHex) {
+        // Save to SharedPreferences or database
+        SharedPreferences prefs = getSharedPreferences("NotePrefs", MODE_PRIVATE);
+        prefs.edit().putString("note_color_" + getNoteId(), colorHex).apply();
+    }
+
+    private void loadNoteColor() {
+        SharedPreferences prefs = getSharedPreferences("NotePrefs", MODE_PRIVATE);
+        String savedColor = prefs.getString("note_color_" + getNoteId(), "#FAFAFA");
+        applyNoteColor(savedColor);
+    }
+
+    private String getNoteId() {
+        // Return the current note's ID
+        // This should come from your intent or database
+        return getIntent().getStringExtra("note_id");
     }
 }

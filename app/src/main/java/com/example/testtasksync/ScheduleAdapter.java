@@ -168,7 +168,7 @@ public class ScheduleAdapter extends RecyclerView.Adapter<ScheduleAdapter.Schedu
                 case "holiday":
                     return Color.parseColor("#F44336"); // Red
                 default:
-                    return Color.parseColor("#FF9800"); // Orange
+                    return Color.parseColor("#4CAF50"); // Default to Green (todo)
             }
         }
 
@@ -180,9 +180,8 @@ public class ScheduleAdapter extends RecyclerView.Adapter<ScheduleAdapter.Schedu
                     return "Weekly";
                 case "holiday":
                     return "Holiday";
-                case "event":
                 default:
-                    return "Event";
+                    return "To-Do";  // Changed from "Event" to "To-Do"
             }
         }
 

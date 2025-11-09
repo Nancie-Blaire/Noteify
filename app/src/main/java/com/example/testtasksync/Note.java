@@ -11,6 +11,7 @@ public class Note {
     private boolean isStarred;
     private boolean isLocked;  // Add this field for lock feature
     private List<String> subpageIds;// Optional: to track subpage IDs
+    private String sourceId;  // For schedules: links back to the original todoList or weeklyPlan
 
     private long timestamp;
     // Empty constructor for Firestore
@@ -72,5 +73,13 @@ public class Note {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public String getSourceId() {
+        return sourceId;
+    }
+
+    public void setSourceId(String sourceId) {
+        this.sourceId = sourceId;
     }
 }

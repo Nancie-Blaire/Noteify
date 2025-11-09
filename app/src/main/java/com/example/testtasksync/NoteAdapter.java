@@ -16,7 +16,6 @@ import android.widget.EditText;
 import android.view.MenuItem;
 import androidx.core.content.ContextCompat;
 
-
 import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.graphics.PorterDuff;
@@ -26,7 +25,6 @@ import java.lang.reflect.Method;
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -44,10 +42,20 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     private FirebaseFirestore db;
     private FirebaseAuth auth;
     private boolean isGridLayout;
+    private ItemTypeDetector typeDetector;
+
     private static final String PREFS_NAME = "NoteSecurityPrefs";
     private static final String MASTER_PASSWORD_KEY = "master_password";
     private static final String BIOMETRIC_ENABLED_KEY = "biometric_enabled";
     private static final String SECURITY_SETUP_COMPLETE = "security_setup_complete";
+
+    interface SecurityCheckCallback {
+        void onResult(boolean isComplete);
+    }
+
+    public interface ItemTypeDetector {
+        String getItemType(Note note);
+    }
 
     public interface OnNoteClickListener {
         void onNoteClick(Note note);
@@ -59,10 +67,20 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         this.isGridLayout = isGridLayout;
         this.db = FirebaseFirestore.getInstance();
         this.auth = FirebaseAuth.getInstance();
+        this.typeDetector = null;
     }
 
     public NoteAdapter(List<Note> noteList, OnNoteClickListener listener) {
         this(noteList, listener, false);
+    }
+
+    public NoteAdapter(List<Note> noteList, OnNoteClickListener listener, boolean isGridLayout, ItemTypeDetector typeDetector) {
+        this(noteList, listener, isGridLayout);
+        this.typeDetector = typeDetector;
+    }
+
+    public void setTypeDetector(ItemTypeDetector typeDetector) {
+        this.typeDetector = typeDetector;
     }
 
     public void updateNote(Note note) {
@@ -87,7 +105,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     @Override
     public void onBindViewHolder(@NonNull NoteViewHolder holder, int position) {
         Note note = noteList.get(position);
-        holder.bind(note, listener, db, auth, isGridLayout, noteList, this);
+        holder.bind(note, listener, db, auth, isGridLayout, noteList, this, typeDetector);
     }
 
     @Override
@@ -110,50 +128,51 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
         public void bind(Note note, OnNoteClickListener listener, FirebaseFirestore db,
                          FirebaseAuth auth, boolean isGridLayout, List<Note> noteList,
-                         NoteAdapter adapter) {
-            noteTitle.setText(note.getTitle());
+                         NoteAdapter adapter, ItemTypeDetector typeDetector) {
 
-            // Show lock icon if note is locked
+            if (note == null) {
+                Log.e("NoteAdapter", "Note is null in bind()");
+                return;
+            }
+
+            noteTitle.setText(note.getTitle() != null ? note.getTitle() : "Untitled");
+
             if (lockIcon != null) {
                 lockIcon.setVisibility(note.isLocked() ? View.VISIBLE : View.GONE);
             }
 
-            // Show locked content differently
             if (note.isLocked()) {
                 noteContent.setText("Locked");
             } else {
-                noteContent.setText(note.getContent());
+                noteContent.setText(note.getContent() != null ? note.getContent() : "");
             }
 
-            // Set initial star state
             updateStarIcon(note.isStarred());
 
-            // Handle star click
+            String itemType = typeDetector != null ? typeDetector.getItemType(note) : "note";
+
             starIcon.setOnClickListener(v -> {
                 boolean newStarState = !note.isStarred();
                 note.setStarred(newStarState);
                 updateStarIcon(newStarState);
-                updateStarInFirebase(note, db, auth);
+                updateStarInFirebase(note, db, auth, itemType);
             });
 
-            // Handle three dots menu click
             if (menuButton != null) {
                 menuButton.setOnClickListener(v -> {
-                    showPopupMenu(v, note, db, auth, noteList, adapter);
+                    showPopupMenu(v, note, db, auth, noteList, adapter, itemType);
                 });
             }
 
-            // Handle card click - check if locked
             itemView.setOnClickListener(v -> {
                 if (note.isLocked()) {
-                    authenticateAndOpen(v.getContext(), note, listener, auth);
+                    authenticateAndOpen(v.getContext(), note, listener, auth, itemType);
                 } else {
                     listener.onNoteClick(note);
                 }
             });
         }
 
-        // Ã¢Å“â€¦ Helper method to get user-specific preference key
         private String getUserKey(Context context, FirebaseAuth auth, String baseKey) {
             FirebaseUser user = auth.getCurrentUser();
             if (user != null) {
@@ -162,7 +181,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             return baseKey;
         }
 
-        // Ã¢Å“â€¦ UPDATED: Async security check with Firestore fallback
         private void isSecuritySetupComplete(Context context, FirebaseAuth auth,
                                              SecurityCheckCallback callback) {
             FirebaseUser user = auth.getCurrentUser();
@@ -179,14 +197,12 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             boolean localSetup = prefs.getBoolean(userKey, false);
             String localPassword = prefs.getString(passwordKey, null);
 
-            // Ã¢Å“â€¦ Check local first (faster)
             if (localSetup && localPassword != null && !localPassword.isEmpty()) {
-                Log.d("NoteAdapter", "Ã¢Å“â€¦ Security setup found locally");
+                Log.d("NoteAdapter", "✓ Security setup found locally");
                 callback.onResult(true);
                 return;
             }
 
-            // Ã¢Å“â€¦ If not local, check Firestore
             Log.d("NoteAdapter", "Checking Firestore for security settings...");
             FirebaseFirestore db = FirebaseFirestore.getInstance();
             db.collection("users")
@@ -200,20 +216,19 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                             Boolean setupComplete = documentSnapshot.getBoolean("securitySetupComplete");
 
                             if (masterPassword != null && setupComplete != null && setupComplete) {
-                                // Ã¢Å“â€¦ Sync to local storage
                                 prefs.edit()
                                         .putString(passwordKey, masterPassword)
                                         .putBoolean(userKey, true)
                                         .apply();
 
-                                Log.d("NoteAdapter", "Ã¢Å“â€¦ Security settings synced from Firestore");
+                                Log.d("NoteAdapter", "✓ Security settings synced from Firestore");
                                 callback.onResult(true);
                             } else {
-                                Log.d("NoteAdapter", "Ã¢ÂÅ’ Firestore data incomplete");
+                                Log.d("NoteAdapter", "✗ Firestore data incomplete");
                                 callback.onResult(false);
                             }
                         } else {
-                            Log.d("NoteAdapter", "Ã¢ÂÅ’ No Firestore security data");
+                            Log.d("NoteAdapter", "✗ No Firestore security data");
                             callback.onResult(false);
                         }
                     })
@@ -224,69 +239,61 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         }
 
         private void redirectToSecuritySetup(Context context) {
-            Toast.makeText(context, "Please set up security first to lock notes", Toast.LENGTH_LONG).show();
+            Toast.makeText(context, "Please set up security first to lock items", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(context, BiometricSetupActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
         }
 
-        // Ã¢Å“â€¦ NEW: Check if biometric should be used on THIS device
         private boolean shouldUseBiometric(Context context, FirebaseAuth auth) {
-            // Ã¢Å“â€¦ STEP 1: Check if user ENABLED biometric for THIS device in app
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String biometricKey = getUserKey(context, auth, BIOMETRIC_ENABLED_KEY);
-            boolean enabledInApp = prefs.getBoolean(biometricKey, false); // Ã¢Å“â€¦ Default is FALSE
+            boolean enabledInApp = prefs.getBoolean(biometricKey, false);
 
             if (!enabledInApp) {
-                Log.d("NoteAdapter", "Ã¢ÂÅ’ Biometric NOT enabled for this device - using password");
-                return false; // User hasn't enabled it yet = password only
+                Log.d("NoteAdapter", "✗ Biometric NOT enabled for this device - using password");
+                return false;
             }
 
-            // Ã¢Å“â€¦ STEP 2: Check if device actually has enrolled fingerprints
             BiometricManager biometricManager = BiometricManager.from(context);
             int canAuthenticate = biometricManager.canAuthenticate(
                     BiometricManager.Authenticators.BIOMETRIC_STRONG);
 
             if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
-                Log.d("NoteAdapter", "Ã¢ÂÅ’ Device has no enrolled fingerprints - biometric status: " + canAuthenticate);
-                return false; // No fingerprints enrolled = password only
+                Log.d("NoteAdapter", "✗ Device has no enrolled fingerprints - biometric status: " + canAuthenticate);
+                return false;
             }
 
-            Log.d("NoteAdapter", "Ã¢Å“â€¦ Biometric enabled AND device has fingerprints - using biometric");
-            return true; // Ã¢Å“â€¦ Both conditions met = use biometric
+            Log.d("NoteAdapter", "✓ Biometric enabled AND device has fingerprints - using biometric");
+            return true;
         }
 
-        // Ã¢Å“â€¦ UPDATED: Use async security check
-        private void authenticateAndOpen(Context context, Note note, OnNoteClickListener listener, FirebaseAuth auth) {
-            // Check if security setup is complete (now async)
-            isSecuritySetupComplete(context, auth, new SecurityCheckCallback() {
-                @Override
-                public void onResult(boolean isComplete) {
-                    if (!isComplete) {
-                        redirectToSecuritySetup(context);
-                        return;
-                    }
+        private void authenticateAndOpen(Context context, Note note, OnNoteClickListener listener,
+                                         FirebaseAuth auth, String itemType) {
+            isSecuritySetupComplete(context, auth, isComplete -> {
+                if (!isComplete) {
+                    redirectToSecuritySetup(context);
+                    return;
+                }
 
-                    SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-                    String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), null);
+                SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), null);
 
-                    if (savedPassword == null) {
-                        redirectToSecuritySetup(context);
-                        return;
-                    }
+                if (savedPassword == null) {
+                    redirectToSecuritySetup(context);
+                    return;
+                }
 
-                    // Ã¢Å“â€¦ UPDATED: Check if biometric is enabled for THIS device
-                    if (shouldUseBiometric(context, auth)) {
-                        showBiometricPrompt(context, note, listener, auth);
-                    } else {
-                        // Password only (biometric not enabled or no fingerprints)
-                        showPasswordDialog(context, note, listener, savedPassword);
-                    }
+                if (shouldUseBiometric(context, auth)) {
+                    showBiometricPrompt(context, note, listener, auth, itemType);
+                } else {
+                    showPasswordDialog(context, note, listener, savedPassword);
                 }
             });
         }
 
-        private void showBiometricPrompt(Context context, Note note, OnNoteClickListener listener, FirebaseAuth auth) {
+        private void showBiometricPrompt(Context context, Note note, OnNoteClickListener listener,
+                                         FirebaseAuth auth, String itemType) {
             if (!(context instanceof FragmentActivity)) {
                 showPasswordDialog(context, note, listener,
                         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -302,14 +309,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         @Override
                         public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                             super.onAuthenticationSucceeded(result);
-                            Toast.makeText(context, "Ã¢Å“â€œ Authentication successful", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "✓ Authentication successful", Toast.LENGTH_SHORT).show();
                             listener.onNoteClick(note);
                         }
 
                         @Override
                         public void onAuthenticationFailed() {
                             super.onAuthenticationFailed();
-                            Toast.makeText(context, "Ã¢Å“â€” Authentication failed", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "✗ Authentication failed", Toast.LENGTH_SHORT).show();
                         }
 
                         @Override
@@ -321,9 +328,12 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         }
                     });
 
+            String itemLabel = itemType.equals("todo") ? "To-Do List" :
+                    itemType.equals("weekly") ? "Weekly Plan" : "Note";
+
             BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Ã°Å¸â€â€œ Unlock Note")
-                    .setSubtitle("Use your fingerprint to access this locked note")
+                    .setTitle("🔓 Unlock " + itemLabel)
+                    .setSubtitle("Use your fingerprint to access this locked item")
                     .setNegativeButtonText("Use Password")
                     .build();
 
@@ -333,7 +343,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         private void showPasswordDialog(Context context, Note note, OnNoteClickListener listener,
                                         String savedPassword) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
-            builder.setTitle("Ã°Å¸â€Â Enter Master Password");
+            builder.setTitle("🔒 Enter Master Password");
 
             final EditText input = new EditText(context);
             input.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
@@ -344,10 +354,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.setPositiveButton("Unlock", (dialog, which) -> {
                 String enteredPassword = input.getText().toString();
                 if (enteredPassword.equals(savedPassword)) {
-                    Toast.makeText(context, "Ã¢Å“â€œ Unlocked!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "✓ Unlocked!", Toast.LENGTH_SHORT).show();
                     listener.onNoteClick(note);
                 } else {
-                    Toast.makeText(context, "Ã¢Å“â€” Incorrect password", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "✗ Incorrect password", Toast.LENGTH_SHORT).show();
                 }
             });
 
@@ -356,12 +366,11 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         }
 
         private void showPopupMenu(View view, Note note, FirebaseFirestore db, FirebaseAuth auth,
-                                   List<Note> noteList, NoteAdapter adapter) {
+                                   List<Note> noteList, NoteAdapter adapter, String itemType) {
             ContextThemeWrapper wrapper = new ContextThemeWrapper(view.getContext(), R.style.CustomPopupMenu);
             PopupMenu popupMenu = new PopupMenu(wrapper, view, Gravity.END);
             popupMenu.getMenuInflater().inflate(R.menu.note_menu, popupMenu.getMenu());
 
-            // Force show icons using reflection
             try {
                 Field popup = PopupMenu.class.getDeclaredField("mPopup");
                 popup.setAccessible(true);
@@ -372,7 +381,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 e.printStackTrace();
             }
 
-            // Update lock/unlock item
             MenuItem lockItem = popupMenu.getMenu().findItem(R.id.menu_lock);
             if (lockItem != null) {
                 if (note.isLocked()) {
@@ -391,7 +399,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 }
             }
 
-            // Update delete icon
             MenuItem deleteItem = popupMenu.getMenu().findItem(R.id.menu_delete);
             if (deleteItem != null && deleteItem.getIcon() != null) {
                 deleteItem.getIcon().setColorFilter(
@@ -400,14 +407,13 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 );
             }
 
-            // Handle menu actions
             popupMenu.setOnMenuItemClickListener(item -> {
                 int itemId = item.getItemId();
                 if (itemId == R.id.menu_delete) {
-                    deleteNote(note, db, auth, view, noteList, adapter);
+                    deleteItem(note, db, auth, view, noteList, adapter, itemType);
                     return true;
                 } else if (itemId == R.id.menu_lock) {
-                    toggleLock(note, db, auth, view, noteList, adapter);
+                    toggleLock(note, db, auth, view, noteList, adapter, itemType);
                     return true;
                 }
                 return false;
@@ -416,10 +422,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             popupMenu.show();
         }
 
-
-        // Ã¢Å“â€¦ UPDATED: Use async security check for locking
         private void toggleLock(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
-                                List<Note> noteList, NoteAdapter adapter) {
+                                List<Note> noteList, NoteAdapter adapter, String itemType) {
             Context context = view.getContext();
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) {
@@ -429,31 +433,22 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
             boolean newLockState = !note.isLocked();
 
-            // Ã¢Å“â€¦ SCENARIO 1: User wants to LOCK a note
             if (newLockState) {
-                isSecuritySetupComplete(context, auth, new SecurityCheckCallback() {
-                    @Override
-                    public void onResult(boolean isComplete) {
-                        if (!isComplete) {
-                            redirectToSecuritySetup(context);
-                        } else {
-                            updateLockState(note, true, db, user, view, noteList, adapter);
-                        }
+                isSecuritySetupComplete(context, auth, isComplete -> {
+                    if (!isComplete) {
+                        redirectToSecuritySetup(context);
+                    } else {
+                        updateLockState(note, true, db, user, view, noteList, adapter, itemType);
                     }
                 });
-            }
-            // Ã¢Å“â€¦ SCENARIO 2: User wants to UNLOCK a note - NEED AUTH
-            else {
-                authenticateToUnlock(context, auth, new Runnable() {
-                    @Override
-                    public void run() {
-                        updateLockState(note, false, db, user, view, noteList, adapter);
-                    }
-                });
+            } else {
+                authenticateToUnlock(context, auth, () -> {
+                    updateLockState(note, false, db, user, view, noteList, adapter, itemType);
+                }, itemType);
             }
         }
 
-        private void authenticateToUnlock(Context context, FirebaseAuth auth, Runnable onSuccess) {
+        private void authenticateToUnlock(Context context, FirebaseAuth auth, Runnable onSuccess, String itemType) {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), null);
 
@@ -465,16 +460,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 return;
             }
 
-            // Ã¢Å“â€¦ UPDATED: Check if biometric is enabled for THIS device
             if (shouldUseBiometric(context, auth) && context instanceof FragmentActivity) {
-                showBiometricPromptForUnlock(context, auth, onSuccess);
+                showBiometricPromptForUnlock(context, auth, onSuccess, itemType);
             } else {
-                // Password only (biometric not enabled or no fingerprints)
                 showPasswordDialogForUnlock(context, savedPassword, onSuccess);
             }
         }
 
-        private void showBiometricPromptForUnlock(Context context, FirebaseAuth auth, Runnable onSuccess) {
+        private void showBiometricPromptForUnlock(Context context, FirebaseAuth auth, Runnable onSuccess, String itemType) {
             if (!(context instanceof FragmentActivity)) {
                 SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                 String savedPassword = prefs.getString(getUserKey(context, auth, MASTER_PASSWORD_KEY), "");
@@ -490,14 +483,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         @Override
                         public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                             super.onAuthenticationSucceeded(result);
-                            Toast.makeText(context, "Ã¢Å“â€œ Authentication successful", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "✓ Authentication successful", Toast.LENGTH_SHORT).show();
                             onSuccess.run();
                         }
 
                         @Override
                         public void onAuthenticationFailed() {
                             super.onAuthenticationFailed();
-                            Toast.makeText(context, "Ã¢Å“â€” Authentication failed", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "✗ Authentication failed", Toast.LENGTH_SHORT).show();
                         }
 
                         @Override
@@ -510,8 +503,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     });
 
             BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Ã°Å¸â€â€œ Authenticate to Unlock")
-                    .setSubtitle("Verify your identity to unlock this note")
+                    .setTitle("🔓 Authenticate to Unlock")
+                    .setSubtitle("Verify your identity to unlock this item")
                     .setNegativeButtonText("Use Password")
                     .build();
 
@@ -520,8 +513,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
         private void showPasswordDialogForUnlock(Context context, String savedPassword, Runnable onSuccess) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
-            builder.setTitle("Ã°Å¸â€Â Verify Master Password");
-            builder.setMessage("Enter your master password to unlock this note");
+            builder.setTitle("🔒 Verify Master Password");
+            builder.setMessage("Enter your master password to unlock this item");
 
             final EditText input = new EditText(context);
             input.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
@@ -532,10 +525,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.setPositiveButton("Unlock", (dialog, which) -> {
                 String enteredPassword = input.getText().toString();
                 if (enteredPassword.equals(savedPassword)) {
-                    Toast.makeText(context, "Ã¢Å“â€œ Verified!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "✓ Verified!", Toast.LENGTH_SHORT).show();
                     onSuccess.run();
                 } else {
-                    Toast.makeText(context, "Ã¢Å“â€” Incorrect password", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "✗ Incorrect password", Toast.LENGTH_SHORT).show();
                 }
             });
 
@@ -545,13 +538,21 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
         private void updateLockState(Note note, boolean newLockState, FirebaseFirestore db,
                                      FirebaseUser user, View view, List<Note> noteList,
-                                     NoteAdapter adapter) {
+                                     NoteAdapter adapter, String itemType) {
             view.setEnabled(false);
             Context context = view.getContext();
 
+            // ✅ Determine correct collection
+            String collection;
+            if (itemType.equals("todo") || itemType.equals("weekly")) {
+                collection = "schedules";  // ✅ Todo and weekly are in schedules
+            } else {
+                collection = "notes";  // ✅ Notes are in notes collection
+            }
+
             db.collection("users")
                     .document(user.getUid())
-                    .collection("notes")
+                    .collection(collection)
                     .document(note.getId())
                     .update("isLocked", newLockState)
                     .addOnSuccessListener(aVoid -> {
@@ -565,82 +566,130 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
                         view.setEnabled(true);
 
-                        String message = newLockState ? "Note locked Ã°Å¸â€â€™" : "Note unlocked Ã°Å¸â€â€œ";
+                        String message = newLockState ? "Item locked 🔒" : "Item unlocked 🔓";
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Lock state updated successfully for note: " + note.getId()
-                                + " to " + newLockState);
+                        Log.d("NoteAdapter", "Lock state updated for " + itemType + ": " + note.getId());
                     })
                     .addOnFailureListener(e -> {
                         view.setEnabled(true);
-                        Log.e("NoteAdapter", "Failed to update lock state for note: " + note.getId(), e);
-                        Toast.makeText(context, "Ã¢Å“â€” Failed to update lock state. Please try again.",
+                        Log.e("NoteAdapter", "Failed to update lock state", e);
+                        Toast.makeText(context, "✗ Failed to update lock state",
                                 Toast.LENGTH_SHORT).show();
                     });
         }
 
-        private void deleteNote(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
-                                List<Note> noteList, NoteAdapter adapter) {
+        private void deleteItem(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
+                                List<Note> noteList, NoteAdapter adapter, String itemType) {
             FirebaseUser user = auth.getCurrentUser();
-            if (user != null) {
-                String userId = user.getUid();
-                String noteId = note.getId();
+            if (user == null) return;
 
-                db.collection("users")
-                        .document(userId)
-                        .collection("notes")
-                        .document(noteId)
-                        .collection("subpages")
-                        .get()
-                        .addOnSuccessListener(querySnapshot -> {
-                            for (com.google.firebase.firestore.QueryDocumentSnapshot document : querySnapshot) {
-                                document.getReference().delete()
-                                        .addOnFailureListener(e ->
-                                                Log.e("NoteAdapter", "Failed to delete subpage: " + document.getId(), e));
-                            }
+            String userId = user.getUid();
+            String itemId = note.getId();
 
-                            db.collection("users")
-                                    .document(userId)
-                                    .collection("notes")
-                                    .document(noteId)
-                                    .delete()
-                                    .addOnSuccessListener(aVoid -> {
-                                        int position = getAdapterPosition();
-                                        if (position != RecyclerView.NO_POSITION) {
-                                            noteList.remove(position);
-                                            adapter.notifyItemRemoved(position);
-                                        }
+            if (itemType.equals("todo")) {
+                deleteTodo(userId, itemId, db, view, noteList, adapter);
+            } else if (itemType.equals("weekly")) {
+                deleteWeekly(userId, itemId, db, view, noteList, adapter);
+            } else {
+                deleteNote(userId, itemId, db, view, noteList, adapter);
+            }
+        }
 
-                                        Log.d("NoteAdapter", "Note and all subpages deleted successfully");
-                                        Toast.makeText(view.getContext(), "Ã¢Å“â€œ Note deleted",
-                                                Toast.LENGTH_SHORT).show();
-                                    })
-                                    .addOnFailureListener(e -> {
-                                        Log.e("NoteAdapter", "Failed to delete note", e);
-                                        Toast.makeText(view.getContext(), "Ã¢Å“â€” Failed to delete note",
-                                                Toast.LENGTH_SHORT).show();
-                                    });
-                        })
-                        .addOnFailureListener(e -> {
-                            Log.e("NoteAdapter", "Failed to fetch subpages", e);
-                            db.collection("users")
-                                    .document(userId)
-                                    .collection("notes")
-                                    .document(noteId)
-                                    .delete()
-                                    .addOnSuccessListener(aVoid -> {
-                                        int position = getAdapterPosition();
-                                        if (position != RecyclerView.NO_POSITION) {
-                                            noteList.remove(position);
-                                            adapter.notifyItemRemoved(position);
-                                        }
-                                        Toast.makeText(view.getContext(), "Ã¢Å“â€œ Note deleted",
-                                                Toast.LENGTH_SHORT).show();
-                                    })
-                                    .addOnFailureListener(deleteError -> {
-                                        Toast.makeText(view.getContext(), "Ã¢Å“â€” Failed to delete note",
-                                                Toast.LENGTH_SHORT).show();
-                                    });
-                        });
+        private void deleteTodo(String userId, String todoId, FirebaseFirestore db, View view,
+                                List<Note> noteList, NoteAdapter adapter) {
+            // ✅ Delete from schedules collection (where the todo actually is)
+            db.collection("users")
+                    .document(userId)
+                    .collection("schedules")  // ✅ FIXED: was "schedule" (singular)
+                    .document(todoId)
+                    .delete()
+                    .addOnSuccessListener(aVoid -> {
+                        removeFromList(view, noteList, adapter);
+                        Toast.makeText(view.getContext(), "✓ To-Do deleted",
+                                Toast.LENGTH_SHORT).show();
+                        Log.d("NoteAdapter", "Todo deleted from schedules collection");
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(view.getContext(), "✗ Failed to delete",
+                                Toast.LENGTH_SHORT).show();
+                        Log.e("NoteAdapter", "Failed to delete todo", e);
+                    });
+        }
+
+        private void deleteWeekly(String userId, String weeklyId, FirebaseFirestore db, View view,
+                                  List<Note> noteList, NoteAdapter adapter) {
+            // ✅ Delete from schedules collection (where the weekly actually is)
+            db.collection("users")
+                    .document(userId)
+                    .collection("schedules")  // ✅ Correct
+                    .document(weeklyId)
+                    .delete()
+                    .addOnSuccessListener(aVoid -> {
+                        removeFromList(view, noteList, adapter);
+                        Toast.makeText(view.getContext(), "✓ Weekly plan deleted",
+                                Toast.LENGTH_SHORT).show();
+                        Log.d("NoteAdapter", "Weekly deleted from schedules collection");
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(view.getContext(), "✗ Failed to delete",
+                                Toast.LENGTH_SHORT).show();
+                        Log.e("NoteAdapter", "Failed to delete weekly", e);
+                    });
+        }
+        private void deleteNote(String userId, String noteId, FirebaseFirestore db, View view,
+                                List<Note> noteList, NoteAdapter adapter) {
+            db.collection("users")
+                    .document(userId)
+                    .collection("notes")
+                    .document(noteId)
+                    .collection("subpages")
+                    .get()
+                    .addOnSuccessListener(querySnapshot -> {
+                        for (com.google.firebase.firestore.QueryDocumentSnapshot document : querySnapshot) {
+                            document.getReference().delete();
+                        }
+
+                        db.collection("users")
+                                .document(userId)
+                                .collection("notes")
+                                .document(noteId)
+                                .delete()
+                                .addOnSuccessListener(aVoid -> {
+                                    removeFromList(view, noteList, adapter);
+                                    Log.d("NoteAdapter", "Note deleted successfully");
+                                    Toast.makeText(view.getContext(), "✓ Note deleted",
+                                            Toast.LENGTH_SHORT).show();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e("NoteAdapter", "Failed to delete note", e);
+                                    Toast.makeText(view.getContext(), "✗ Failed to delete note",
+                                            Toast.LENGTH_SHORT).show();
+                                });
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e("NoteAdapter", "Failed to fetch subpages", e);
+                        db.collection("users")
+                                .document(userId)
+                                .collection("notes")
+                                .document(noteId)
+                                .delete()
+                                .addOnSuccessListener(aVoid -> {
+                                    removeFromList(view, noteList, adapter);
+                                    Toast.makeText(view.getContext(), "✓ Note deleted",
+                                            Toast.LENGTH_SHORT).show();
+                                })
+                                .addOnFailureListener(deleteError -> {
+                                    Toast.makeText(view.getContext(), "✗ Failed to delete note",
+                                            Toast.LENGTH_SHORT).show();
+                                });
+                    });
+        }
+
+        private void removeFromList(View view, List<Note> noteList, NoteAdapter adapter) {
+            int position = getAdapterPosition();
+            if (position != RecyclerView.NO_POSITION) {
+                noteList.remove(position);
+                adapter.notifyItemRemoved(position);
             }
         }
 
@@ -652,16 +701,24 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             }
         }
 
-        private void updateStarInFirebase(Note note, FirebaseFirestore db, FirebaseAuth auth) {
+        private void updateStarInFirebase(Note note, FirebaseFirestore db, FirebaseAuth auth, String itemType) {
             FirebaseUser user = auth.getCurrentUser();
             if (user != null) {
+                // ✅ ALL items (notes, todo, weekly) are in their respective collections
+                String collection;
+                if (itemType.equals("todo") || itemType.equals("weekly")) {
+                    collection = "schedules";  // ✅ Todo and weekly are in schedules
+                } else {
+                    collection = "notes";  // ✅ Notes are in notes collection
+                }
+
                 db.collection("users")
                         .document(user.getUid())
-                        .collection("notes")
+                        .collection(collection)
                         .document(note.getId())
                         .update("isStarred", note.isStarred())
                         .addOnSuccessListener(aVoid -> {
-                            Log.d("NoteAdapter", "Star state updated successfully");
+                            Log.d("NoteAdapter", "Star state updated for " + itemType);
                         })
                         .addOnFailureListener(e -> {
                             Log.e("NoteAdapter", "Failed to update star state", e);

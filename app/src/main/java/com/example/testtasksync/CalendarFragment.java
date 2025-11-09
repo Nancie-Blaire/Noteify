@@ -169,7 +169,7 @@ public class CalendarFragment extends Fragment {
                 .whereGreaterThanOrEqualTo("date", startTimestamp)
                 .whereLessThanOrEqualTo("date", endTimestamp)
                 .orderBy("date", Query.Direction.ASCENDING)
-                .orderBy("time", Query.Direction.ASCENDING)
+
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) {
                         Log.w(TAG, "Listen failed.", e);
@@ -348,12 +348,10 @@ public class CalendarFragment extends Fragment {
 
     private String getSelectedCategory(RadioGroup radioGroup) {
         int selectedId = radioGroup.getCheckedRadioButtonId();
-        if (selectedId == R.id.todoRadio) {
-            return "todo";
-        } else if (selectedId == R.id.weeklyRadio) {
+        if (selectedId == R.id.weeklyRadio) {
             return "weekly";
         } else {
-            return "event";
+            return "todo";  // Default to "todo" instead of "event"
         }
     }
 
@@ -524,15 +522,16 @@ public class CalendarFragment extends Fragment {
         }
 
         // Set category
+        // Set category
         switch (schedule.getCategory()) {
-            case "todo":
-                categoryRadioGroup.check(R.id.todoRadio);
-                break;
             case "weekly":
                 categoryRadioGroup.check(R.id.weeklyRadio);
                 break;
+            case "todo":
+            case "event":     // Old data compatibility
+            case "holiday":   // Holidays default to todo when editing
             default:
-                categoryRadioGroup.check(R.id.eventRadio);
+                categoryRadioGroup.check(R.id.todoRadio);
                 break;
         }
 
@@ -701,9 +700,8 @@ public class CalendarFragment extends Fragment {
                 return "Weekly";
             case "holiday":
                 return "Holiday";
-            case "event":
             default:
-                return "Event";
+                return "To-Do";  // Changed from "Event" to "To-Do"
         }
     }
 }

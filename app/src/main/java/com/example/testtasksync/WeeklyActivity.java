@@ -1,5 +1,7 @@
 package com.example.testtasksync;
 
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -10,6 +12,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -21,11 +24,13 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class WeeklyActivity extends AppCompatActivity {
@@ -35,6 +40,13 @@ public class WeeklyActivity extends AppCompatActivity {
     private FirebaseAuth auth;
     private String planId;
     private boolean isNewPlan = false;
+
+    // STEP 1: Added fields for week range picker
+    private Calendar startDate = null;
+    private Calendar endDate = null;
+    private TextView weekRangeText;
+    private LinearLayout weekRangeSection;
+    private ImageView clearWeekButton;
 
     private EditText weeklyTitle;
     private ImageView saveButton, backButton;
@@ -60,6 +72,18 @@ public class WeeklyActivity extends AppCompatActivity {
         weeklyTitle = findViewById(R.id.weeklyTitle);
         saveButton = findViewById(R.id.saveButton);
         backButton = findViewById(R.id.backButton);
+
+        // STEP 2: Initialize week range views
+        weekRangeSection = findViewById(R.id.weekRangeSection);
+        weekRangeText = findViewById(R.id.weekRangeText);
+        clearWeekButton = findViewById(R.id.clearWeekButton);
+
+        // Set up week range picker with quick selector
+        weekRangeSection.setOnClickListener(v -> showQuickWeekSelector());
+        clearWeekButton.setOnClickListener(v -> clearWeekRange());
+
+        // Initialize with current week by default
+        setCurrentWeek();
 
         // Initialize day containers
         dayContainers.put("Mon", findViewById(R.id.monTasksContainer));
@@ -109,9 +133,11 @@ public class WeeklyActivity extends AppCompatActivity {
             return;
         }
 
-        // Load plan details
+        String userId = user.getUid();
+
+        // Query 1: Plan details
         db.collection("users")
-                .document(user.getUid())
+                .document(userId)
                 .collection("weeklyPlans")
                 .document(planId)
                 .get()
@@ -121,23 +147,33 @@ public class WeeklyActivity extends AppCompatActivity {
                         if (title != null && !title.isEmpty()) {
                             weeklyTitle.setText(title);
                         }
-                    }
 
-                    // Load tasks
-                    loadTasks();
+                        // STEP 4: Load week range if exists
+                        Timestamp startDateTimestamp = documentSnapshot.getTimestamp("startDate");
+                        Timestamp endDateTimestamp = documentSnapshot.getTimestamp("endDate");
+
+                        if (startDateTimestamp != null && endDateTimestamp != null) {
+                            startDate = Calendar.getInstance();
+                            startDate.setTime(startDateTimestamp.toDate());
+
+                            endDate = Calendar.getInstance();
+                            endDate.setTime(endDateTimestamp.toDate());
+
+                            updateWeekRangeDisplay();
+                        } else {
+                            // If no saved dates, use current week
+                            setCurrentWeek();
+                        }
+                    }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load weekly plan", e);
                     Toast.makeText(this, "Failed to load plan", Toast.LENGTH_SHORT).show();
                 });
-    }
 
-    private void loadTasks() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-
+        // Query 2: Tasks (running in parallel with Query 1)
         db.collection("users")
-                .document(user.getUid())
+                .document(userId)
                 .collection("weeklyPlans")
                 .document(planId)
                 .collection("tasks")
@@ -305,12 +341,34 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         }
 
-        // Create or update plan document
-        Map<String, Object> planData = new HashMap<>();
-        planData.put("title", title);
-        planData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
-        planData.put("taskCount", totalTasks);
-        planData.put("completedCount", completedTasks);
+        // STEP 6: Update mainScheduleData with week range in description
+        Map<String, Object> mainScheduleData = new HashMap<>();
+        mainScheduleData.put("title", title);
+
+        String description = totalTasks + " tasks";
+        if (startDate != null && endDate != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            description += " (" + sdf.format(startDate.getTime()) + " - " +
+                    sdf.format(endDate.getTime()) + ")";
+        }
+        if (completedTasks > 0) {
+            description += " • " + completedTasks + " completed";
+        }
+
+        mainScheduleData.put("description", description);
+        mainScheduleData.put("category", "weekly");
+        mainScheduleData.put("isCompleted", completedTasks == totalTasks && totalTasks > 0);
+        mainScheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+        // Set date to start of week (so it appears in calendar on that date)
+        if (startDate != null) {
+            mainScheduleData.put("date", new Timestamp(startDate.getTime()));
+        } else {
+            mainScheduleData.put("date", null);
+        }
+
+        mainScheduleData.put("time", "");
+        mainScheduleData.put("hasReminder", false);
 
         // Generate new ID if this is a new plan
         if (isNewPlan) {
@@ -325,14 +383,31 @@ public class WeeklyActivity extends AppCompatActivity {
         final int finalTotalTasks = totalTasks;
         final int finalCompletedTasks = completedTasks;
 
+        // STEP 5: Save to weeklyPlans collection with date range
+        Map<String, Object> planData = new HashMap<>();
+        planData.put("title", finalTitle);
+        planData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        planData.put("taskCount", finalTotalTasks);
+        planData.put("completedCount", finalCompletedTasks);
+
+        // Add week range dates
+        if (startDate != null && endDate != null) {
+            planData.put("startDate", new Timestamp(startDate.getTime()));
+            planData.put("endDate", new Timestamp(endDate.getTime()));
+        } else {
+            planData.put("startDate", null);
+            planData.put("endDate", null);
+        }
+
         db.collection("users")
                 .document(user.getUid())
                 .collection("weeklyPlans")
-                .document(planId)
+                .document(finalPlanId)
                 .set(planData)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "Weekly plan saved successfully");
-                    saveTasks(user.getUid(), finalPlanId, finalTitle, finalTotalTasks, finalCompletedTasks);
+                    saveTasks(user.getUid(), finalPlanId, finalTitle, finalTotalTasks,
+                            finalCompletedTasks, mainScheduleData);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to save weekly plan", e);
@@ -340,7 +415,8 @@ public class WeeklyActivity extends AppCompatActivity {
                 });
     }
 
-    private void saveTasks(String userId, String planId, String planTitle, int totalTasks, int completedTasks) {
+    private void saveTasks(String userId, String planId, String planTitle, int totalTasks,
+                           int completedTasks, Map<String, Object> mainScheduleData) {
         // First, delete all existing tasks
         db.collection("users")
                 .document(userId)
@@ -353,7 +429,7 @@ public class WeeklyActivity extends AppCompatActivity {
                         doc.getReference().delete();
                     }
 
-                    // Now save all current tasks
+                    // Count tasks to save
                     int tasksToSave = 0;
                     for (String day : days) {
                         List<WeeklyTask> tasks = dayTasks.get(day);
@@ -366,9 +442,9 @@ public class WeeklyActivity extends AppCompatActivity {
                         }
                     }
 
+                    // If no tasks, just create main schedule and finish
                     if (tasksToSave == 0) {
-                        // Create calendar schedules even if no tasks
-                        createSchedulesFromWeeklyPlan(userId, planId, planTitle, totalTasks, completedTasks);
+                        createOrUpdateMainSchedule(userId, planId, mainScheduleData);
                         return;
                     }
 
@@ -394,9 +470,8 @@ public class WeeklyActivity extends AppCompatActivity {
                                             .addOnSuccessListener(documentReference -> {
                                                 savedCount[0]++;
                                                 if (savedCount[0] == finalTasksToSave) {
-                                                    // Create calendar schedules after all tasks saved
-                                                    createSchedulesFromWeeklyPlan(userId, planId, planTitle,
-                                                            totalTasks, completedTasks);
+                                                    // All tasks saved, now create main schedule
+                                                    createOrUpdateMainSchedule(userId, planId, mainScheduleData);
                                                 }
                                             })
                                             .addOnFailureListener(e -> {
@@ -413,17 +488,12 @@ public class WeeklyActivity extends AppCompatActivity {
                 });
     }
 
-    private void createSchedulesFromWeeklyPlan(String userId, String planId, String planTitle,
-                                               int totalTasks, int completedTasks) {
-        // Get current week's calendar
-        Calendar calendar = Calendar.getInstance();
-        int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+    private void createOrUpdateMainSchedule(String userId, String planId,
+                                            Map<String, Object> mainScheduleData) {
+        // Add sourceId to link back to the weekly plan
+        mainScheduleData.put("sourceId", planId);
 
-        // Calculate start of current week (Monday)
-        int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
-        calendar.add(Calendar.DAY_OF_MONTH, -daysToMonday);
-
-        // First, delete existing schedules for this weekly plan
+        // Check if schedule already exists for this weekly plan
         db.collection("users")
                 .document(userId)
                 .collection("schedules")
@@ -431,110 +501,44 @@ public class WeeklyActivity extends AppCompatActivity {
                 .whereEqualTo("category", "weekly")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    // Delete old schedules
-                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                        doc.getReference().delete();
-                    }
-
-                    // Create new schedules for each day with tasks
-                    int schedulesToCreate = 0;
-                    for (String day : days) {
-                        List<WeeklyTask> tasks = dayTasks.get(day);
-                        if (tasks != null && !tasks.isEmpty()) {
-                            int nonEmptyTasks = 0;
-                            int completedTasksForDay = 0;
-
-                            for (WeeklyTask task : tasks) {
-                                if (!task.getTaskText().trim().isEmpty()) {
-                                    nonEmptyTasks++;
-                                    if (task.isCompleted()) {
-                                        completedTasksForDay++;
-                                    }
-                                }
-                            }
-
-                            if (nonEmptyTasks > 0) {
-                                schedulesToCreate++;
-                            }
-                        }
-                    }
-
-                    if (schedulesToCreate == 0) {
-                        Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
-                        finish();
-                        return;
-                    }
-
-                    final int[] createdCount = {0};
-                    Calendar dayCalendar = (Calendar) calendar.clone();
-
-                    for (String day : days) {
-                        List<WeeklyTask> tasks = dayTasks.get(day);
-                        if (tasks != null && !tasks.isEmpty()) {
-                            int nonEmptyTasks = 0;
-                            int completedTasksForDay = 0;
-
-                            for (WeeklyTask task : tasks) {
-                                if (!task.getTaskText().trim().isEmpty()) {
-                                    nonEmptyTasks++;
-                                    if (task.isCompleted()) {
-                                        completedTasksForDay++;
-                                    }
-                                }
-                            }
-
-                            if (nonEmptyTasks > 0) {
-                                // Create schedule for this day
-                                Map<String, Object> scheduleData = new HashMap<>();
-                                scheduleData.put("title", planTitle + " - " + day);
-                                scheduleData.put("description", nonEmptyTasks + " tasks (" +
-                                        completedTasksForDay + " completed)");
-                                scheduleData.put("date", new Timestamp(dayCalendar.getTime()));
-                                scheduleData.put("time", ""); // All day
-                                scheduleData.put("category", "weekly");
-                                scheduleData.put("isCompleted", completedTasksForDay == nonEmptyTasks);
-                                scheduleData.put("createdAt",
-                                        com.google.firebase.firestore.FieldValue.serverTimestamp());
-                                scheduleData.put("sourceId", planId);
-                                scheduleData.put("hasReminder", true);
-                                scheduleData.put("reminderMinutes", 30); // 30 minutes before
-
-                                int finalSchedulesToCreate = schedulesToCreate;
-                                db.collection("users")
-                                        .document(userId)
-                                        .collection("schedules")
-                                        .add(scheduleData)
-                                        .addOnSuccessListener(documentReference -> {
-                                            createdCount[0]++;
-                                            Log.d(TAG, "Schedule created for " + day);
-
-                                            if (createdCount[0] == finalSchedulesToCreate) {
-                                                Toast.makeText(this,
-                                                        "✓ Weekly plan and schedules saved",
-                                                        Toast.LENGTH_SHORT).show();
-                                                finish();
-                                            }
-                                        })
-                                        .addOnFailureListener(e -> {
-                                            Log.e(TAG, "Failed to create schedule for " + day, e);
-                                            createdCount[0]++;
-
-                                            if (createdCount[0] == finalSchedulesToCreate) {
-                                                Toast.makeText(this,
-                                                        "✓ Weekly plan saved (some schedules failed)",
-                                                        Toast.LENGTH_SHORT).show();
-                                                finish();
-                                            }
-                                        });
-                            }
-                        }
-
-                        // Move to next day
-                        dayCalendar.add(Calendar.DAY_OF_MONTH, 1);
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        // Update existing schedule
+                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                        db.collection("users")
+                                .document(userId)
+                                .collection("schedules")
+                                .document(scheduleId)
+                                .update(mainScheduleData)
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "Main schedule updated for weekly plan");
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to update schedule", e);
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                });
+                    } else {
+                        // Create new schedule
+                        db.collection("users")
+                                .document(userId)
+                                .collection("schedules")
+                                .add(mainScheduleData)
+                                .addOnSuccessListener(documentReference -> {
+                                    Log.d(TAG, "Main schedule created for weekly plan");
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to create schedule", e);
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                });
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to delete old schedules", e);
+                    Log.e(TAG, "Failed to check existing schedule", e);
                     Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
                     finish();
                 });
@@ -551,5 +555,173 @@ public class WeeklyActivity extends AppCompatActivity {
             case "Sat": return Calendar.SATURDAY;
             default: return Calendar.MONDAY;
         }
+    }
+
+    // STEP 3: New methods for week range picker functionality
+
+    private void setCurrentWeek() {
+        Calendar calendar = Calendar.getInstance();
+        int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+
+        // Calculate start of current week (Monday)
+        int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
+        calendar.add(Calendar.DAY_OF_MONTH, -daysToMonday);
+
+        startDate = (Calendar) calendar.clone();
+
+        // Calculate end of week (Sunday)
+        calendar.add(Calendar.DAY_OF_MONTH, 6);
+        endDate = (Calendar) calendar.clone();
+
+        updateWeekRangeDisplay();
+    }
+
+    private void showQuickWeekSelector() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📅 Select Week");
+
+        // Calculate week ranges for display
+        Calendar calendar = Calendar.getInstance();
+        int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+        int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
+
+        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+
+        // This week
+        Calendar thisWeekStart = (Calendar) calendar.clone();
+        thisWeekStart.add(Calendar.DAY_OF_MONTH, -daysToMonday);
+        Calendar thisWeekEnd = (Calendar) thisWeekStart.clone();
+        thisWeekEnd.add(Calendar.DAY_OF_MONTH, 6);
+
+        // Next week
+        Calendar nextWeekStart = (Calendar) thisWeekStart.clone();
+        nextWeekStart.add(Calendar.DAY_OF_MONTH, 7);
+        Calendar nextWeekEnd = (Calendar) nextWeekStart.clone();
+        nextWeekEnd.add(Calendar.DAY_OF_MONTH, 6);
+
+        // Week after next
+        Calendar afterNextStart = (Calendar) thisWeekStart.clone();
+        afterNextStart.add(Calendar.DAY_OF_MONTH, 14);
+        Calendar afterNextEnd = (Calendar) afterNextStart.clone();
+        afterNextEnd.add(Calendar.DAY_OF_MONTH, 6);
+
+        String[] options = {
+                "This Week (" + sdf.format(thisWeekStart.getTime()) + " - " + sdf.format(thisWeekEnd.getTime()) + ")",
+                "Next Week (" + sdf.format(nextWeekStart.getTime()) + " - " + sdf.format(nextWeekEnd.getTime()) + ")",
+                "Week After Next (" + sdf.format(afterNextStart.getTime()) + " - " + sdf.format(afterNextEnd.getTime()) + ")",
+                "Custom Date Range..."
+        };
+
+        builder.setItems(options, (dialog, which) -> {
+            Calendar cal = Calendar.getInstance();
+            int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+            int toMonday = (dayOfWeek == Calendar.SUNDAY) ? 6 : dayOfWeek - Calendar.MONDAY;
+
+            switch (which) {
+                case 0: // This Week
+                    cal.add(Calendar.DAY_OF_MONTH, -toMonday);
+                    setWeekFromStartDate(cal);
+                    break;
+
+                case 1: // Next Week
+                    cal.add(Calendar.DAY_OF_MONTH, -toMonday + 7);
+                    setWeekFromStartDate(cal);
+                    break;
+
+                case 2: // Week After Next
+                    cal.add(Calendar.DAY_OF_MONTH, -toMonday + 14);
+                    setWeekFromStartDate(cal);
+                    break;
+
+                case 3: // Custom
+                    showCustomWeekPicker();
+                    break;
+            }
+        });
+
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    private void setWeekFromStartDate(Calendar start) {
+        startDate = (Calendar) start.clone();
+        endDate = (Calendar) start.clone();
+        endDate.add(Calendar.DAY_OF_MONTH, 6);
+        updateWeekRangeDisplay();
+    }
+
+    private void showCustomWeekPicker() {
+        // Step 1: Pick start date
+        Calendar initialDate = startDate != null ? startDate : Calendar.getInstance();
+
+        DatePickerDialog startDatePicker = new DatePickerDialog(
+                this,
+                (view, year, month, dayOfMonth) -> {
+                    startDate = Calendar.getInstance();
+                    startDate.set(year, month, dayOfMonth);
+
+                    // Step 2: Now pick end date
+                    showEndDatePicker();
+                },
+                initialDate.get(Calendar.YEAR),
+                initialDate.get(Calendar.MONTH),
+                initialDate.get(Calendar.DAY_OF_MONTH)
+        );
+
+        startDatePicker.setTitle("Select START date");
+        startDatePicker.show();
+    }
+
+    private void showEndDatePicker() {
+        // Default end date: 6 days after start
+        Calendar defaultEnd = (Calendar) startDate.clone();
+        defaultEnd.add(Calendar.DAY_OF_MONTH, 6);
+
+        DatePickerDialog endDatePicker = new DatePickerDialog(
+                this,
+                (view, year, month, dayOfMonth) -> {
+                    endDate = Calendar.getInstance();
+                    endDate.set(year, month, dayOfMonth);
+
+                    // Validate: end date must be after start date
+                    if (endDate.before(startDate)) {
+                        Toast.makeText(this, "⚠️ End date must be after start date",
+                                Toast.LENGTH_SHORT).show();
+                        endDate = (Calendar) startDate.clone();
+                        endDate.add(Calendar.DAY_OF_MONTH, 6);
+                    }
+
+                    updateWeekRangeDisplay();
+                },
+                defaultEnd.get(Calendar.YEAR),
+                defaultEnd.get(Calendar.MONTH),
+                defaultEnd.get(Calendar.DAY_OF_MONTH)
+        );
+
+        // Set minimum date to start date
+        endDatePicker.getDatePicker().setMinDate(startDate.getTimeInMillis());
+        endDatePicker.setTitle("Select END date");
+        endDatePicker.show();
+    }
+
+    private void updateWeekRangeDisplay() {
+        if (startDate != null && endDate != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            SimpleDateFormat yearFormat = new SimpleDateFormat("yyyy", Locale.getDefault());
+
+            String startStr = sdf.format(startDate.getTime());
+            String endStr = sdf.format(endDate.getTime());
+            String year = yearFormat.format(startDate.getTime());
+
+            weekRangeText.setText("Week: " + startStr + " - " + endStr + ", " + year);
+            clearWeekButton.setVisibility(View.VISIBLE);
+        } else {
+            weekRangeText.setText("Select week");
+            clearWeekButton.setVisibility(View.GONE);
+        }
+    }
+
+    private void clearWeekRange() {
+        setCurrentWeek(); // Reset to current week instead of null
     }
 }

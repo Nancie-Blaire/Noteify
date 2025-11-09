@@ -33,6 +33,22 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
+        <!-- Bookmarks Link -->
+        <TextView
+            android:id="@+id/bookmarksLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bookmarks"
+            android:textSize="14sp"
+            android:textColor="#4CAF50"
+            android:textStyle="bold"
+            android:padding="8dp"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
         <!-- Color Palette Button -->
         <ImageView
             android:id="@+id/colorPaletteBtn"
@@ -239,7 +255,8 @@
                 android:minHeight="200dp"
                 android:padding="8dp"
                 android:textColor="#333"
-                android:textSize="16sp" />
+                android:textSize="16sp"
+                android:textIsSelectable="true" />
 
             <!-- Add Subpage Button -->
             <LinearLayout

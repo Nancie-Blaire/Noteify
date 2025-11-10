@@ -2,5 +2,13 @@
     <string name="app_name">Noteify</string>
     <string name="default_web_client_id">134011732367-cpsc0tjk4v70fqoqdm4h1so339a69c7n.apps.googleusercontent.com</string>
     <string name="underlined_text_signup"><u>Sign Up</u></string>
-    <string name="underlined_text_login"><u>Log-In</u></string>
+    <string name="underlined_text_login"><u>Login</u></string>
+
+    <!-- Profile Section-->
+    <string name="underlined_text_logout"><u>Logout</u></string>
+    <string name="underlined_text_delAcc"><u>Delete Account</u></string>
+    <string name="underlined_text_switchAcc"><u>Switch Account</u></string>
+    <string name="underlined_text_pass"><u>Change Password</u></string>
+    <string name="underlined_text_edtProfile"><u>Edit Profile</u></string>
+    <string name="underlined_text_secSettings"><u>Security Settings</u></string>
 </resources>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@android:color/white"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:id="@+id/titleDivider"
+        android:text="Choose a Divider"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:gravity="center"
+        android:layout_marginBottom="8dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <!-- Divider Line -->
+    <LinearLayout
+        android:id="@+id/dividerLine"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:padding="12dp"
+        android:layout_marginVertical="4dp"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:text="──────────────"
+            android:textSize="18sp"
+            android:textColor="#757575"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/dividerBreak"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:padding="12dp"
+        android:layout_marginVertical="4dp"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:text="- - - - - - - - - -"
+            android:textSize="18sp"
+            android:textColor="#757575"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <!-- Divider Dots -->
+    <LinearLayout
+        android:id="@+id/dividerDots"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:padding="12dp"
+        android:layout_marginVertical="4dp"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:text="••••••••••••••••"
+            android:textSize="18sp"
+            android:textColor="#757575"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <!-- Divider Stars -->
+    <LinearLayout
+        android:id="@+id/dividerStars"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:padding="12dp"
+        android:layout_marginVertical="4dp"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:text="✦✦✦✦✦✦✦✦✦✦"
+            android:textSize="18sp"
+            android:textColor="#757575"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <!-- Divider Wave -->
+    <LinearLayout
+        android:id="@+id/dividerWave"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:padding="12dp"
+        android:layout_marginVertical="4dp"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:text="~ ~ ~ ~ ~ ~ ~ ~"
+            android:textSize="18sp"
+            android:textColor="#757575"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+</LinearLayout>

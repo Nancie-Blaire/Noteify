@@ -20,7 +20,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 public class Account extends AppCompatActivity {
 
-    private Button btnLogout, btnEditProfile, btnSecuritySettings;
+    private TextView btnLogout, btnEditProfile;
     private ImageView ivProfilePicture;
     private TextView tvUserName, tvUserEmail;
     private FirebaseAuth auth;
@@ -46,7 +46,6 @@ public class Account extends AppCompatActivity {
         tvUserEmail = findViewById(R.id.tvUserEmail);
         btnLogout = findViewById(R.id.btnLogout);
         btnEditProfile = findViewById(R.id.btnEditProfile);
-        btnSecuritySettings = findViewById(R.id.btnSecuritySettings);
 
         // Load user profile
         loadUserProfile();
@@ -62,12 +61,6 @@ public class Account extends AppCompatActivity {
         // Edit Profile Button
         btnEditProfile.setOnClickListener(v -> {
             Intent intent = new Intent(Account.this, EditProfileActivity.class);
-            startActivity(intent);
-        });
-
-        // Security Settings Button
-        btnSecuritySettings.setOnClickListener(v -> {
-            Intent intent = new Intent(Account.this, SecuritySettingsActivity.class);
             startActivity(intent);
         });
     }

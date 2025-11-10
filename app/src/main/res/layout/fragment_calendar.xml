@@ -6,148 +6,38 @@
     android:orientation="vertical"
     android:background="#F5F5F5">
 
-    <!-- Header with Month/Year and Add Button -->
+    <!-- Header with Month/Year Dropdown -->
     <LinearLayout
+        android:id="@+id/monthYearHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
         android:background="@android:color/white"
-        android:elevation="2dp"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
 
         <TextView
             android:id="@+id/monthYearText"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="November 2025"
+            android:text="November ▼"
             android:textSize="24sp"
             android:textStyle="bold"
             android:textColor="#000000"/>
 
-        <ImageView
-            android:id="@+id/addScheduleButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_input_add"
-            android:padding="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Add Schedule"
-            app:tint="#2196F3"/>
+
     </LinearLayout>
 
-    <!-- Calendar View -->
-    <CalendarView
-        android:id="@+id/calendarView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@android:color/white"
-        android:layout_margin="8dp"/>
-
-    <!-- Selected Date Info -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:background="@android:color/white"
-        android:layout_marginTop="8dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:gravity="center_vertical">
-
-        <TextView
-            android:id="@+id/selectedDateText"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Today's Schedule"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="#000000"/>
-
-        <TextView
-            android:id="@+id/scheduleCountText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="0 events"
-            android:textSize="14sp"
-            android:textColor="#757575"/>
-    </LinearLayout>
-
-    <!-- Holiday Banner (only shows if selected date is holiday) -->
-    <LinearLayout
-        android:id="@+id/holidayBanner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="#FFEBEE"
-        android:padding="12dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginTop="4dp"
-        android:visibility="gone"
-        android:gravity="center_vertical">
-
-        <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/star_big_on"
-            android:layout_marginEnd="8dp"
-            app:tint="#C62828"/>
-
-        <TextView
-            android:id="@+id/holidayNameText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Holiday Name"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="#C62828"/>
-    </LinearLayout>
-
-    <!-- Schedules List -->
+    <!-- Custom Calendar Grid (We'll use RecyclerView for this) -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/schedulesRecyclerView"
+        android:id="@+id/calendarGridRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="8dp"
-        android:clipToPadding="false"/>
-
-    <!-- Empty State -->
-    <LinearLayout
-        android:id="@+id/emptyStateLayout"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone">
-
-        <ImageView
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:src="@android:drawable/ic_menu_my_calendar"
-            android:alpha="0.3"
-            app:tint="#BDBDBD"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="No schedules for this day"
-            android:textSize="16sp"
-            android:textColor="#757575"
-            android:layout_marginTop="16dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Tap + to add a schedule"
-            android:textSize="14sp"
-            android:textColor="#BDBDBD"
-            android:layout_marginTop="8dp"/>
-    </LinearLayout>
+        android:background="@android:color/white"
+        android:padding="8dp"/>
 
 </LinearLayout>

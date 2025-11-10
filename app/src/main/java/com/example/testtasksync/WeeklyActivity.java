@@ -352,7 +352,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     sdf.format(endDate.getTime()) + ")";
         }
         if (completedTasks > 0) {
-            description += " • " + completedTasks + " completed";
+            description += " â€¢ " + completedTasks + " completed";
         }
 
         mainScheduleData.put("description", description);
@@ -511,12 +511,12 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .update(mainScheduleData)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d(TAG, "Main schedule updated for weekly plan");
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to update schedule", e);
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 });
                     } else {
@@ -527,19 +527,19 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .add(mainScheduleData)
                                 .addOnSuccessListener(documentReference -> {
                                     Log.d(TAG, "Main schedule created for weekly plan");
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to create schedule", e);
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 });
                     }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to check existing schedule", e);
-                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
                     finish();
                 });
     }
@@ -578,7 +578,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
     private void showQuickWeekSelector() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📅 Select Week");
+        builder.setTitle("ðŸ“… Select Week");
 
         // Calculate week ranges for display
         Calendar calendar = Calendar.getInstance();
@@ -685,7 +685,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
                     // Validate: end date must be after start date
                     if (endDate.before(startDate)) {
-                        Toast.makeText(this, "⚠️ End date must be after start date",
+                        Toast.makeText(this, "âš ï¸ End date must be after start date",
                                 Toast.LENGTH_SHORT).show();
                         endDate = (Calendar) startDate.clone();
                         endDate.add(Calendar.DAY_OF_MONTH, 6);

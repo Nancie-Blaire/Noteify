@@ -130,7 +130,7 @@
             android:id="@+id/scheduleDetailCategory"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Event"
+            android:text="Weekly"
             android:textSize="14sp"
             android:textColor="@android:color/white"
             android:background="@drawable/badge_background"

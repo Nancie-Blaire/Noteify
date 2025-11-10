@@ -19,4 +19,5 @@
     <color name="text_primary">#212121</color>
     <color name="text_secondary">#757575</color>
     <color name="colorPrimary">#6200EE</color>
+    <color name="calender_hue">#b2c8e6</color>
 </resources>

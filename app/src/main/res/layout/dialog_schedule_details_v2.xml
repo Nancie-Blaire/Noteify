@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Time (if available) -->
+        <LinearLayout
+            android:id="@+id/timeContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/scheduleTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="10:00"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#2196F3"/>
+
+            <TextView
+                android:id="@+id/scheduleAmPm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AM"
+                android:textSize="16sp"
+                android:textColor="#757575"
+                android:layout_marginStart="4dp"/>
+        </LinearLayout>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/scheduleDetailTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Schedule Title"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- Description (for regular schedules) -->
+        <TextView
+            android:id="@+id/scheduleDetailDescription"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Description"
+            android:textSize="16sp"
+            android:textColor="#757575"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Date -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_menu_my_calendar"
+                android:layout_marginEnd="8dp"
+                app:tint="#757575"/>
+
+            <TextView
+                android:id="@+id/scheduleDetailDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nov 8, 2025"
+                android:textSize="14sp"
+                android:textColor="#757575"/>
+        </LinearLayout>
+
+        <!-- Category Badge -->
+        <TextView
+            android:id="@+id/categoryBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Weekly"
+            android:textSize="12sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/badge_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Reminder -->
+        <TextView
+            android:id="@+id/scheduleDetailReminder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔔 15 minutes before"
+            android:textSize="14sp"
+            android:textColor="#757575"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone"/>
+
+        <!-- Divider (shows only if there are tasks) -->
+        <View
+            android:id="@+id/tasksDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone"/>
+
+        <!-- Tasks Section (for Weekly/Todo) -->
+        <LinearLayout
+            android:id="@+id/tasksSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tasks"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#000000"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Tasks List Container -->
+            <LinearLayout
+                android:id="@+id/tasksListContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+
+        </LinearLayout>
+
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="24dp">
+
+            <Button
+                android:id="@+id/closeButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Close"
+                android:textColor="#757575"
+                style="@style/Widget.MaterialComponents.Button.TextButton"/>
+
+            <Button
+                android:id="@+id/deleteScheduleButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Delete"
+                android:layout_marginStart="8dp"
+                android:textColor="#F44336"
+                style="@style/Widget.MaterialComponents.Button.TextButton"/>
+
+            <Button
+                android:id="@+id/editScheduleButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Edit"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="#2196F3"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>

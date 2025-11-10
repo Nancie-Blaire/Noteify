@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="100dp"
+    android:orientation="vertical"
+    android:background="@drawable/calendar_cell_background"
+    android:padding="4dp"
+    android:layout_margin="1dp">
+
+    <!-- Day Number -->
+    <TextView
+        android:id="@+id/dayNumber"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="1"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:gravity="center_horizontal"/>
+
+    <!-- Holiday Indicator (small emoji/text) -->
+    <TextView
+        android:id="@+id/holidayIndicator"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🎉"
+        android:textSize="10sp"
+        android:gravity="center"
+        android:visibility="gone"/>
+
+    <!-- Task Preview Container (shows up to 3 tasks) -->
+    <LinearLayout
+        android:id="@+id/taskPreviewContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginTop="4dp"/>
+
+</LinearLayout>

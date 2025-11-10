@@ -28,6 +28,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class DayDetailsActivity extends AppCompatActivity {
 
@@ -50,6 +51,7 @@ public class DayDetailsActivity extends AppCompatActivity {
     private Calendar selectedDate;
 
     private List<Schedule> selectedSchedules = new ArrayList<>();
+
     private boolean isDeleteMode = false;
 
     @Override
@@ -144,7 +146,7 @@ public class DayDetailsActivity extends AppCompatActivity {
 
         if (PhilippineHolidays.isHoliday(year, month, day)) {
             String holidayName = PhilippineHolidays.getHolidayName(year, month, day);
-            holidayNameText.setText("Ã°Å¸Å½â€° " + holidayName);
+            holidayNameText.setText("***" + holidayName);
             holidayBanner.setVisibility(View.VISIBLE);
         } else {
             holidayBanner.setVisibility(View.GONE);
@@ -196,7 +198,12 @@ public class DayDetailsActivity extends AppCompatActivity {
                         for (QueryDocumentSnapshot doc : snapshots) {
                             Schedule schedule = doc.toObject(Schedule.class);
                             schedule.setId(doc.getId());
-                            scheduleList.add(schedule);
+
+                            // I-skip ang weekly category schedules
+                            // Kasi yung tasks nila ay kinukuha separately
+                            if (!"weekly".equals(schedule.getCategory())) {
+                                scheduleList.add(schedule);
+                            }
                         }
                     }
 
@@ -218,7 +225,7 @@ public class DayDetailsActivity extends AppCompatActivity {
 
         SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy (EEE)", Locale.getDefault());
         Log.d(TAG, "📅 Loading weekly plans for date: " + sdf.format(selectedDate.getTime()));
-        Log.d(TAG, "🔢 Day of week: " + getDayNameFromCalendar(selectedDate));
+        Log.d(TAG, "📢 Day of week: " + getDayNameFromCalendar(selectedDate));
 
         db.collection("users")
                 .document(user.getUid())
@@ -232,6 +239,9 @@ public class DayDetailsActivity extends AppCompatActivity {
                     }
 
                     Log.d(TAG, "📋 Found " + queryDocumentSnapshots.size() + " weekly plan(s)");
+
+                    // Count how many plans are in range
+                    List<String> plansInRange = new ArrayList<>();
 
                     for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
                         // Get the plan's date range
@@ -268,21 +278,43 @@ public class DayDetailsActivity extends AppCompatActivity {
                             boolean isInRange = !selectedDateNormalized.before(planStart) &&
                                     !selectedDateNormalized.after(planEnd);
 
-                            Log.d(TAG, "🔍 Selected date: " + planSdf.format(selectedDateNormalized.getTime()));
-                            Log.d(TAG, "🔍 Is in range? " + isInRange);
+                            Log.d(TAG, "🎯 Selected date: " + planSdf.format(selectedDateNormalized.getTime()));
+                            Log.d(TAG, "🎯 Is in range? " + isInRange);
 
                             if (isInRange) {
-                                // Get the day name for the selected date
-                                String selectedDayName = getDayNameFromCalendar(selectedDate);
-                                Log.d(TAG, "✅ Loading tasks for " + selectedDayName);
-
-                                // Load tasks for this specific day
-                                loadWeeklyPlanTasksForSpecificDay(doc.getId(), selectedDayName);
+                                plansInRange.add(doc.getId());
                             } else {
                                 Log.d(TAG, "⏭️ Selected date not in plan range - skipping");
                             }
                         } else {
                             Log.e(TAG, "❌ Plan missing start/end date");
+                        }
+                    }
+
+                    // Now load tasks from all plans in range
+                    if (plansInRange.isEmpty()) {
+                        Log.d(TAG, "⚠️ No plans in range for selected date");
+                        updateScheduleDisplay();
+                    } else {
+                        Log.d(TAG, "✅ " + plansInRange.size() + " plan(s) in range");
+                        String selectedDayName = getDayNameFromCalendar(selectedDate);
+
+                        // Use AtomicInteger to count completed queries
+                        AtomicInteger completedQueries = new AtomicInteger(0);
+                        int totalQueries = plansInRange.size();
+
+                        for (String planId : plansInRange) {
+                            loadWeeklyPlanTasksForSpecificDay(planId, selectedDayName, () -> {
+                                // This callback runs when each query completes
+                                int completed = completedQueries.incrementAndGet();
+                                Log.d(TAG, "✅ Query " + completed + "/" + totalQueries + " completed");
+
+                                if (completed == totalQueries) {
+                                    // All queries done, update UI once
+                                    Log.d(TAG, "🔄 All queries completed, updating UI");
+                                    updateScheduleDisplay();
+                                }
+                            });
                         }
                     }
                 })
@@ -292,9 +324,12 @@ public class DayDetailsActivity extends AppCompatActivity {
                 });
     }
 
-    private void loadWeeklyPlanTasksForSpecificDay(String planId, String dayName) {
+    private void loadWeeklyPlanTasksForSpecificDay(String planId, String dayName, Runnable onComplete) {
         FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
+        if (user == null) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
 
         Log.d(TAG, "🔎 Loading tasks for plan: " + planId + ", day: " + dayName);
 
@@ -351,13 +386,17 @@ public class DayDetailsActivity extends AppCompatActivity {
                         }
                     }
 
-                    // Update UI
-                    Log.d(TAG, "🔄 Updating UI with " + scheduleList.size() + " total schedules");
-                    updateScheduleDisplay();
+                    // Call the completion callback
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load weekly plan tasks for " + dayName, e);
-                    updateScheduleDisplay();
+                    // Still call completion callback on failure
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
                 });
     }
 
@@ -443,7 +482,7 @@ public class DayDetailsActivity extends AppCompatActivity {
         categoryBadge.setText(getCategoryDisplayName(schedule.getCategory()));
 
         if (schedule.hasReminder()) {
-            reminderText.setText("Ã°Å¸â€â€ " + schedule.getReminderMinutes() + " minutes before");
+            reminderText.setText("🔔 " + schedule.getReminderMinutes() + " minutes before");
             reminderText.setVisibility(View.VISIBLE);
         }
 
@@ -484,8 +523,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                             CheckBox checkbox = taskView.findViewById(R.id.taskCheckbox);
                             TextView taskText = taskView.findViewById(R.id.taskText);
 
-                            String text = "weekly".equals(schedule.getCategory()) ?
-                                    doc.getString("taskText") : doc.getString("taskText");
+                            String text = doc.getString("taskText");
                             boolean isCompleted = Boolean.TRUE.equals(doc.getBoolean("isCompleted"));
 
                             checkbox.setChecked(isCompleted);
@@ -529,7 +567,7 @@ public class DayDetailsActivity extends AppCompatActivity {
     private void showDeleteConfirmation() {
         if (selectedSchedules.isEmpty()) return;
 
-        String message = "Delete " + selectedSchedules.size() + " schedule(s)?";
+        String message = "Delete " + selectedSchedules.size() + " item(s)?";
 
         new AlertDialog.Builder(this)
                 .setTitle("Confirm Delete")
@@ -543,21 +581,71 @@ public class DayDetailsActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
+        int deleteCount = 0;
+
         for (Schedule schedule : selectedSchedules) {
-            db.collection("users")
-                    .document(user.getUid())
-                    .collection("schedules")
-                    .document(schedule.getId())
-                    .delete()
-                    .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "Schedule deleted");
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Failed to delete schedule", e);
-                    });
+            String category = schedule.getCategory();
+
+            if ("weekly".equals(category)) {
+                // For weekly tasks, delete from weeklyPlans/{planId}/tasks
+                String sourceId = schedule.getSourceId();
+                if (sourceId != null) {
+                    String taskId = schedule.getId().replace(sourceId + "_", "");
+
+                    db.collection("users")
+                            .document(user.getUid())
+                            .collection("weeklyPlans")
+                            .document(sourceId)
+                            .collection("tasks")
+                            .document(taskId)
+                            .delete()
+                            .addOnSuccessListener(aVoid -> {
+                                Log.d(TAG, "Weekly task deleted");
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "Failed to delete weekly task", e);
+                            });
+                    deleteCount++;
+                }
+            } else if ("todo".equals(category)) {
+                // For todo tasks, delete from todoLists/{todoId}/tasks
+                String sourceId = schedule.getSourceId();
+                if (sourceId != null) {
+                    String taskId = schedule.getId().replace(sourceId + "_", "");
+
+                    db.collection("users")
+                            .document(user.getUid())
+                            .collection("todoLists")
+                            .document(sourceId)
+                            .collection("tasks")
+                            .document(taskId)
+                            .delete()
+                            .addOnSuccessListener(aVoid -> {
+                                Log.d(TAG, "Todo task deleted");
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "Failed to delete todo task", e);
+                            });
+                    deleteCount++;
+                }
+            } else {
+                // For regular schedules, delete from schedules collection
+                db.collection("users")
+                        .document(user.getUid())
+                        .collection("schedules")
+                        .document(schedule.getId())
+                        .delete()
+                        .addOnSuccessListener(aVoid -> {
+                            Log.d(TAG, "Schedule deleted");
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to delete schedule", e);
+                        });
+                deleteCount++;
+            }
         }
 
-        Toast.makeText(this, "Ã¢Å“â€œ " + selectedSchedules.size() + " schedule(s) deleted", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "🗑️ " + deleteCount + " item(s) deleted", Toast.LENGTH_SHORT).show();
         exitDeleteMode();
     }
 
@@ -577,5 +665,13 @@ public class DayDetailsActivity extends AppCompatActivity {
             scheduleListener.remove();
             scheduleListener = null;
         }
+
+
+    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Reload schedules when activity becomes visible again
+        loadSchedulesForDate();
     }
 }

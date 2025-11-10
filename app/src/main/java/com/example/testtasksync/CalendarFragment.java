@@ -42,6 +42,7 @@ public class CalendarFragment extends Fragment {
     private RecyclerView calendarGridRecyclerView;
     private CalendarGridAdapter calendarAdapter;
 
+
     private Calendar currentCalendar;
     private Map<String, List<Schedule>> dateSchedulesMap; // "yyyy-MM-dd" -> List<Schedule>
 
@@ -90,7 +91,7 @@ public class CalendarFragment extends Fragment {
     }
 
     private void updateCalendarDisplay() {
-        SimpleDateFormat sdf = new SimpleDateFormat("MMMM Ã¢â€“Â¼", Locale.getDefault());
+        SimpleDateFormat sdf = new SimpleDateFormat("MMMM ▼", Locale.getDefault());
         monthYearText.setText(sdf.format(currentCalendar.getTime()));
 
         // Generate calendar days
@@ -515,7 +516,14 @@ public class CalendarFragment extends Fragment {
             scheduleListener = null;
         }
     }
-
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Reload schedules when fragment becomes visible again
+        if (currentCalendar != null) {
+            loadSchedulesForMonth();
+        }
+    }
     // Calendar Day Model
     public static class CalendarDay {
         private String dayNumber;

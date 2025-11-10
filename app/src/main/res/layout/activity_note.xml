@@ -49,13 +49,24 @@
             android:focusable="true"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
+        <!-- Divider Button -->
+        <ImageView
+            android:id="@+id/dividerBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_notes_feature_divider"
+            android:contentDescription="Insert Divider"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="#757575" />
+
         <!-- Color Palette Button -->
         <ImageView
             android:id="@+id/colorPaletteBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="12dp"
-            android:src="@drawable/ic_feature_palette"
+            android:src="@drawable/ic_notes_feature_palette"
             android:contentDescription="Change Color"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="#757575" />
@@ -96,7 +107,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#FAFAFA"
                 android:tag="#FAFAFA" />
 
@@ -106,7 +117,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#FFCDD2"
                 android:tag="#FFCDD2" />
 
@@ -116,7 +127,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#F8BBD0"
                 android:tag="#F8BBD0" />
 
@@ -126,7 +137,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#E1BEE7"
                 android:tag="#E1BEE7" />
 
@@ -136,7 +147,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#BBDEFB"
                 android:tag="#BBDEFB" />
 
@@ -146,7 +157,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#B2EBF2"
                 android:tag="#B2EBF2" />
 
@@ -156,7 +167,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#C8E6C9"
                 android:tag="#C8E6C9" />
 
@@ -166,7 +177,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#FFF9C4"
                 android:tag="#FFF9C4" />
 
@@ -176,7 +187,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#FFE0B2"
                 android:tag="#FFE0B2" />
 
@@ -186,7 +197,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#D7CCC8"
                 android:tag="#D7CCC8" />
 
@@ -196,7 +207,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_margin="6dp"
-                android:background="@drawable/themes_circle_bg"
+                android:background="@drawable/profile_circle_bg"
                 android:backgroundTint="#CFD8DC"
                 android:tag="#CFD8DC" />
 

@@ -3,27 +3,30 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
-    android:fillViewport="true">
+    android:background="#F5F5F5">
 
+    <!-- Scrollable Content Area -->
     <ScrollView
         android:id="@+id/scrollView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="match_parent"
+        android:layout_above="@+id/bottomNavBar"
+        android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:gravity="center_horizontal"
-            android:padding="32dp">
+            android:padding="32dp"
+            android:paddingBottom="16dp">
 
             <!-- Logo -->
             <ImageView
                 android:id="@+id/ivLogo"
                 android:layout_width="140dp"
-                android:layout_height="160dp"
-                android:layout_marginBottom="10dp"
+                android:layout_height="180dp"
+                android:layout_marginBottom="8dp"
                 android:contentDescription="Noteify Logo"
                 android:src="@drawable/logo_noteify" />
 
@@ -34,11 +37,11 @@
                 android:text="NOTEIFY"
                 android:fontFamily="@font/inter_regular"
                 android:letterSpacing=".3"
-                android:textSize="30sp"
+                android:textSize="28sp"
                 android:textStyle="bold"
                 android:textColor="#333333"
-                android:layout_marginTop="20dp"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="4dp" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -48,7 +51,7 @@
                 android:letterSpacing=".1"
                 android:textSize="14sp"
                 android:textColor="#757575"
-                android:layout_marginBottom="32dp" />
+                android:layout_marginBottom="24dp" />
 
             <!-- Full Name Input -->
             <LinearLayout
@@ -77,7 +80,7 @@
                     android:background="@android:color/transparent" />
             </LinearLayout>
 
-            <!-- ✅ Email Input (kept hers) -->
+            <!-- Email Input -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -197,15 +200,16 @@
                 android:paddingEnd="64dp"
                 android:paddingTop="14dp"
                 android:paddingBottom="14dp"
-                android:layout_marginTop="30dp"
-                android:layout_marginBottom="10dp"/>
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="16dp"/>
 
             <!-- Divider -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
 
                 <View
                     android:layout_width="0dp"
@@ -228,7 +232,7 @@
                     android:background="#E0E0E0" />
             </LinearLayout>
 
-            <!-- 🟢 Google Sign-In (moved here) -->
+            <!-- Google Sign-In -->
             <Button
                 android:id="@+id/btnGoogleSignIn"
                 android:layout_width="match_parent"
@@ -243,8 +247,7 @@
                 android:drawableLeft="@drawable/ic_google"
                 android:drawablePadding="8dp"
                 android:gravity="center"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="50dp" />
+                android:layout_marginBottom="24dp" />
 
             <!-- Progress Bar -->
             <ProgressBar

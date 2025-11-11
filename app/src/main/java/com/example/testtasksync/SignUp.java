@@ -1,9 +1,9 @@
 package com.example.testtasksync;
 
-
-
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.util.Log;
 import android.util.Patterns;
@@ -17,8 +17,6 @@ import android.widget.Toast;
 import android.widget.ScrollView;
 import android.graphics.Rect;
 import android.view.WindowManager;
-import com.example.testtasksync.R;
-
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -44,8 +42,8 @@ public class SignUp extends AppCompatActivity {
 
     private EditText etFullName, etEmail, etPassword, etConfirmPassword;
     private ImageView ivTogglePassword, ivToggleConfirmPassword;
-    private Button btnSignUp, btnGoogleSignIn;
-    private TextView tvLoginRedirect;
+    private Button btnSignUp, btnGoogleSignIn, btnResendVerification;
+    private TextView tvLoginRedirect, tvVerifyMessage;
     private ProgressBar progressBar;
     private FirebaseAuth auth;
     private FirebaseFirestore db;
@@ -53,6 +51,10 @@ public class SignUp extends AppCompatActivity {
     private boolean isPasswordVisible = false;
     private boolean isConfirmPasswordVisible = false;
     private ScrollView scrollView;
+
+    private Handler verificationCheckHandler;
+    private Runnable verificationCheckRunnable;
+    private boolean isCheckingVerification = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,7 +81,9 @@ public class SignUp extends AppCompatActivity {
         etConfirmPassword = findViewById(R.id.etConfirmPassword);
         btnSignUp = findViewById(R.id.btnSignUp);
         btnGoogleSignIn = findViewById(R.id.btnGoogleSignIn);
+        btnResendVerification = findViewById(R.id.btnResendVerification);
         tvLoginRedirect = findViewById(R.id.tvLoginRedirect);
+        tvVerifyMessage = findViewById(R.id.tvVerifyMessage);
         progressBar = findViewById(R.id.progressBar);
         ivTogglePassword = findViewById(R.id.ivTogglePassword);
         ivToggleConfirmPassword = findViewById(R.id.ivToggleConfirmPassword);
@@ -106,8 +110,14 @@ public class SignUp extends AppCompatActivity {
             }
         });
 
+        // Resend verification email button
+        if (btnResendVerification != null) {
+            btnResendVerification.setOnClickListener(v -> resendVerificationEmail());
+        }
+
         // Redirect to Login
         tvLoginRedirect.setOnClickListener(v -> {
+            stopVerificationCheck();
             startActivity(new Intent(SignUp.this, Login.class));
             finish();
         });
@@ -329,7 +339,7 @@ public class SignUp extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         FirebaseUser user = auth.getCurrentUser();
                         if (user != null) {
-                            saveUserToFirestore(user.getUid(), fullName, email);
+                            sendVerificationEmail(user, fullName, email);
                         }
                     } else {
                         progressBar.setVisibility(View.GONE);
@@ -342,12 +352,134 @@ public class SignUp extends AppCompatActivity {
                 });
     }
 
+    private void sendVerificationEmail(FirebaseUser user, String fullName, String email) {
+        user.sendEmailVerification()
+                .addOnCompleteListener(task -> {
+                    progressBar.setVisibility(View.GONE);
+
+                    if (task.isSuccessful()) {
+                        Log.d(TAG, "Verification email sent to " + user.getEmail());
+
+                        // Show verification message and hide sign-up form
+                        showVerificationUI();
+
+                        // Start checking for email verification
+                        startVerificationCheck(user, fullName, email);
+
+                        Toast.makeText(SignUp.this,
+                                "Verification email sent to " + user.getEmail(),
+                                Toast.LENGTH_LONG).show();
+                    } else {
+                        btnSignUp.setEnabled(true);
+                        Toast.makeText(SignUp.this,
+                                "Failed to send verification email. Please try again.",
+                                Toast.LENGTH_LONG).show();
+                        Log.e(TAG, "Failed to send verification email", task.getException());
+                    }
+                });
+    }
+
+    private void showVerificationUI() {
+        // Hide sign-up form elements
+        etFullName.setVisibility(View.GONE);
+        etEmail.setVisibility(View.GONE);
+        etPassword.setVisibility(View.GONE);
+        etConfirmPassword.setVisibility(View.GONE);
+        btnSignUp.setVisibility(View.GONE);
+        btnGoogleSignIn.setVisibility(View.GONE);
+
+        // Hide parent containers
+        ((View) etFullName.getParent()).setVisibility(View.GONE);
+        ((View) etEmail.getParent()).setVisibility(View.GONE);
+        ((View) etPassword.getParent()).setVisibility(View.GONE);
+        ((View) etConfirmPassword.getParent()).setVisibility(View.GONE);
+
+        // Show verification message and resend button
+        tvVerifyMessage.setVisibility(View.VISIBLE);
+        if (btnResendVerification != null) {
+            btnResendVerification.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void startVerificationCheck(FirebaseUser user, String fullName, String email) {
+        isCheckingVerification = true;
+        verificationCheckHandler = new Handler(Looper.getMainLooper());
+
+        verificationCheckRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!isCheckingVerification) return;
+
+                user.reload().addOnCompleteListener(reloadTask -> {
+                    if (reloadTask.isSuccessful()) {
+                        if (user.isEmailVerified()) {
+                            // Email is verified, save to Firestore and proceed
+                            stopVerificationCheck();
+                            saveUserToFirestore(user.getUid(), fullName, email);
+                        } else {
+                            // Check again after 3 seconds
+                            if (isCheckingVerification) {
+                                verificationCheckHandler.postDelayed(this, 3000);
+                            }
+                        }
+                    } else {
+                        // Error reloading user, try again
+                        if (isCheckingVerification) {
+                            verificationCheckHandler.postDelayed(this, 3000);
+                        }
+                    }
+                });
+            }
+        };
+
+        // Start the first check
+        verificationCheckHandler.post(verificationCheckRunnable);
+    }
+
+    private void stopVerificationCheck() {
+        isCheckingVerification = false;
+        if (verificationCheckHandler != null && verificationCheckRunnable != null) {
+            verificationCheckHandler.removeCallbacks(verificationCheckRunnable);
+        }
+    }
+
+    private void resendVerificationEmail() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null && !user.isEmailVerified()) {
+            progressBar.setVisibility(View.VISIBLE);
+            if (btnResendVerification != null) {
+                btnResendVerification.setEnabled(false);
+            }
+
+            user.sendEmailVerification()
+                    .addOnCompleteListener(task -> {
+                        progressBar.setVisibility(View.GONE);
+                        if (btnResendVerification != null) {
+                            btnResendVerification.setEnabled(true);
+                        }
+
+                        if (task.isSuccessful()) {
+                            Toast.makeText(SignUp.this,
+                                    "Verification email resent!",
+                                    Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(SignUp.this,
+                                    "Failed to resend email. Please try again.",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    });
+        }
+    }
+
     private void saveUserToFirestore(String userId, String fullName, String email) {
+        progressBar.setVisibility(View.VISIBLE);
+
         Map<String, Object> userData = new HashMap<>();
         userData.put("email", email);
         userData.put("displayName", fullName);
         userData.put("photoUrl", null);
         userData.put("authProvider", "email");
+        userData.put("emailVerified", true);
         userData.put("createdAt", System.currentTimeMillis());
 
         db.collection("users")
@@ -355,7 +487,7 @@ public class SignUp extends AppCompatActivity {
                 .set(userData)
                 .addOnSuccessListener(aVoid -> {
                     progressBar.setVisibility(View.GONE);
-                    Toast.makeText(SignUp.this, "Account created successfully!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(SignUp.this, "Email verified! Account created successfully!", Toast.LENGTH_SHORT).show();
                     Log.d(TAG, "User data saved to Firestore");
 
                     FirebaseUser user = auth.getCurrentUser();
@@ -371,7 +503,6 @@ public class SignUp extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     progressBar.setVisibility(View.GONE);
-                    btnSignUp.setEnabled(true);
                     Toast.makeText(SignUp.this, "Failed to save user data", Toast.LENGTH_SHORT).show();
                     Log.e(TAG, "Error saving user data", e);
                 });
@@ -381,9 +512,15 @@ public class SignUp extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         FirebaseUser currentUser = auth.getCurrentUser();
-        if (currentUser != null) {
+        if (currentUser != null && currentUser.isEmailVerified()) {
             startActivity(new Intent(this, MainActivity.class));
             finish();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopVerificationCheck();
     }
 }

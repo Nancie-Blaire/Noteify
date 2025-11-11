@@ -41,19 +41,17 @@ public class WeeklyActivity extends AppCompatActivity {
     private String planId;
     private boolean isNewPlan = false;
 
-    // STEP 1: Added fields for week range picker
+    // Week range fields
     private Calendar startDate = null;
     private Calendar endDate = null;
-    private TextView weekRangeText;
-    private LinearLayout weekRangeSection;
-    private ImageView clearWeekButton;
 
     private EditText weeklyTitle;
-    private ImageView saveButton, backButton;
+    private ImageView saveButton, backButton, scheduleButton;
 
     private List<String> days = Arrays.asList("Mon", "Tues", "Wed", "Thur", "Fri", "Sat", "Sun");
     private Map<String, LinearLayout> dayContainers = new HashMap<>();
     private Map<String, List<WeeklyTask>> dayTasks = new HashMap<>();
+    private String selectedTime = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,15 +70,7 @@ public class WeeklyActivity extends AppCompatActivity {
         weeklyTitle = findViewById(R.id.weeklyTitle);
         saveButton = findViewById(R.id.saveButton);
         backButton = findViewById(R.id.backButton);
-
-        // STEP 2: Initialize week range views
-        weekRangeSection = findViewById(R.id.weekRangeSection);
-        weekRangeText = findViewById(R.id.weekRangeText);
-        clearWeekButton = findViewById(R.id.clearWeekButton);
-
-        // Set up week range picker with quick selector
-        weekRangeSection.setOnClickListener(v -> showQuickWeekSelector());
-        clearWeekButton.setOnClickListener(v -> clearWeekRange());
+        scheduleButton = findViewById(R.id.scheduleButton);
 
         // Initialize with current week by default
         setCurrentWeek();
@@ -108,9 +98,10 @@ public class WeeklyActivity extends AppCompatActivity {
         findViewById(R.id.addSatTask).setOnClickListener(v -> addTask("Sat"));
         findViewById(R.id.addSunTask).setOnClickListener(v -> addTask("Sun"));
 
-        // Set up save and back buttons
+        // Set up save, back, and schedule buttons
         saveButton.setOnClickListener(v -> saveWeeklyPlan());
         backButton.setOnClickListener(v -> finish());
+        scheduleButton.setOnClickListener(v -> showScheduleDialog());
 
         // Load existing plan or add default tasks
         if (isNewPlan) {
@@ -148,7 +139,13 @@ public class WeeklyActivity extends AppCompatActivity {
                             weeklyTitle.setText(title);
                         }
 
-                        // STEP 4: Load week range if exists
+                        // ✅ Load time if exists
+                        String savedTime = documentSnapshot.getString("time");
+                        if (savedTime != null && !savedTime.isEmpty()) {
+                            selectedTime = savedTime;
+                        }
+
+                        // Load week range if exists
                         Timestamp startDateTimestamp = documentSnapshot.getTimestamp("startDate");
                         Timestamp endDateTimestamp = documentSnapshot.getTimestamp("endDate");
 
@@ -158,8 +155,6 @@ public class WeeklyActivity extends AppCompatActivity {
 
                             endDate = Calendar.getInstance();
                             endDate.setTime(endDateTimestamp.toDate());
-
-                            updateWeekRangeDisplay();
                         } else {
                             // If no saved dates, use current week
                             setCurrentWeek();
@@ -171,6 +166,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load plan", Toast.LENGTH_SHORT).show();
                 });
 
+        // Rest of loadWeeklyPlan() remains the same...
         // Query 2: Tasks (running in parallel with Query 1)
         db.collection("users")
                 .document(userId)
@@ -341,7 +337,7 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         }
 
-        // STEP 6: Update mainScheduleData with week range in description
+        // Update mainScheduleData with week range in description
         Map<String, Object> mainScheduleData = new HashMap<>();
         mainScheduleData.put("title", title);
 
@@ -352,7 +348,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     sdf.format(endDate.getTime()) + ")";
         }
         if (completedTasks > 0) {
-            description += " â€¢ " + completedTasks + " completed";
+            description += " • " + completedTasks + " completed";
         }
 
         mainScheduleData.put("description", description);
@@ -367,7 +363,8 @@ public class WeeklyActivity extends AppCompatActivity {
             mainScheduleData.put("date", null);
         }
 
-        mainScheduleData.put("time", "");
+        // ✅ ADD TIME to mainScheduleData
+        mainScheduleData.put("time", selectedTime != null ? selectedTime : "");
         mainScheduleData.put("hasReminder", false);
 
         // Generate new ID if this is a new plan
@@ -383,12 +380,15 @@ public class WeeklyActivity extends AppCompatActivity {
         final int finalTotalTasks = totalTasks;
         final int finalCompletedTasks = completedTasks;
 
-        // STEP 5: Save to weeklyPlans collection with date range
+        // Save to weeklyPlans collection with date range and time
         Map<String, Object> planData = new HashMap<>();
         planData.put("title", finalTitle);
         planData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
         planData.put("taskCount", finalTotalTasks);
         planData.put("completedCount", finalCompletedTasks);
+
+        // ✅ ADD TIME to planData
+        planData.put("time", selectedTime != null ? selectedTime : "");
 
         // Add week range dates
         if (startDate != null && endDate != null) {
@@ -511,12 +511,12 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .update(mainScheduleData)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d(TAG, "Main schedule updated for weekly plan");
-                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to update schedule", e);
-                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 });
                     } else {
@@ -527,37 +527,22 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .add(mainScheduleData)
                                 .addOnSuccessListener(documentReference -> {
                                     Log.d(TAG, "Main schedule created for weekly plan");
-                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to create schedule", e);
-                                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 });
                     }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to check existing schedule", e);
-                    Toast.makeText(this, "âœ“ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
                     finish();
                 });
     }
-
-    private int getDayOfWeekNumber(String day) {
-        switch (day) {
-            case "Sun": return Calendar.SUNDAY;
-            case "Mon": return Calendar.MONDAY;
-            case "Tues": return Calendar.TUESDAY;
-            case "Wed": return Calendar.WEDNESDAY;
-            case "Thur": return Calendar.THURSDAY;
-            case "Fri": return Calendar.FRIDAY;
-            case "Sat": return Calendar.SATURDAY;
-            default: return Calendar.MONDAY;
-        }
-    }
-
-    // STEP 3: New methods for week range picker functionality
 
     private void setCurrentWeek() {
         Calendar calendar = Calendar.getInstance();
@@ -572,15 +557,125 @@ public class WeeklyActivity extends AppCompatActivity {
         // Calculate end of week (Sunday)
         calendar.add(Calendar.DAY_OF_MONTH, 6);
         endDate = (Calendar) calendar.clone();
-
-        updateWeekRangeDisplay();
     }
 
-    private void showQuickWeekSelector() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("ðŸ“… Select Week");
+    // SCHEDULE DIALOG METHODS
 
-        // Calculate week ranges for display
+    private void showScheduleDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_weekly_schedule, null);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        // Get views from dialog
+        LinearLayout weekRangePickerButton = dialogView.findViewById(R.id.weekRangePickerButton);
+        TextView weekRangeText = dialogView.findViewById(R.id.weekRangeText);
+        ImageView clearWeekButton = dialogView.findViewById(R.id.clearWeekButton);
+
+        LinearLayout timePickerButton = dialogView.findViewById(R.id.timePickerButton);
+        TextView selectedTimeText = dialogView.findViewById(R.id.selectedTimeText);
+
+        CheckBox notificationCheckbox = dialogView.findViewById(R.id.notificationCheckbox);
+        LinearLayout notificationTimeSection = dialogView.findViewById(R.id.notificationTimeSection);
+        android.widget.Spinner notificationTimeSpinner = dialogView.findViewById(R.id.notificationTimeSpinner);
+
+        android.widget.Button cancelButton = dialogView.findViewById(R.id.cancelButton);
+        android.widget.Button saveScheduleButton = dialogView.findViewById(R.id.saveScheduleButton);
+
+        // Setup notification spinner
+        android.widget.ArrayAdapter<CharSequence> adapter = android.widget.ArrayAdapter.createFromResource(
+                this,
+                R.array.reminder_times,
+                android.R.layout.simple_spinner_item
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        notificationTimeSpinner.setAdapter(adapter);
+
+        // Initialize with current week range if already set
+        if (startDate != null && endDate != null) {
+            updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
+        } else {
+            setCurrentWeek();
+            updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
+        }
+
+        // Week range picker
+        weekRangePickerButton.setOnClickListener(v ->
+                showQuickWeekSelectorDialog(weekRangeText, clearWeekButton)
+        );
+
+        // Clear week button
+        clearWeekButton.setOnClickListener(v -> {
+            setCurrentWeek();
+            updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
+        });
+
+        // Time picker
+        timePickerButton.setOnClickListener(v -> {
+            Calendar cal = Calendar.getInstance();
+            int hour = cal.get(Calendar.HOUR_OF_DAY);
+            int minute = cal.get(Calendar.MINUTE);
+
+            android.app.TimePickerDialog timeDialog = new android.app.TimePickerDialog(
+                    this,
+                    (view, hourOfDay, minuteOfHour) -> {
+                        String time = String.format(Locale.getDefault(), "%02d:%02d", hourOfDay, minuteOfHour);
+                        selectedTimeText.setText(time);
+                    },
+                    hour, minute, false
+            );
+            timeDialog.show();
+        });
+
+        // Notification checkbox
+        notificationCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            notificationTimeSection.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        // Cancel button
+        cancelButton.setOnClickListener(v -> dialog.dismiss());
+
+        saveScheduleButton.setOnClickListener(v -> {
+            String selectedTimeValue = selectedTimeText.getText().toString();
+            boolean hasNotification = notificationCheckbox.isChecked();
+            String reminderTime = "";
+
+            if (hasNotification) {
+                reminderTime = notificationTimeSpinner.getSelectedItem().toString();
+            }
+
+            // ✅ Save the time to the class variable
+            if (!selectedTimeValue.equals("Select time")) {
+                selectedTime = selectedTimeValue;
+            } else {
+                selectedTime = "";
+            }
+
+            // Week range is already saved in startDate and endDate
+            String message = "Schedule set for " +
+                    new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
+                    " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime());
+
+            if (!selectedTime.isEmpty()) {
+                message += " at " + selectedTime;
+            }
+
+            if (hasNotification) {
+                message += "\nReminder: " + reminderTime;
+            }
+
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    private void showQuickWeekSelectorDialog(TextView weekRangeText, ImageView clearWeekButton) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📅 Select Week");
+
+        // Calculate week ranges
         Calendar calendar = Calendar.getInstance();
         int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
         int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
@@ -621,20 +716,23 @@ public class WeeklyActivity extends AppCompatActivity {
                 case 0: // This Week
                     cal.add(Calendar.DAY_OF_MONTH, -toMonday);
                     setWeekFromStartDate(cal);
+                    updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
                     break;
 
                 case 1: // Next Week
                     cal.add(Calendar.DAY_OF_MONTH, -toMonday + 7);
                     setWeekFromStartDate(cal);
+                    updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
                     break;
 
                 case 2: // Week After Next
                     cal.add(Calendar.DAY_OF_MONTH, -toMonday + 14);
                     setWeekFromStartDate(cal);
+                    updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
                     break;
 
                 case 3: // Custom
-                    showCustomWeekPicker();
+                    showCustomWeekPickerDialog(weekRangeText, clearWeekButton);
                     break;
             }
         });
@@ -647,11 +745,9 @@ public class WeeklyActivity extends AppCompatActivity {
         startDate = (Calendar) start.clone();
         endDate = (Calendar) start.clone();
         endDate.add(Calendar.DAY_OF_MONTH, 6);
-        updateWeekRangeDisplay();
     }
 
-    private void showCustomWeekPicker() {
-        // Step 1: Pick start date
+    private void showCustomWeekPickerDialog(TextView weekRangeText, ImageView clearWeekButton) {
         Calendar initialDate = startDate != null ? startDate : Calendar.getInstance();
 
         DatePickerDialog startDatePicker = new DatePickerDialog(
@@ -659,9 +755,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 (view, year, month, dayOfMonth) -> {
                     startDate = Calendar.getInstance();
                     startDate.set(year, month, dayOfMonth);
-
-                    // Step 2: Now pick end date
-                    showEndDatePicker();
+                    showEndDatePickerDialog(weekRangeText, clearWeekButton);
                 },
                 initialDate.get(Calendar.YEAR),
                 initialDate.get(Calendar.MONTH),
@@ -672,8 +766,7 @@ public class WeeklyActivity extends AppCompatActivity {
         startDatePicker.show();
     }
 
-    private void showEndDatePicker() {
-        // Default end date: 6 days after start
+    private void showEndDatePickerDialog(TextView weekRangeText, ImageView clearWeekButton) {
         Calendar defaultEnd = (Calendar) startDate.clone();
         defaultEnd.add(Calendar.DAY_OF_MONTH, 6);
 
@@ -685,26 +778,25 @@ public class WeeklyActivity extends AppCompatActivity {
 
                     // Validate: end date must be after start date
                     if (endDate.before(startDate)) {
-                        Toast.makeText(this, "âš ï¸ End date must be after start date",
+                        Toast.makeText(this, "⚠️ End date must be after start date",
                                 Toast.LENGTH_SHORT).show();
                         endDate = (Calendar) startDate.clone();
                         endDate.add(Calendar.DAY_OF_MONTH, 6);
                     }
 
-                    updateWeekRangeDisplay();
+                    updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
                 },
                 defaultEnd.get(Calendar.YEAR),
                 defaultEnd.get(Calendar.MONTH),
                 defaultEnd.get(Calendar.DAY_OF_MONTH)
         );
 
-        // Set minimum date to start date
         endDatePicker.getDatePicker().setMinDate(startDate.getTimeInMillis());
         endDatePicker.setTitle("Select END date");
         endDatePicker.show();
     }
 
-    private void updateWeekRangeDisplay() {
+    private void updateWeekRangeDisplayInDialog(TextView weekRangeText, ImageView clearWeekButton) {
         if (startDate != null && endDate != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
             SimpleDateFormat yearFormat = new SimpleDateFormat("yyyy", Locale.getDefault());
@@ -713,15 +805,11 @@ public class WeeklyActivity extends AppCompatActivity {
             String endStr = sdf.format(endDate.getTime());
             String year = yearFormat.format(startDate.getTime());
 
-            weekRangeText.setText("Week: " + startStr + " - " + endStr + ", " + year);
+            weekRangeText.setText(startStr + " - " + endStr + ", " + year);
             clearWeekButton.setVisibility(View.VISIBLE);
         } else {
             weekRangeText.setText("Select week");
             clearWeekButton.setVisibility(View.GONE);
         }
-    }
-
-    private void clearWeekRange() {
-        setCurrentWeek(); // Reset to current week instead of null
     }
 }

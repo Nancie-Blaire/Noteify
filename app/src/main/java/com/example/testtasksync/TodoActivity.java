@@ -1,16 +1,24 @@
 package com.example.testtasksync;
 
 import android.app.DatePickerDialog;
+import android.app.Dialog;
+import android.app.TimePickerDialog;
+import android.graphics.Paint;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.Window;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -26,6 +34,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -40,14 +49,21 @@ public class TodoActivity extends AppCompatActivity {
     private boolean isNewList = false;
 
     private EditText todoTitle;
-    private ImageView saveButton, backButton;
+    private ImageView saveButton, backButton, dueDateButton;
     private LinearLayout tasksContainer, addTaskButton;
-    private LinearLayout dueDateSection;
+    private LinearLayout dueDateDisplay;
     private TextView dueDateText;
     private ImageView clearDateButton;
 
     private List<TodoTask> taskList = new ArrayList<>();
     private Calendar dueDate = null;
+    private String dueTime = null; // ✅ NEW: Store time separately
+    private boolean hasReminder = false; // ✅ NEW: Store reminder flag
+    private int reminderMinutes = 60; // ✅ NEW: Default 60 minutes before
+
+    // Auto-save handler
+    private Handler autoSaveHandler = new Handler();
+    private Runnable autoSaveRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,9 +82,10 @@ public class TodoActivity extends AppCompatActivity {
         todoTitle = findViewById(R.id.todoTitle);
         saveButton = findViewById(R.id.saveButton);
         backButton = findViewById(R.id.backButton);
+        dueDateButton = findViewById(R.id.dueDateButton); // ✅ NEW
         tasksContainer = findViewById(R.id.tasksContainer);
         addTaskButton = findViewById(R.id.addTaskButton);
-        dueDateSection = findViewById(R.id.dueDateSection);
+        dueDateDisplay = findViewById(R.id.dueDateDisplay); // ✅ NEW
         dueDateText = findViewById(R.id.dueDateText);
         clearDateButton = findViewById(R.id.clearDateButton);
 
@@ -77,13 +94,12 @@ public class TodoActivity extends AppCompatActivity {
         backButton.setOnClickListener(v -> finish());
         addTaskButton.setOnClickListener(v -> addTask());
 
-        // Set up due date picker
-        dueDateSection.setOnClickListener(v -> showDatePicker());
+        // ✅ NEW: Due date button opens dialog
+        dueDateButton.setOnClickListener(v -> showDueDateDialog());
         clearDateButton.setOnClickListener(v -> clearDueDate());
 
         // Load existing list or add default tasks
         if (isNewList) {
-            // Add 2 default tasks
             addTask();
             addTask();
         } else {
@@ -91,40 +107,182 @@ public class TodoActivity extends AppCompatActivity {
         }
     }
 
-    private void showDatePicker() {
-        Calendar calendar = dueDate != null ? dueDate : Calendar.getInstance();
+    // ========================================
+    // ✅ NEW: SHOW DUE DATE DIALOG (same style as task schedule)
+    // ========================================
+    private void showDueDateDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(R.layout.dialog_task_schedule);
+        dialog.getWindow().setLayout(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
 
-        DatePickerDialog datePickerDialog = new DatePickerDialog(
-                this,
-                (view, year, month, dayOfMonth) -> {
-                    dueDate = Calendar.getInstance();
-                    dueDate.set(year, month, dayOfMonth);
-                    updateDueDateDisplay();
-                },
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
-        );
+        // Get dialog views
+        LinearLayout datePickerButton = dialog.findViewById(R.id.datePickerButton);
+        TextView selectedDateText = dialog.findViewById(R.id.selectedDateText);
+        LinearLayout timePickerButton = dialog.findViewById(R.id.timePickerButton);
+        TextView selectedTimeText = dialog.findViewById(R.id.selectedTimeText);
+        CheckBox notificationCheckbox = dialog.findViewById(R.id.notificationCheckbox);
+        LinearLayout notificationTimeSection = dialog.findViewById(R.id.notificationTimeSection);
+        Spinner notificationTimeSpinner = dialog.findViewById(R.id.notificationTimeSpinner); // ✅ NOW USED
+        Button cancelButton = dialog.findViewById(R.id.cancelButton);
+        Button saveScheduleButton = dialog.findViewById(R.id.saveScheduleButton);
 
-        datePickerDialog.show();
-    }
+        // ✅ NEW: Setup notification spinner
+        String[] notificationTimes = {"5 minutes", "10 minutes", "15 minutes", "30 minutes",
+                "1 hour", "2 hours", "1 day"};
+        int[] notificationMinutes = {5, 10, 15, 30, 60, 120, 1440};
 
-    private void updateDueDateDisplay() {
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, notificationTimes);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        notificationTimeSpinner.setAdapter(adapter);
+
+        // Load existing values
+        Calendar listDueDate = dueDate != null ? dueDate : Calendar.getInstance();
+
         if (dueDate != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
-            dueDateText.setText("Due: " + sdf.format(dueDate.getTime()));
-            clearDateButton.setVisibility(View.VISIBLE);
+            selectedDateText.setText(sdf.format(dueDate.getTime()));
+        }
+
+        if (dueTime != null && !dueTime.isEmpty()) {
+            selectedTimeText.setText(dueTime);
+        }
+
+        // ✅ NEW: Load notification settings
+        notificationCheckbox.setChecked(hasReminder);
+        notificationTimeSection.setVisibility(hasReminder ? View.VISIBLE : View.GONE);
+
+        // Set spinner to saved notification time
+        for (int i = 0; i < notificationMinutes.length; i++) {
+            if (notificationMinutes[i] == reminderMinutes) {
+                notificationTimeSpinner.setSelection(i);
+                break;
+            }
+        }
+
+        // Date picker
+        datePickerButton.setOnClickListener(v -> {
+            DatePickerDialog datePicker = new DatePickerDialog(
+                    this,
+                    (view, year, month, dayOfMonth) -> {
+                        listDueDate.set(year, month, dayOfMonth);
+                        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+                        selectedDateText.setText(sdf.format(listDueDate.getTime()));
+                    },
+                    listDueDate.get(Calendar.YEAR),
+                    listDueDate.get(Calendar.MONTH),
+                    listDueDate.get(Calendar.DAY_OF_MONTH)
+            );
+            datePicker.show();
+        });
+
+        // Time picker
+        timePickerButton.setOnClickListener(v -> {
+            int hour = 9;
+            int minute = 0;
+
+            if (dueTime != null && !dueTime.isEmpty()) {
+                try {
+                    String[] timeParts = dueTime.split(":");
+                    hour = Integer.parseInt(timeParts[0]);
+                    minute = Integer.parseInt(timeParts[1]);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing time", e);
+                }
+            }
+
+            TimePickerDialog timePicker = new TimePickerDialog(
+                    this,
+                    (view, hourOfDay, minuteOfHour) -> {
+                        String timeStr = String.format(Locale.getDefault(), "%02d:%02d",
+                                hourOfDay, minuteOfHour);
+                        selectedTimeText.setText(timeStr);
+                    },
+                    hour, minute, true
+            );
+            timePicker.show();
+        });
+
+        // ✅ NEW: Notification checkbox listener
+        notificationCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            notificationTimeSection.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        // Cancel button
+        cancelButton.setOnClickListener(v -> dialog.dismiss());
+
+        // Save button
+        saveScheduleButton.setOnClickListener(v -> {
+            if (selectedDateText.getText().equals("Select date")) {
+                Toast.makeText(this, "Please select a date", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            dueDate = listDueDate;
+
+            if (!selectedTimeText.getText().equals("Select time")) {
+                dueTime = selectedTimeText.getText().toString();
+            } else {
+                dueTime = null;
+            }
+
+            // ✅ NEW: Save notification settings
+            hasReminder = notificationCheckbox.isChecked();
+            if (hasReminder) {
+                int selectedPos = notificationTimeSpinner.getSelectedItemPosition();
+                reminderMinutes = notificationMinutes[selectedPos];
+            }
+
+            updateDueDateDisplay();
+
+            // Auto-save if not new list
+            if (!isNewList) {
+                saveTodoList();
+            }
+
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    // ========================================
+    // UPDATE DUE DATE DISPLAY
+    // ========================================
+    private void updateDueDateDisplay() {
+        if (dueDate != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            String displayText = "Due: " + sdf.format(dueDate.getTime());
+
+            if (dueTime != null && !dueTime.isEmpty()) {
+                displayText += ", " + dueTime;
+            }
+
+            dueDateText.setText(displayText);
+            dueDateDisplay.setVisibility(View.VISIBLE);
         } else {
-            dueDateText.setText("Set due date (optional)");
-            clearDateButton.setVisibility(View.GONE);
+            dueDateDisplay.setVisibility(View.GONE);
         }
     }
 
+    // ========================================
+    // CLEAR DUE DATE
+    // ========================================
     private void clearDueDate() {
         dueDate = null;
+        dueTime = null;
         updateDueDateDisplay();
+
+        if (!isNewList) {
+            saveTodoList();
+        }
     }
 
+    // ========================================
+    // LOAD TODO LIST FROM FIREBASE
+    // ========================================
     private void loadTodoList() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
@@ -133,10 +291,9 @@ public class TodoActivity extends AppCompatActivity {
             return;
         }
 
-        // ✅ Load BOTH list details AND tasks in PARALLEL
         String userId = user.getUid();
 
-        // Query 1: List details
+        // Load list details
         db.collection("users")
                 .document(userId)
                 .collection("todoLists")
@@ -149,13 +306,17 @@ public class TodoActivity extends AppCompatActivity {
                             todoTitle.setText(title);
                         }
 
-                        // Load due date if exists
+                        // ✅ Load due date
                         Timestamp dueDateTimestamp = documentSnapshot.getTimestamp("dueDate");
                         if (dueDateTimestamp != null) {
                             dueDate = Calendar.getInstance();
                             dueDate.setTime(dueDateTimestamp.toDate());
-                            updateDueDateDisplay();
                         }
+
+                        // ✅ NEW: Load due time
+                        dueTime = documentSnapshot.getString("dueTime");
+
+                        updateDueDateDisplay();
                     }
                 })
                 .addOnFailureListener(e -> {
@@ -163,7 +324,7 @@ public class TodoActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load list", Toast.LENGTH_SHORT).show();
                 });
 
-        // Query 2: Tasks (running in parallel with Query 1)
+        // Load tasks
         db.collection("users")
                 .document(userId)
                 .collection("todoLists")
@@ -172,11 +333,9 @@ public class TodoActivity extends AppCompatActivity {
                 .orderBy("position")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    // Clear existing views and list
                     tasksContainer.removeAllViews();
                     taskList.clear();
 
-                    // Load tasks from Firebase
                     for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
                         TodoTask task = new TodoTask();
                         task.setId(doc.getId());
@@ -184,11 +343,22 @@ public class TodoActivity extends AppCompatActivity {
                         task.setCompleted(Boolean.TRUE.equals(doc.getBoolean("isCompleted")));
                         task.setPosition(doc.getLong("position").intValue());
 
+                        // Load schedule data
+                        Timestamp scheduleTimestamp = doc.getTimestamp("scheduleDate");
+                        if (scheduleTimestamp != null) {
+                            task.setScheduleDate(scheduleTimestamp.toDate());
+                        }
+                        task.setScheduleTime(doc.getString("scheduleTime"));
+                        task.setHasNotification(Boolean.TRUE.equals(doc.getBoolean("hasNotification")));
+                        Long notifMinutes = doc.getLong("notificationMinutes");
+                        if (notifMinutes != null) {
+                            task.setNotificationMinutes(notifMinutes.intValue());
+                        }
+
                         taskList.add(task);
                         addTaskView(task);
                     }
 
-                    // If no tasks exist, add default ones
                     if (taskList.isEmpty()) {
                         addTask();
                         addTask();
@@ -196,14 +366,17 @@ public class TodoActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load tasks", e);
-                    // Add default tasks if loading fails
                     addTask();
                     addTask();
                 });
     }
+
+    // ========================================
+    // ADD NEW TASK
+    // ========================================
     private void addTask() {
         TodoTask task = new TodoTask();
-        task.setId(""); // Will be generated on save
+        task.setId("");
         task.setTaskText("");
         task.setCompleted(false);
         task.setPosition(taskList.size());
@@ -211,35 +384,52 @@ public class TodoActivity extends AppCompatActivity {
         taskList.add(task);
         addTaskView(task);
     }
+
+    // ========================================
+    // ADD TASK VIEW (UI + LISTENERS)
+    // ========================================
     private void addTaskView(TodoTask task) {
         View taskView = LayoutInflater.from(this).inflate(R.layout.item_todo, tasksContainer, false);
 
         CheckBox checkbox = taskView.findViewById(R.id.todoCheckbox);
         EditText taskText = taskView.findViewById(R.id.todoEditText);
+        ImageView scheduleButton = taskView.findViewById(R.id.scheduleButton);
         ImageView deleteButton = taskView.findViewById(R.id.deleteTodoButton);
+        LinearLayout scheduleDisplay = taskView.findViewById(R.id.scheduleDisplay);
+        TextView scheduleText = taskView.findViewById(R.id.scheduleText);
+        ImageView notificationIcon = taskView.findViewById(R.id.notificationIcon);
+        ImageView clearScheduleButton = taskView.findViewById(R.id.clearScheduleButton);
 
-        // Set initial values
         checkbox.setChecked(task.isCompleted());
         if (task.getTaskText() != null && !task.getTaskText().isEmpty()) {
             taskText.setText(task.getTaskText());
         }
 
-        // Apply completed style if checked
+        updateTaskScheduleDisplay(task, scheduleDisplay, scheduleText, notificationIcon);
+
+        // In addTaskView(), after setting checkbox state, add this:
         if (task.isCompleted()) {
             taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
+            taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        } else {
+            taskText.setTextColor(getResources().getColor(android.R.color.black));
+            taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
         }
-
-        // Checkbox listener
+// Replace the existing checkbox listener with this:
         checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             task.setCompleted(isChecked);
             if (isChecked) {
                 taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
             } else {
                 taskText.setTextColor(getResources().getColor(android.R.color.black));
+                taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             }
-        });
 
-        // Text change listener
+            // Update in Firebase immediately
+            updateTaskCompletionInFirebase(task);
+        });
+        // Text change listener + auto-save
         taskText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -247,20 +437,48 @@ public class TodoActivity extends AppCompatActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 task.setTaskText(s.toString());
+
+                if (autoSaveRunnable != null) {
+                    autoSaveHandler.removeCallbacks(autoSaveRunnable);
+                }
+
+                autoSaveRunnable = () -> {
+                    if (!isNewList && !task.getId().isEmpty()) {
+                        saveTodoList();
+                    }
+                };
+
+                autoSaveHandler.postDelayed(autoSaveRunnable, 1000);
             }
 
             @Override
             public void afterTextChanged(Editable s) {}
         });
 
-        // Focus listener to show/hide delete button
+        // Schedule button
+        scheduleButton.setOnClickListener(v ->
+                showTaskScheduleDialog(task, scheduleDisplay, scheduleText, notificationIcon)
+        );
+
+        // Clear schedule button
+        clearScheduleButton.setOnClickListener(v -> {
+            task.setScheduleDate(null);
+            task.setScheduleTime(null);
+            task.setHasNotification(false);
+            updateTaskScheduleDisplay(task, scheduleDisplay, scheduleText, notificationIcon);
+            if (!isNewList) {
+                saveTodoList();
+            }
+        });
+
+        // Focus listener
         taskText.setOnFocusChangeListener((v, hasFocus) -> {
             deleteButton.setVisibility(hasFocus ? View.VISIBLE : View.GONE);
         });
 
-        // Delete button listener
+        // Delete button
         deleteButton.setOnClickListener(v -> {
-            if (taskList.size() > 1) { // Keep at least 1 task
+            if (taskList.size() > 1) {
                 taskList.remove(task);
                 tasksContainer.removeView(taskView);
                 updateTaskPositions();
@@ -272,12 +490,200 @@ public class TodoActivity extends AppCompatActivity {
         tasksContainer.addView(taskView);
     }
 
+    private void updateTaskCompletionInFirebase(TodoTask task) {
+        if (isNewList || task.getId().isEmpty()) {
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("todoLists")
+                .document(listId)
+                .collection("tasks")
+                .whereEqualTo("taskText", task.getTaskText())
+                .whereEqualTo("position", task.getPosition())
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        String taskDocId = queryDocumentSnapshots.getDocuments().get(0).getId();
+
+                        db.collection("users")
+                                .document(user.getUid())
+                                .collection("todoLists")
+                                .document(listId)
+                                .collection("tasks")
+                                .document(taskDocId)
+                                .update("isCompleted", task.isCompleted())
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "Task completion status updated");
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to update task completion", e);
+                                });
+                    }
+                });
+    }
+    // ========================================
+    // UPDATE TASK SCHEDULE DISPLAY
+    // ========================================
+    private void updateTaskScheduleDisplay(TodoTask task, LinearLayout scheduleDisplay,
+                                           TextView scheduleText, ImageView notificationIcon) {
+        if (task.getScheduleDate() != null) {
+            scheduleDisplay.setVisibility(View.VISIBLE);
+
+            SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            String displayText = dateFormat.format(task.getScheduleDate());
+
+            if (task.getScheduleTime() != null && !task.getScheduleTime().isEmpty()) {
+                displayText += ", " + task.getScheduleTime();
+            }
+
+            scheduleText.setText(displayText);
+            notificationIcon.setVisibility(task.hasNotification() ? View.VISIBLE : View.GONE);
+        } else {
+            scheduleDisplay.setVisibility(View.GONE);
+        }
+    }
+
+    // ========================================
+    // SHOW TASK SCHEDULE DIALOG
+    // ========================================
+    private void showTaskScheduleDialog(TodoTask task, LinearLayout scheduleDisplay,
+                                        TextView scheduleText, ImageView notificationIcon) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(R.layout.dialog_task_schedule);
+        dialog.getWindow().setLayout(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        LinearLayout datePickerButton = dialog.findViewById(R.id.datePickerButton);
+        TextView selectedDateText = dialog.findViewById(R.id.selectedDateText);
+        LinearLayout timePickerButton = dialog.findViewById(R.id.timePickerButton);
+        TextView selectedTimeText = dialog.findViewById(R.id.selectedTimeText);
+        CheckBox notificationCheckbox = dialog.findViewById(R.id.notificationCheckbox);
+        LinearLayout notificationTimeSection = dialog.findViewById(R.id.notificationTimeSection);
+        Spinner notificationTimeSpinner = dialog.findViewById(R.id.notificationTimeSpinner);
+        Button cancelButton = dialog.findViewById(R.id.cancelButton);
+        Button saveScheduleButton = dialog.findViewById(R.id.saveScheduleButton);
+
+        String[] notificationTimes = {"5 minutes", "10 minutes", "15 minutes", "30 minutes",
+                "1 hour", "2 hours", "1 day"};
+        int[] notificationMinutes = {5, 10, 15, 30, 60, 120, 1440};
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, notificationTimes);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        notificationTimeSpinner.setAdapter(adapter);
+
+        Calendar taskSchedule = Calendar.getInstance();
+        if (task.getScheduleDate() != null) {
+            taskSchedule.setTime(task.getScheduleDate());
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+            selectedDateText.setText(sdf.format(task.getScheduleDate()));
+        }
+
+        if (task.getScheduleTime() != null && !task.getScheduleTime().isEmpty()) {
+            selectedTimeText.setText(task.getScheduleTime());
+        }
+
+        notificationCheckbox.setChecked(task.hasNotification());
+        notificationTimeSection.setVisibility(task.hasNotification() ? View.VISIBLE : View.GONE);
+
+        for (int i = 0; i < notificationMinutes.length; i++) {
+            if (notificationMinutes[i] == task.getNotificationMinutes()) {
+                notificationTimeSpinner.setSelection(i);
+                break;
+            }
+        }
+
+        datePickerButton.setOnClickListener(v -> {
+            DatePickerDialog datePicker = new DatePickerDialog(
+                    this,
+                    (view, year, month, dayOfMonth) -> {
+                        taskSchedule.set(year, month, dayOfMonth);
+                        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+                        selectedDateText.setText(sdf.format(taskSchedule.getTime()));
+                    },
+                    taskSchedule.get(Calendar.YEAR),
+                    taskSchedule.get(Calendar.MONTH),
+                    taskSchedule.get(Calendar.DAY_OF_MONTH)
+            );
+            datePicker.show();
+        });
+
+        timePickerButton.setOnClickListener(v -> {
+            int hour = 9;
+            int minute = 0;
+
+            if (task.getScheduleTime() != null && !task.getScheduleTime().isEmpty()) {
+                String[] timeParts = task.getScheduleTime().split(":");
+                hour = Integer.parseInt(timeParts[0]);
+                minute = Integer.parseInt(timeParts[1]);
+            }
+
+            TimePickerDialog timePicker = new TimePickerDialog(
+                    this,
+                    (view, hourOfDay, minuteOfHour) -> {
+                        String timeStr = String.format(Locale.getDefault(), "%02d:%02d",
+                                hourOfDay, minuteOfHour);
+                        selectedTimeText.setText(timeStr);
+                    },
+                    hour, minute, true
+            );
+            timePicker.show();
+        });
+
+        notificationCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            notificationTimeSection.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        cancelButton.setOnClickListener(v -> dialog.dismiss());
+
+        saveScheduleButton.setOnClickListener(v -> {
+            if (selectedDateText.getText().equals("Select date")) {
+                Toast.makeText(this, "Please select a date", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            task.setScheduleDate(taskSchedule.getTime());
+
+            if (!selectedTimeText.getText().equals("Select time")) {
+                task.setScheduleTime(selectedTimeText.getText().toString());
+            }
+
+            task.setHasNotification(notificationCheckbox.isChecked());
+            if (notificationCheckbox.isChecked()) {
+                int selectedPos = notificationTimeSpinner.getSelectedItemPosition();
+                task.setNotificationMinutes(notificationMinutes[selectedPos]);
+            }
+
+            updateTaskScheduleDisplay(task, scheduleDisplay, scheduleText, notificationIcon);
+
+            if (!isNewList) {
+                saveTodoList();
+            }
+
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    // ========================================
+    // UPDATE TASK POSITIONS
+    // ========================================
     private void updateTaskPositions() {
         for (int i = 0; i < taskList.size(); i++) {
             taskList.get(i).setPosition(i);
         }
     }
 
+    // ========================================
+    // SAVE TODO LIST TO FIREBASE
+    // ========================================
     private void saveTodoList() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
@@ -290,7 +696,6 @@ public class TodoActivity extends AppCompatActivity {
             title = "To-Do List";
         }
 
-        // Calculate total and completed tasks
         int totalTasks = 0;
         int completedTasks = 0;
         for (TodoTask task : taskList) {
@@ -302,7 +707,6 @@ public class TodoActivity extends AppCompatActivity {
             }
         }
 
-        // Generate new ID if this is a new list
         if (isNewList) {
             listId = db.collection("users")
                     .document(user.getUid())
@@ -310,14 +714,11 @@ public class TodoActivity extends AppCompatActivity {
                     .document().getId();
         }
 
-        // Make final copies for use in lambda
         final String finalTitle = title;
         final String finalListId = listId;
         final int finalTotalTasks = totalTasks;
         final int finalCompletedTasks = completedTasks;
 
-        // ✅ ALWAYS save to schedules collection (so it shows in Notes)
-        // Even if no tasks or no due date
         final Map<String, Object> scheduleData = new HashMap<>();
         scheduleData.put("title", finalTitle);
         scheduleData.put("description", finalTotalTasks + " tasks (" + finalCompletedTasks + " completed)");
@@ -325,7 +726,6 @@ public class TodoActivity extends AppCompatActivity {
         scheduleData.put("isCompleted", finalCompletedTasks == finalTotalTasks && finalTotalTasks > 0);
         scheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
 
-        // Add due date if set (optional)
         if (dueDate != null) {
             scheduleData.put("date", new Timestamp(dueDate.getTime()));
             scheduleData.put("hasReminder", true);
@@ -335,9 +735,9 @@ public class TodoActivity extends AppCompatActivity {
             scheduleData.put("hasReminder", false);
         }
 
-        scheduleData.put("time", ""); // All day event
+        // ✅ NEW: Save due time
+        scheduleData.put("time", dueTime != null ? dueTime : "");
 
-        // ✅ Save to todoLists collection first
         Map<String, Object> listData = new HashMap<>();
         listData.put("title", finalTitle);
         listData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
@@ -350,6 +750,9 @@ public class TodoActivity extends AppCompatActivity {
             listData.put("dueDate", null);
         }
 
+        // ✅ NEW: Save due time in list data
+        listData.put("dueTime", dueTime);
+
         db.collection("users")
                 .document(user.getUid())
                 .collection("todoLists")
@@ -357,9 +760,8 @@ public class TodoActivity extends AppCompatActivity {
                 .set(listData)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "Todo list saved successfully");
-
-                    // Save tasks (if any)
-                    saveTasks(user.getUid(), finalListId, finalTitle, finalTotalTasks, finalCompletedTasks, scheduleData);
+                    saveTasks(user.getUid(), finalListId, finalTitle, finalTotalTasks,
+                            finalCompletedTasks, scheduleData);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to save todo list", e);
@@ -367,10 +769,11 @@ public class TodoActivity extends AppCompatActivity {
                 });
     }
 
-
+    // ========================================
+    // SAVE TASKS TO FIREBASE
+    // ========================================
     private void saveTasks(String userId, String listId, String listTitle, int totalTasks,
                            int completedTasks, Map<String, Object> scheduleData) {
-        // First, delete all existing tasks
         db.collection("users")
                 .document(userId)
                 .collection("todoLists")
@@ -382,7 +785,6 @@ public class TodoActivity extends AppCompatActivity {
                         doc.getReference().delete();
                     }
 
-                    // Count non-empty tasks
                     int tasksToSave = 0;
                     for (TodoTask task : taskList) {
                         if (!task.getTaskText().trim().isEmpty()) {
@@ -390,7 +792,6 @@ public class TodoActivity extends AppCompatActivity {
                         }
                     }
 
-                    // ✅ If no tasks, just create/update schedule and finish
                     if (tasksToSave == 0) {
                         createOrUpdateSchedule(userId, listId, scheduleData);
                         return;
@@ -404,6 +805,13 @@ public class TodoActivity extends AppCompatActivity {
                             taskData.put("isCompleted", task.isCompleted());
                             taskData.put("position", task.getPosition());
 
+                            if (task.getScheduleDate() != null) {
+                                taskData.put("scheduleDate", new Timestamp(task.getScheduleDate()));
+                            }
+                            taskData.put("scheduleTime", task.getScheduleTime());
+                            taskData.put("hasNotification", task.hasNotification());
+                            taskData.put("notificationMinutes", task.getNotificationMinutes());
+
                             int finalTasksToSave = tasksToSave;
                             db.collection("users")
                                     .document(userId)
@@ -414,7 +822,6 @@ public class TodoActivity extends AppCompatActivity {
                                     .addOnSuccessListener(documentReference -> {
                                         savedCount[0]++;
                                         if (savedCount[0] == finalTasksToSave) {
-                                            // All tasks saved, now create/update schedule
                                             createOrUpdateSchedule(userId, listId, scheduleData);
                                         }
                                     })
@@ -430,11 +837,12 @@ public class TodoActivity extends AppCompatActivity {
                 });
     }
 
+    // ========================================
+    // CREATE OR UPDATE SCHEDULE
+    // ========================================
     private void createOrUpdateSchedule(String userId, String listId, Map<String, Object> scheduleData) {
-        // Add sourceId to link back to the todo list
         scheduleData.put("sourceId", listId);
 
-        // Check if schedule already exists for this todo list
         db.collection("users")
                 .document(userId)
                 .collection("schedules")
@@ -443,7 +851,6 @@ public class TodoActivity extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     if (!queryDocumentSnapshots.isEmpty()) {
-                        // ✅ Update existing schedule
                         String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
                         db.collection("users")
                                 .document(userId)
@@ -461,7 +868,6 @@ public class TodoActivity extends AppCompatActivity {
                                     finish();
                                 });
                     } else {
-                        // ✅ Create new schedule
                         db.collection("users")
                                 .document(userId)
                                 .collection("schedules")
@@ -485,5 +891,11 @@ public class TodoActivity extends AppCompatActivity {
                 });
     }
 
-
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (autoSaveHandler != null && autoSaveRunnable != null) {
+            autoSaveHandler.removeCallbacks(autoSaveRunnable);
+        }
+    }
 }

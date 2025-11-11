@@ -32,6 +32,17 @@
             android:layout_height="match_parent"
             android:layout_weight="1" />
 
+        <!-- Calendar Icon (NEW) -->
+        <ImageView
+            android:id="@+id/scheduleButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_calendar"
+            android:contentDescription="Set Schedule"
+            android:padding="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
         <ImageView
             android:id="@+id/saveButton"
             android:layout_width="40dp"
@@ -79,42 +90,6 @@
                 android:inputType="textCapWords"
                 android:maxLines="2"
                 android:layout_marginBottom="16dp" />
-
-            <!-- Week Range Section (NEW) -->
-            <LinearLayout
-                android:id="@+id/weekRangeSection"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@android:drawable/dialog_holo_light_frame"
-                android:padding="12dp"
-                android:layout_marginBottom="24dp"
-                android:clickable="true"
-                android:focusable="true">
-
-                <TextView
-                    android:id="@+id/weekRangeText"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Select week"
-                    android:textSize="16sp"
-                    android:textColor="#000000"
-                    android:drawableStart="@android:drawable/ic_menu_my_calendar"
-                    android:drawablePadding="8dp" />
-
-                <ImageView
-                    android:id="@+id/clearWeekButton"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@android:drawable/ic_menu_close_clear_cancel"
-                    android:contentDescription="Clear week"
-                    android:visibility="gone"
-                    app:tint="#666666"
-                    android:padding="2dp" />
-
-            </LinearLayout>
 
             <!-- Days Container -->
             <LinearLayout

@@ -597,43 +597,187 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
         private void deleteTodo(String userId, String todoId, FirebaseFirestore db, View view,
                                 List<Note> noteList, NoteAdapter adapter) {
-            // ✅ Delete from schedules collection (where the todo actually is)
+            // ✅ First, get the sourceId from the schedule
             db.collection("users")
                     .document(userId)
-                    .collection("schedules")  // ✅ FIXED: was "schedule" (singular)
+                    .collection("schedules")
                     .document(todoId)
-                    .delete()
-                    .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ To-Do deleted",
-                                Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Todo deleted from schedules collection");
+                    .get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            String sourceId = documentSnapshot.getString("sourceId");
+
+                            if (sourceId != null) {
+                                // ✅ Delete tasks first
+                                db.collection("users")
+                                        .document(userId)
+                                        .collection("todoLists")
+                                        .document(sourceId)
+                                        .collection("tasks")
+                                        .get()
+                                        .addOnSuccessListener(taskSnapshots -> {
+                                            // Delete all tasks
+                                            for (com.google.firebase.firestore.QueryDocumentSnapshot taskDoc : taskSnapshots) {
+                                                taskDoc.getReference().delete();
+                                            }
+
+                                            // ✅ Then delete the todo list itself
+                                            db.collection("users")
+                                                    .document(userId)
+                                                    .collection("todoLists")
+                                                    .document(sourceId)
+                                                    .delete()
+                                                    .addOnSuccessListener(aVoid -> {
+                                                        Log.d("NoteAdapter", "Todo list and tasks deleted from todoLists");
+
+                                                        // ✅ Finally delete the schedule reference
+                                                        db.collection("users")
+                                                                .document(userId)
+                                                                .collection("schedules")
+                                                                .document(todoId)
+                                                                .delete()
+                                                                .addOnSuccessListener(aVoid2 -> {
+                                                                    removeFromList(view, noteList, adapter);
+                                                                    Toast.makeText(view.getContext(), "✅ To-Do deleted",
+                                                                            Toast.LENGTH_SHORT).show();
+                                                                    Log.d("NoteAdapter", "Todo schedule reference deleted");
+                                                                })
+                                                                .addOnFailureListener(e -> {
+                                                                    Toast.makeText(view.getContext(), "❌ Failed to delete schedule reference",
+                                                                            Toast.LENGTH_SHORT).show();
+                                                                    Log.e("NoteAdapter", "Failed to delete schedule reference", e);
+                                                                });
+                                                    })
+                                                    .addOnFailureListener(e -> {
+                                                        Toast.makeText(view.getContext(), "❌ Failed to delete todo list",
+                                                                Toast.LENGTH_SHORT).show();
+                                                        Log.e("NoteAdapter", "Failed to delete todo list", e);
+                                                    });
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.e("NoteAdapter", "Failed to fetch tasks", e);
+                                            Toast.makeText(view.getContext(), "❌ Failed to delete tasks",
+                                                    Toast.LENGTH_SHORT).show();
+                                        });
+                            } else {
+                                // No sourceId found, just delete the schedule
+                                db.collection("users")
+                                        .document(userId)
+                                        .collection("schedules")
+                                        .document(todoId)
+                                        .delete()
+                                        .addOnSuccessListener(aVoid -> {
+                                            removeFromList(view, noteList, adapter);
+                                            Toast.makeText(view.getContext(), "✅ To-Do schedule deleted",
+                                                    Toast.LENGTH_SHORT).show();
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Toast.makeText(view.getContext(), "❌ Failed to delete",
+                                                    Toast.LENGTH_SHORT).show();
+                                        });
+                            }
+                        } else {
+                            Toast.makeText(view.getContext(), "❌ Schedule not found",
+                                    Toast.LENGTH_SHORT).show();
+                        }
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
+                        Toast.makeText(view.getContext(), "❌ Failed to get schedule",
                                 Toast.LENGTH_SHORT).show();
-                        Log.e("NoteAdapter", "Failed to delete todo", e);
+                        Log.e("NoteAdapter", "Failed to get schedule", e);
                     });
         }
 
         private void deleteWeekly(String userId, String weeklyId, FirebaseFirestore db, View view,
                                   List<Note> noteList, NoteAdapter adapter) {
-            // ✅ Delete from schedules collection (where the weekly actually is)
+            // ✅ First, get the sourceId from the schedule
             db.collection("users")
                     .document(userId)
-                    .collection("schedules")  // ✅ Correct
+                    .collection("schedules")
                     .document(weeklyId)
-                    .delete()
-                    .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ Weekly plan deleted",
-                                Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Weekly deleted from schedules collection");
+                    .get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            String sourceId = documentSnapshot.getString("sourceId");
+
+                            if (sourceId != null) {
+                                // ✅ Delete tasks first
+                                db.collection("users")
+                                        .document(userId)
+                                        .collection("weeklyPlans")
+                                        .document(sourceId)
+                                        .collection("tasks")
+                                        .get()
+                                        .addOnSuccessListener(taskSnapshots -> {
+                                            // Delete all tasks
+                                            for (com.google.firebase.firestore.QueryDocumentSnapshot taskDoc : taskSnapshots) {
+                                                taskDoc.getReference().delete();
+                                            }
+
+                                            // ✅ Then delete the weekly plan itself
+                                            db.collection("users")
+                                                    .document(userId)
+                                                    .collection("weeklyPlans")
+                                                    .document(sourceId)
+                                                    .delete()
+                                                    .addOnSuccessListener(aVoid -> {
+                                                        Log.d("NoteAdapter", "Weekly plan and tasks deleted from weeklyPlans");
+
+                                                        // ✅ Finally delete the schedule reference
+                                                        db.collection("users")
+                                                                .document(userId)
+                                                                .collection("schedules")
+                                                                .document(weeklyId)
+                                                                .delete()
+                                                                .addOnSuccessListener(aVoid2 -> {
+                                                                    removeFromList(view, noteList, adapter);
+                                                                    Toast.makeText(view.getContext(), "✅ Weekly plan deleted",
+                                                                            Toast.LENGTH_SHORT).show();
+                                                                    Log.d("NoteAdapter", "Weekly schedule reference deleted");
+                                                                })
+                                                                .addOnFailureListener(e -> {
+                                                                    Toast.makeText(view.getContext(), "❌ Failed to delete schedule reference",
+                                                                            Toast.LENGTH_SHORT).show();
+                                                                    Log.e("NoteAdapter", "Failed to delete schedule reference", e);
+                                                                });
+                                                    })
+                                                    .addOnFailureListener(e -> {
+                                                        Toast.makeText(view.getContext(), "❌ Failed to delete weekly plan",
+                                                                Toast.LENGTH_SHORT).show();
+                                                        Log.e("NoteAdapter", "Failed to delete weekly plan", e);
+                                                    });
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.e("NoteAdapter", "Failed to fetch tasks", e);
+                                            Toast.makeText(view.getContext(), "❌ Failed to delete tasks",
+                                                    Toast.LENGTH_SHORT).show();
+                                        });
+                            } else {
+                                // No sourceId found, just delete the schedule
+                                db.collection("users")
+                                        .document(userId)
+                                        .collection("schedules")
+                                        .document(weeklyId)
+                                        .delete()
+                                        .addOnSuccessListener(aVoid -> {
+                                            removeFromList(view, noteList, adapter);
+                                            Toast.makeText(view.getContext(), "✅ Weekly schedule deleted",
+                                                    Toast.LENGTH_SHORT).show();
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Toast.makeText(view.getContext(), "❌ Failed to delete",
+                                                    Toast.LENGTH_SHORT).show();
+                                        });
+                            }
+                        } else {
+                            Toast.makeText(view.getContext(), "❌ Schedule not found",
+                                    Toast.LENGTH_SHORT).show();
+                        }
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
+                        Toast.makeText(view.getContext(), "❌ Failed to get schedule",
                                 Toast.LENGTH_SHORT).show();
-                        Log.e("NoteAdapter", "Failed to delete weekly", e);
+                        Log.e("NoteAdapter", "Failed to get schedule", e);
                     });
         }
         private void deleteNote(String userId, String noteId, FirebaseFirestore db, View view,

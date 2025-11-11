@@ -111,13 +111,14 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Checkbox for completion -->
+        <!-- Checkbox for completion
         <CheckBox
             android:id="@+id/scheduleCheckbox"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:layout_marginStart="8dp"/>
+        -->
 
     </LinearLayout>
 

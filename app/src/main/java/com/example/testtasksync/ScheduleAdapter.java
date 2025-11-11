@@ -1,5 +1,5 @@
 package com.example.testtasksync;
-
+//CURRENTLY HAS NO USE PARA SA ANOTHER LAYOUT
 import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;

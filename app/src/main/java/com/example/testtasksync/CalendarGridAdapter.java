@@ -147,7 +147,9 @@ public class CalendarGridAdapter extends RecyclerView.Adapter<CalendarGridAdapte
         private int getCategoryColor(String category) {
             switch (category) {
                 case "todo":
-                    return Color.parseColor("#81C784"); // Light Green
+                    return Color.parseColor("#81C784"); // Light Green (whole list)
+                case "todo_task": // ✅ NEW
+                    return Color.parseColor("#A5D6A7"); // Lighter Green (individual task)
                 case "weekly":
                     return Color.parseColor("#64B5F6"); // Light Blue
                 case "holiday":

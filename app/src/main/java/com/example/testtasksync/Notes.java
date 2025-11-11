@@ -251,6 +251,15 @@ public class Notes extends Fragment {
                         for (QueryDocumentSnapshot doc : snapshots) {
                             String category = doc.getString("category");
 
+                            // ✅ Check if item was added from DayDetails
+                            Boolean addedFromDayDetails = doc.getBoolean("addedFromDayDetails");
+
+                            // ✅ Skip items that were added from DayDetails
+                            if (addedFromDayDetails != null && addedFromDayDetails) {
+                                Log.d(TAG, "  ⏭️ Skipping DayDetails item: " + doc.getString("title"));
+                                continue;
+                            }
+
                             // ✅ Filter by category and add to appropriate list
                             if ("todo".equals(category)) {
                                 Note todoNote = createNoteFromSchedule(doc, "To-Do List");
@@ -265,7 +274,7 @@ public class Notes extends Fragment {
                             // Ignore other categories (event, holiday, etc.)
                         }
                     } else {
-                        Log.d(TAG, "📭 No schedules found");
+                        Log.d(TAG, "🔭 No schedules found");
                     }
 
                     Log.d(TAG, "✅ Schedules loaded - Todos: " + todoList.size() + ", Weeklies: " + weeklyList.size());

@@ -14,7 +14,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Add Schedule"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold"
             android:textColor="#000000"
             android:layout_marginBottom="16dp"/>
@@ -23,7 +23,7 @@
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Title"
+            android:hint="Task"
             android:layout_marginBottom="16dp"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
@@ -52,6 +52,36 @@
                 android:gravity="top"/>
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- Category Selection -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Category"
+            android:textSize="14sp"
+            android:textColor="#757575"
+            android:layout_marginBottom="8dp"/>
+
+        <RadioGroup
+            android:id="@+id/categoryRadioGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <RadioButton
+                android:id="@+id/todoRadio"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="To-Do"/>
+
+            <RadioButton
+                android:id="@+id/weeklyRadio"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Weekly"/>
+        </RadioGroup>
         <!-- Date Picker -->
         <TextView
             android:layout_width="wrap_content"
@@ -139,59 +169,31 @@
                 android:background="?attr/selectableItemBackgroundBorderless"/>
         </LinearLayout>
 
-        <!-- Category Selection -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Category"
-            android:textSize="14sp"
-            android:textColor="#757575"
-            android:layout_marginBottom="8dp"/>
-
-        <RadioGroup
-            android:id="@+id/categoryRadioGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
 
 
-
-            <RadioButton
-                android:id="@+id/todoRadio"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="To-Do"/>
-
-            <RadioButton
-                android:id="@+id/weeklyRadio"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Weekly"/>
-        </RadioGroup>
-
-        <!-- Reminder Toggle -->
+        <!-- Notification Section -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="16dp">
+
+            <CheckBox
+                android:id="@+id/notificationCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:buttonTint="#000000" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Set Reminder"
+                android:text="Set notification"
                 android:textSize="16sp"
-                android:textColor="#000000"/>
+                android:textColor="#000000"
+                android:layout_marginStart="8dp" />
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/reminderSwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
         </LinearLayout>
 
         <!-- Reminder Time Selection -->

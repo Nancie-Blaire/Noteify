@@ -32,6 +32,17 @@
             android:layout_height="match_parent"
             android:layout_weight="1" />
 
+        <!-- ✅ NEW: Due Date Calendar Button -->
+        <ImageView
+            android:id="@+id/dueDateButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_calendar"
+            android:contentDescription="Set Due Date"
+            android:padding="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_marginEnd="8dp" />
+
         <ImageView
             android:id="@+id/saveButton"
             android:layout_width="40dp"
@@ -78,45 +89,49 @@
                 android:background="@android:color/transparent"
                 android:inputType="textCapWords"
                 android:maxLines="2"
-                android:layout_marginBottom="32dp" />
+                android:layout_marginBottom="16dp" />
+
+            <!-- ✅ NEW: Due Date Display (shown when due date is set) -->
             <LinearLayout
-                android:id="@+id/dueDateSection"
+                android:id="@+id/dueDateDisplay"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:background="@drawable/input_background"
-                android:padding="16dp"
-                android:layout_margin="16dp"
+                android:padding="12dp"
+                android:layout_marginBottom="16dp"
                 android:gravity="center_vertical"
-                android:clickable="true"
-                android:focusable="true">
+                android:visibility="gone">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_star"
-                    android:layout_marginEnd="12dp"
-                    app:tint="@color/primary_color"/>
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_calendar"
+                    android:layout_marginEnd="8dp"
+                    app:tint="#2196F3" />
 
                 <TextView
                     android:id="@+id/dueDateText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Set due date (optional)"
-                    android:textSize="16sp"
-                    android:textColor="@color/red"/>
+                    android:text="Due: Nov 15, 2:30 PM"
+                    android:textSize="14sp"
+                    android:textColor="#2196F3" />
 
                 <ImageView
                     android:id="@+id/clearDateButton"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_star"
-                    android:visibility="gone"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:padding="2dp"
                     android:clickable="true"
-                    android:padding="4dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"/>
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    app:tint="#808080" />
+
             </LinearLayout>
+
             <!-- Tasks Container -->
             <LinearLayout
                 android:id="@+id/tasksContainer"

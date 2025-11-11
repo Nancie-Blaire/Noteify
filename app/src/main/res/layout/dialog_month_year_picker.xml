@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@android:color/white">
+
+    <!-- Year Selector -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="24dp">
+
+        <ImageView
+            android:id="@+id/prevYearButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_chevron_left"
+            android:padding="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Previous Year" />
+
+        <TextView
+            android:id="@+id/selectedYearText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="2025"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:gravity="center" />
+
+        <ImageView
+            android:id="@+id/nextYearButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_chevron_right"
+            android:padding="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Next Year" />
+    </LinearLayout>
+
+    <!-- Months Grid -->
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:columnCount="3"
+        android:rowCount="4"
+        android:alignmentMode="alignBounds"
+        android:useDefaultMargins="false">
+
+        <!-- Row 1 -->
+        <TextView
+            android:id="@+id/janBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Jan"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/febBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Feb"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/marBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Mar"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <!-- Row 2 -->
+        <TextView
+            android:id="@+id/aprBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Apr"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/mayBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="May"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/junBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Jun"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <!-- Row 3 -->
+        <TextView
+            android:id="@+id/julBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Jul"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/augBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Aug"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/sepBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Sep"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <!-- Row 4 -->
+        <TextView
+            android:id="@+id/octBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Oct"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/novBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Nov"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/decBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:text="Dec"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_month_normal"
+            android:clickable="true"
+            android:focusable="true" />
+    </GridLayout>
+
+</LinearLayout>

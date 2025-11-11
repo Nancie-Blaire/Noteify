@@ -2,6 +2,7 @@ package com.example.testtasksync;
 
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -139,7 +140,7 @@ public class WeeklyActivity extends AppCompatActivity {
                             weeklyTitle.setText(title);
                         }
 
-                        // ✅ Load time if exists
+                        // âœ… Load time if exists
                         String savedTime = documentSnapshot.getString("time");
                         if (savedTime != null && !savedTime.isEmpty()) {
                             selectedTime = savedTime;
@@ -260,11 +261,32 @@ public class WeeklyActivity extends AppCompatActivity {
             task.setCompleted(isChecked);
             if (isChecked) {
                 taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
             } else {
                 taskText.setTextColor(getResources().getColor(android.R.color.black));
+                taskText.setPaintFlags(taskText.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+            }
+
+            // ✅ Save completion status to Firestore immediately
+            if (!isNewPlan && task.getId() != null && !task.getId().isEmpty()) {
+                FirebaseUser user = auth.getCurrentUser();
+                if (user != null) {
+                    db.collection("users")
+                            .document(user.getUid())
+                            .collection("weeklyPlans")
+                            .document(planId)
+                            .collection("tasks")
+                            .document(task.getId())
+                            .update("isCompleted", isChecked)
+                            .addOnSuccessListener(aVoid -> {
+                                Log.d(TAG, "✅ Task completion status updated");
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "Failed to update task completion", e);
+                            });
+                }
             }
         });
-
         // Text change listener
         taskText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -347,6 +369,7 @@ public class WeeklyActivity extends AppCompatActivity {
             description += " (" + sdf.format(startDate.getTime()) + " - " +
                     sdf.format(endDate.getTime()) + ")";
         }
+
         if (completedTasks > 0) {
             description += " • " + completedTasks + " completed";
         }
@@ -363,7 +386,7 @@ public class WeeklyActivity extends AppCompatActivity {
             mainScheduleData.put("date", null);
         }
 
-        // ✅ ADD TIME to mainScheduleData
+        // âœ… ADD TIME to mainScheduleData
         mainScheduleData.put("time", selectedTime != null ? selectedTime : "");
         mainScheduleData.put("hasReminder", false);
 
@@ -387,7 +410,7 @@ public class WeeklyActivity extends AppCompatActivity {
         planData.put("taskCount", finalTotalTasks);
         planData.put("completedCount", finalCompletedTasks);
 
-        // ✅ ADD TIME to planData
+        // âœ… ADD TIME to planData
         planData.put("time", selectedTime != null ? selectedTime : "");
 
         // Add week range dates
@@ -511,12 +534,12 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .update(mainScheduleData)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d(TAG, "Main schedule updated for weekly plan");
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to update schedule", e);
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 });
                     } else {
@@ -527,19 +550,19 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .add(mainScheduleData)
                                 .addOnSuccessListener(documentReference -> {
                                     Log.d(TAG, "Main schedule created for weekly plan");
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to create schedule", e);
-                                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, " Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 });
                     }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to check existing schedule", e);
-                    Toast.makeText(this, "✓ Weekly plan saved", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
                     finish();
                 });
     }
@@ -644,7 +667,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 reminderTime = notificationTimeSpinner.getSelectedItem().toString();
             }
 
-            // ✅ Save the time to the class variable
+            // âœ… Save the time to the class variable
             if (!selectedTimeValue.equals("Select time")) {
                 selectedTime = selectedTimeValue;
             } else {
@@ -673,7 +696,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
     private void showQuickWeekSelectorDialog(TextView weekRangeText, ImageView clearWeekButton) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📅 Select Week");
+        builder.setTitle("Select Week");
 
         // Calculate week ranges
         Calendar calendar = Calendar.getInstance();
@@ -778,7 +801,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
                     // Validate: end date must be after start date
                     if (endDate.before(startDate)) {
-                        Toast.makeText(this, "⚠️ End date must be after start date",
+                        Toast.makeText(this, "âš ï¸ End date must be after start date",
                                 Toast.LENGTH_SHORT).show();
                         endDate = (Calendar) startDate.clone();
                         endDate.add(Calendar.DAY_OF_MONTH, 6);

@@ -508,12 +508,18 @@ public class DayDetailsActivity extends AppCompatActivity {
                                         continue;
                                     }
 
+                                    // ✅ SKIP COMPLETED TASKS - don't show them in DayDetails
+                                    if (isCompleted != null && isCompleted) {
+                                        Log.d(TAG, "⏭️ Skipping completed task: " + taskText);
+                                        continue;
+                                    }
+
                                     Schedule taskSchedule = new Schedule();
                                     taskSchedule.setId(planId + "_" + taskDoc.getId());
                                     taskSchedule.setTitle(taskText);
                                     taskSchedule.setCategory("weekly");
                                     taskSchedule.setSourceId(planId);
-                                    taskSchedule.setCompleted(isCompleted != null && isCompleted);
+                                    taskSchedule.setCompleted(false); // Always false since we filtered completed ones
                                     taskSchedule.setDate(new Timestamp(selectedDate.getTime()));
 
                                     // ✅ Set the time from the weekly plan
@@ -686,7 +692,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     }
                 });
     }
-       private void enterDeleteMode() {
+    private void enterDeleteMode() {
         isDeleteMode = true;
         deleteButton.setVisibility(View.VISIBLE);
         selectedSchedules.clear();

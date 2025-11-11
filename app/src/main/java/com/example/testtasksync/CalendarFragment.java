@@ -586,12 +586,19 @@ public class CalendarFragment extends Fragment {
                     dateSchedulesMap.put(dateKey, new ArrayList<>());
                 }
 
+                // ✅ SKIP COMPLETED TASKS - don't show them in calendar
+                if (isCompleted != null && isCompleted) {
+                    Log.d(TAG, "⏭️ Skipping completed task: " + taskText + " on " + dateKey);
+                    current.add(Calendar.DAY_OF_MONTH, 7);
+                    continue;
+                }
+
                 Schedule taskSchedule = new Schedule();
                 taskSchedule.setId(planId + "_" + taskDocId + "_" + dateKey);
                 taskSchedule.setTitle(taskText);
                 taskSchedule.setCategory("weekly");
                 taskSchedule.setSourceId(planId);
-                taskSchedule.setCompleted(isCompleted != null && isCompleted);
+                taskSchedule.setCompleted(false); // Always false since we're filtering completed ones
                 taskSchedule.setDate(new Timestamp(currentNorm.getTime()));
 
                 boolean exists = false;

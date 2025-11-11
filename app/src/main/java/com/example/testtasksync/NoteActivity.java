@@ -19,6 +19,7 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -34,6 +35,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +43,7 @@ import java.util.Map;
 public class NoteActivity extends AppCompatActivity {
 
     private EditText noteTitle, noteContent;
-    private ImageView checkBtn, backBtn, addSubpageBtn, dividerBtn;
+    private ImageView checkBtn, backBtn, addSubpageBtn;
     private LinearLayout addSubpageContainer;
     private RelativeLayout noteLayout;
     private View colorPickerPanel;
@@ -61,16 +63,12 @@ public class NoteActivity extends AppCompatActivity {
     private boolean isUpdatingText = false;
     private String lastSavedContent = "";
     private int scrollToPosition = -1;
+    // new fields for debounced saving
     private final android.os.Handler bookmarkSaveHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable bookmarkSaveRunnable = null;
-    private static final long BOOKMARK_SAVE_DELAY_MS = 600L;
+    private static final long BOOKMARK_SAVE_DELAY_MS = 600L; // debounce delay
+    private Map<Integer, String> dividerStyles = new HashMap<>();
 
-    // Divider constants
-    private static final String DIVIDER_LINE = "─────────────────────";
-    private static final String DIVIDER_BREAK = "- - - - - - - - - - - -";
-    private static final String DIVIDER_DOTS = "• • • • • • • • • •";
-    private static final String DIVIDER_STARS = "✦ ✦ ✦ ✦ ✦ ✦ ✦";
-    private static final String DIVIDER_WAVE = "～～～～～～～～";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,7 +86,8 @@ public class NoteActivity extends AppCompatActivity {
         addSubpageContainer = findViewById(R.id.addSubpageContainer);
         subpagesRecyclerView = findViewById(R.id.subpagesRecyclerView);
         bookmarksLink = findViewById(R.id.bookmarksLink);
-        dividerBtn = findViewById(R.id.dividerBtn);
+        ImageView dividerBtn = findViewById(R.id.dividerBtn);
+        dividerBtn.setOnClickListener(v -> showDividerBottomSheet());
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
@@ -98,8 +97,8 @@ public class NoteActivity extends AppCompatActivity {
         loadNoteColor();
         colorPaletteBtn.setOnClickListener(v -> toggleColorPicker());
         setupColorPicker();
-        dividerBtn.setOnClickListener(v -> showDividerOptions());
 
+        // Create Firestore note if new
         if (noteId == null) {
             FirebaseUser user = auth.getCurrentUser();
             if (user != null) {
@@ -127,73 +126,97 @@ public class NoteActivity extends AppCompatActivity {
 
         if (noteId != null) {
             loadNote();
+            noteContent.postDelayed(() -> setupBookmarkListener(), 400);
             loadSubpages();
         }
     }
 
-    private void showDividerOptions() {
-        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
-        View sheetView = getLayoutInflater().inflate(R.layout.divider_bottom_sheet, null);
-        bottomSheet.setContentView(sheetView);
-
-        LinearLayout dividerLine = sheetView.findViewById(R.id.dividerLine);
-        LinearLayout dividerDots = sheetView.findViewById(R.id.dividerDots);
-        LinearLayout dividerStars = sheetView.findViewById(R.id.dividerStars);
-        LinearLayout dividerWave = sheetView.findViewById(R.id.dividerWave);
-        LinearLayout dividerBreak = sheetView.findViewById(R.id.dividerBreak);
-
-        dividerLine.setOnClickListener(v -> {
-            insertDivider(DIVIDER_LINE);
-            bottomSheet.dismiss();
-        });
-
-        dividerBreak.setOnClickListener(view -> {
-            insertDivider(DIVIDER_BREAK);
-            bottomSheet.dismiss();
-        });
-
-        dividerDots.setOnClickListener(v -> {
-            insertDivider(DIVIDER_DOTS);
-            bottomSheet.dismiss();
-        });
-
-        dividerStars.setOnClickListener(v -> {
-            insertDivider(DIVIDER_STARS);
-            bottomSheet.dismiss();
-        });
-
-        dividerWave.setOnClickListener(v -> {
-            insertDivider(DIVIDER_WAVE);
-            bottomSheet.dismiss();
-        });
-
-        bottomSheet.show();
-    }
-
-    private void insertDivider(String dividerStyle) {
-        int cursorPosition = noteContent.getSelectionStart();
-        String currentText = noteContent.getText().toString();
-
-        // Add newlines before and after divider for proper spacing
-        String dividerText = "\n" + dividerStyle + "\n";
-
-        // Insert divider at cursor position
-        String newText = currentText.substring(0, cursorPosition) +
-                dividerText +
-                currentText.substring(cursorPosition);
-
-        noteContent.setText(newText);
-
-        // Position cursor after the divider
-        int newPosition = cursorPosition + dividerText.length();
-        if (newPosition <= newText.length()) {
-            noteContent.setSelection(newPosition);
-        }
-
-        Toast.makeText(this, "Divider inserted", Toast.LENGTH_SHORT).show();
-    }
-
     private void setupTextWatcher() {
+        final String dividerPlaceholder = "〔DIVIDER〕";
+
+        noteContent.addTextChangedListener(new TextWatcher() {
+            private String textBefore = "";
+            private int cursorBefore = 0;
+
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                textBefore = s.toString();
+                cursorBefore = noteContent.getSelectionStart();
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int after) {
+                if (isUpdatingText) return;
+
+                String currentText = s.toString();
+                int dividerIndex = currentText.indexOf(dividerPlaceholder);
+
+                // Run check only if we actually have dividers
+                if (dividerIndex == -1) return;
+
+                // Track all divider positions for line-based detection
+                List<Integer> dividerPositions = new ArrayList<>();
+                while (dividerIndex != -1) {
+                    dividerPositions.add(dividerIndex);
+                    dividerIndex = currentText.indexOf(dividerPlaceholder, dividerIndex + dividerPlaceholder.length());
+                }
+
+                // Check if user typed within or on a divider
+                for (int i = 0; i < dividerPositions.size(); i++) {
+                    int startIndex = dividerPositions.get(i);
+                    int endIndex = startIndex + dividerPlaceholder.length();
+
+                    if (start >= startIndex && start <= endIndex) {
+                        isUpdatingText = true;
+                        noteContent.setText(textBefore);
+
+                        // Move cursor to next safe (non-divider) line
+                        int safeCursor = findNextNonDividerLine(textBefore, endIndex, dividerPlaceholder);
+
+                        // Set cursor safely
+                        if (safeCursor < textBefore.length()) {
+                            noteContent.setSelection(safeCursor);
+                        } else {
+                            // If we reached EOF, move to before the first divider
+                            noteContent.setSelection(Math.max(0, startIndex - 1));
+                        }
+
+                        applyBookmarksToText();
+                        isUpdatingText = false;
+                        return;
+                    }
+                }
+            }
+
+            /**
+             * Moves the cursor downward until it finds a line that doesn't contain a divider.
+             */
+            private int findNextNonDividerLine(String text, int fromIndex, String dividerPlaceholder) {
+                int cursor = fromIndex;
+
+                while (cursor < text.length()) {
+                    int nextLineBreak = text.indexOf('\n', cursor);
+                    if (nextLineBreak == -1) nextLineBreak = text.length();
+
+                    String currentLine = text.substring(cursor, Math.min(nextLineBreak, text.length()));
+
+                    // If current line has NO divider, stop here
+                    if (!currentLine.contains(dividerPlaceholder)) {
+                        return cursor;
+                    }
+
+                    // Otherwise, jump past this line
+                    cursor = nextLineBreak + 1;
+                }
+
+                return text.length();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        // Your existing bookmark TextWatcher
         noteContent.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int after) {
@@ -213,9 +236,22 @@ public class NoteActivity extends AppCompatActivity {
         if (user == null) return;
 
         if (isUpdatingText) return;
-
         String currentText = noteContent.getText().toString();
+
         if (currentText.equals(lastSavedContent)) return;
+
+        String dividerPlaceholder = "〔DIVIDER〕";
+
+        // ✅ Check if a divider was just inserted
+        boolean dividerInserted = false;
+        int dividerLength = 0;
+        if (lengthDiff > 0 && changePosition + lengthDiff <= currentText.length()) {
+            String inserted = currentText.substring(changePosition, changePosition + lengthDiff);
+            if (inserted.contains(dividerPlaceholder)) {
+                dividerInserted = true;
+                dividerLength = inserted.length();
+            }
+        }
 
         boolean anyBookmarkUpdated = false;
         List<Bookmark> bookmarksCopy = new ArrayList<>(currentBookmarks);
@@ -226,72 +262,119 @@ public class NoteActivity extends AppCompatActivity {
             boolean needsUpdate = false;
             boolean shouldDelete = false;
 
+            // ✅ If divider inserted, just shift bookmarks - DON'T modify their range
+            if (dividerInserted) {
+                // Divider inserted before bookmark - shift both start and end
+                if (changePosition <= start) {
+                    start += dividerLength;
+                    end += dividerLength;
+                    needsUpdate = true;
+                }
+                // Divider inserted after bookmark - no change needed
+                else if (changePosition >= end) {
+                    // No change
+                }
+                // Divider inserted WITHIN bookmark - this shouldn't happen due to our preventions
+                // But if it does, just shift the end
+                else if (changePosition > start && changePosition < end) {
+                    end += dividerLength;
+                    needsUpdate = true;
+                }
+            }
             // Case 1: edit before the bookmark → shift entire range
-            if (changePosition < start) {
+            else if (changePosition < start) {
                 start += lengthDiff;
                 end += lengthDiff;
                 needsUpdate = true;
             }
-            // Case 2: edit inside the highlight → adjust end only
-            else if (changePosition > start && changePosition < end) {
-                end += lengthDiff;
-                needsUpdate = true;
+            // Case 2: edit inside the highlight → expand/contract based on content
+            else if (changePosition >= start && changePosition < end) {
+                if (lengthDiff > 0) {
+                    // ✅ ALWAYS expand when typing inside bookmark
+                    // This preserves the highlight even when adding spaces in the middle
+                    end += lengthDiff;
+                    needsUpdate = true;
+                } else if (lengthDiff < 0) {
+                    // Deletion inside bookmark
+                    end += lengthDiff;
+                    needsUpdate = true;
+                }
             }
-            // Case 3: edit AT the start boundary (typing before bookmark)
-            else if (changePosition == start && lengthDiff > 0) {
-                // Shift the entire bookmark forward, don't expand
-                start += lengthDiff;
-                end += lengthDiff;
-                needsUpdate = true;
-            }
-            // Case 4: deletion that affects the bookmark
-            else if (lengthDiff < 0) {
-                int deleteStart = changePosition;
-                int deleteEnd = changePosition - lengthDiff;
+            // Case 3: edit RIGHT AT the end boundary
+            else if (changePosition == end && lengthDiff > 0) {
+                int insStart = changePosition;
+                int insEnd = Math.min(currentText.length(), changePosition + lengthDiff);
 
-                // If deletion overlaps with bookmark
-                if (deleteEnd > start && deleteStart < end) {
-                    // If entire bookmark is deleted
-                    if (deleteStart <= start && deleteEnd >= end) {
-                        shouldDelete = true;
-                    } else {
+                if (insStart >= 0 && insEnd > insStart) {
+                    String inserted = currentText.substring(insStart, insEnd);
+
+                    // ✅ Only expand if inserting actual content (not whitespace/newlines)
+                    boolean isValid = true;
+                    for (int i = 0; i < inserted.length(); i++) {
+                        char c = inserted.charAt(i);
+                        if (Character.isWhitespace(c) || c == '\n' || c == '\r' || c == '\t') {
+                            isValid = false;
+                            break;
+                        }
+                    }
+
+                    if (isValid) {
                         end += lengthDiff;
                         needsUpdate = true;
                     }
                 }
             }
 
-            // Safety: validate bounds and check if bookmark text still matches
+            // Safety: validate bounds
             if (start < 0 || end > currentText.length() || start >= end) {
                 shouldDelete = true;
-            } else if (needsUpdate) {
-                // Verify the text at the new position matches somewhat
-                try {
-                    String newText = currentText.substring(start, end);
-                    // If the text is completely different or too short, delete
-                    if (newText.trim().isEmpty() || newText.length() < 2) {
-                        shouldDelete = true;
-                    }
-                } catch (Exception e) {
-                    shouldDelete = true;
-                }
             }
 
             if (shouldDelete) {
                 deleteBookmarkFromFirestore(bookmark.getId());
                 anyBookmarkUpdated = true;
             } else if (needsUpdate) {
+                // ✅ Only trim trailing/leading spaces, NOT internal spaces
                 String updatedText;
                 try {
                     updatedText = currentText.substring(start, end);
                 } catch (Exception e) {
+                    updatedText = bookmark.getText();
+                }
+
+                // Trim only leading spaces
+                int trimStart = start;
+                while (trimStart < end && trimStart < currentText.length() && currentText.charAt(trimStart) == ' ') {
+                    trimStart++;
+                }
+
+                // Trim only trailing spaces
+                int trimEnd = end;
+                while (trimEnd > trimStart && trimEnd > 0 && currentText.charAt(trimEnd - 1) == ' ') {
+                    trimEnd--;
+                }
+
+                // Double-check bounds after trimming
+                if (trimStart >= trimEnd || trimStart < 0 || trimEnd > currentText.length()) {
+                    deleteBookmarkFromFirestore(bookmark.getId());
+                    anyBookmarkUpdated = true;
                     continue;
                 }
 
-                updateBookmarkInFirestore(bookmark.getId(), start, end, updatedText);
-                bookmark.setStartIndex(start);
-                bookmark.setEndIndex(end);
-                bookmark.setText(updatedText);
+                try {
+                    updatedText = currentText.substring(trimStart, trimEnd);
+                    if (updatedText.trim().isEmpty() || updatedText.contains(dividerPlaceholder)) {
+                        deleteBookmarkFromFirestore(bookmark.getId());
+                        anyBookmarkUpdated = true;
+                        continue;
+                    }
+                } catch (Exception e) {
+                    deleteBookmarkFromFirestore(bookmark.getId());
+                    anyBookmarkUpdated = true;
+                    continue;
+                }
+
+                updateBookmarkInFirestore(bookmark.getId(), trimStart, trimEnd, updatedText);
                 anyBookmarkUpdated = true;
             }
         }
@@ -315,7 +398,6 @@ public class NoteActivity extends AppCompatActivity {
                 .collection("bookmarks").document(bookmarkId)
                 .update(updates);
     }
-
     private void deleteBookmarkFromFirestore(String bookmarkId) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -326,6 +408,679 @@ public class NoteActivity extends AppCompatActivity {
                 .delete();
     }
 
+    private void showDividerBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.divider_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Divider style options
+        LinearLayout dividerSolid = sheetView.findViewById(R.id.dividerSolid);
+        LinearLayout dividerDashed = sheetView.findViewById(R.id.dividerDashed);
+        LinearLayout dividerDotted = sheetView.findViewById(R.id.dividerDotted);
+        LinearLayout dividerDouble = sheetView.findViewById(R.id.dividerDouble);
+        LinearLayout dividerArrows = sheetView.findViewById(R.id.dividerArrows);
+        LinearLayout dividerStars = sheetView.findViewById(R.id.dividerStars);
+        LinearLayout dividerWave = sheetView.findViewById(R.id.dividerWave);
+        LinearLayout dividerDiamond = sheetView.findViewById(R.id.dividerDiamond);
+
+        dividerSolid.setOnClickListener(v -> {
+            insertDivider("solid");
+            bottomSheet.dismiss();
+        });
+
+        dividerDashed.setOnClickListener(v -> {
+            insertDivider("dashed");
+            bottomSheet.dismiss();
+        });
+
+        dividerDotted.setOnClickListener(v -> {
+            insertDivider("dotted");
+            bottomSheet.dismiss();
+        });
+
+        dividerDouble.setOnClickListener(v -> {
+            insertDivider("double");
+            bottomSheet.dismiss();
+        });
+
+        dividerArrows.setOnClickListener(v -> {
+            insertDivider("arrows");
+            bottomSheet.dismiss();
+        });
+
+        dividerStars.setOnClickListener(v -> {
+            insertDivider("stars");
+            bottomSheet.dismiss();
+        });
+
+        dividerWave.setOnClickListener(v -> {
+            insertDivider("wave");
+            bottomSheet.dismiss();
+        });
+
+        dividerDiamond.setOnClickListener(v -> {
+            insertDivider("diamond");
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+
+    private boolean isDividerLine(String line) {
+        return line.contains("〔DIVIDER〕");
+    }
+
+    private int[] getLineBounds(String content, int pos) {
+        // Find start of line (character after previous newline, or 0)
+        int start = content.lastIndexOf('\n', pos - 1) + 1;
+
+        // Find end of line (position of next newline, or end of content)
+        int end = content.indexOf('\n', pos);
+        if (end == -1) end = content.length();
+
+        return new int[]{start, end};
+    }
+
+
+    private void insertDivider(String style) {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+        String dividerPlaceholder = "〔DIVIDER〕";
+
+        // Add newlines around divider for proper spacing
+        String textToInsert;
+
+        // Check if we need leading newline
+        if (cursorPosition > 0 && currentText.charAt(cursorPosition - 1) != '\n') {
+            textToInsert = "\n" + dividerPlaceholder;
+        } else {
+            textToInsert = dividerPlaceholder;
+        }
+
+        // Always add trailing newline
+        textToInsert += "\n";
+
+        int insertLength = textToInsert.length();
+        int leadingNewline = textToInsert.startsWith("\n") ? 1 : 0;
+
+        FirebaseUser user = auth.getCurrentUser();
+
+        // ✅ SPLIT OR UPDATE BOOKMARKS
+        if (user != null) {
+            for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                int bStart = bookmark.getStartIndex();
+                int bEnd = bookmark.getEndIndex();
+
+                // Case 1: Divider inserted INSIDE bookmark - SPLIT IT
+                if (cursorPosition > bStart && cursorPosition < bEnd) {
+                    // Create first part (before divider)
+                    int firstPartEnd = cursorPosition;
+                    String firstPartText = currentText.substring(bStart, firstPartEnd).trim();
+
+                    if (!firstPartText.isEmpty()) {
+                        // Update existing bookmark to be the first part
+                        updateBookmarkInFirestore(bookmark.getId(), bStart, firstPartEnd, firstPartText);
+                    }
+
+                    // Create second part (after divider)
+                    int secondPartStart = cursorPosition + insertLength;
+                    int secondPartEnd = bEnd + insertLength;
+                    String secondPartText = currentText.substring(cursorPosition, bEnd).trim();
+
+                    if (!secondPartText.isEmpty()) {
+                        // Create new bookmark for second part
+                        Bookmark newBookmark = new Bookmark(
+                                secondPartText,
+                                bookmark.getNote(),
+                                bookmark.getColor(),
+                                bookmark.getStyle(),
+                                secondPartStart,
+                                secondPartEnd
+                        );
+
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("bookmarks").add(newBookmark);
+                    }
+
+                    // If first part is empty, delete the original bookmark
+                    if (firstPartText.isEmpty()) {
+                        deleteBookmarkFromFirestore(bookmark.getId());
+                    }
+                }
+                // Case 2: Divider inserted BEFORE bookmark - SHIFT bookmark
+                else if (cursorPosition <= bStart) {
+                    updateBookmarkInFirestore(bookmark.getId(),
+                            bStart + insertLength,
+                            bEnd + insertLength,
+                            bookmark.getText());
+                }
+                // Case 3: Divider inserted AFTER bookmark - NO CHANGE needed
+            }
+        }
+
+        String newText = currentText.substring(0, cursorPosition) +
+                textToInsert +
+                currentText.substring(cursorPosition);
+
+        // Temporarily disable text watcher
+        isUpdatingText = true;
+
+        // Create spannable with divider
+        android.text.SpannableString spannable = new android.text.SpannableString(newText);
+        int dividerStart = cursorPosition + leadingNewline;
+        int dividerEnd = dividerStart + dividerPlaceholder.length();
+
+        dividerStyles.put(dividerStart, style);
+
+        // Apply the divider span
+        spannable.setSpan(
+                new DividerSpan(style, 0xFF666666),
+                dividerStart,
+                dividerEnd,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+
+        noteContent.setText(spannable);
+
+        // Move cursor after the divider
+        int newCursorPos = dividerEnd + 1;
+        noteContent.setSelection(newCursorPos);
+
+        // Re-apply existing bookmarks
+        noteContent.postDelayed(() -> {
+            applyBookmarksToText();
+            isUpdatingText = false;
+        }, 100);
+
+        // Save the divider to Firestore
+        saveNoteContentToFirestore(newText);
+
+        Toast.makeText(this, "Divider added", Toast.LENGTH_SHORT).show();
+    }
+    private void showDividerActionMenu(int dividerPosition) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.divider_action_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        LinearLayout moveUpBtn = sheetView.findViewById(R.id.moveUpBtn);
+        LinearLayout moveDownBtn = sheetView.findViewById(R.id.moveDownBtn);
+        LinearLayout duplicateBtn = sheetView.findViewById(R.id.duplicateBtn);
+        LinearLayout deleteBtn = sheetView.findViewById(R.id.deleteBtn);
+
+        moveUpBtn.setOnClickListener(v -> {
+            moveDivider(dividerPosition, true);
+            bottomSheet.dismiss();
+        });
+
+        moveDownBtn.setOnClickListener(v -> {
+            moveDivider(dividerPosition, false);
+            bottomSheet.dismiss();
+        });
+
+        duplicateBtn.setOnClickListener(v -> {
+            duplicateDivider(dividerPosition);
+            bottomSheet.dismiss();
+        });
+
+        deleteBtn.setOnClickListener(v -> {
+            deleteDivider(dividerPosition);
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+    private void rebuildDividerStyles(String content) {
+        String dividerPlaceholder = "〔DIVIDER〕";
+
+        // Store old styles in order they appear
+        List<String> stylesInOrder = new ArrayList<>();
+        List<Integer> oldPositions = new ArrayList<>(dividerStyles.keySet());
+        java.util.Collections.sort(oldPositions);
+
+        for (int pos : oldPositions) {
+            stylesInOrder.add(dividerStyles.get(pos));
+        }
+
+        // Clear and rebuild
+        dividerStyles.clear();
+
+        int searchPos = 0;
+        int styleIndex = 0;
+        while ((searchPos = content.indexOf(dividerPlaceholder, searchPos)) != -1) {
+            String style = styleIndex < stylesInOrder.size() ? stylesInOrder.get(styleIndex) : "solid";
+            dividerStyles.put(searchPos, style);
+            searchPos += dividerPlaceholder.length();
+            styleIndex++;
+        }
+    }
+    private void moveDivider(int dividerPos, boolean moveUp) {
+        String content = noteContent.getText().toString();
+        String dividerPlaceholder = "〔DIVIDER〕";
+        String style = dividerStyles.get(dividerPos);
+
+        int[] bounds = getLineBounds(content, dividerPos);
+        int lineStart = bounds[0];
+        int lineEnd = bounds[1];
+
+        int targetStart, targetEnd;
+        if (moveUp) {
+            if (lineStart == 0) {
+                Toast.makeText(this, "Already at top", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            targetEnd = lineStart - 1;
+            if (targetEnd < 0) {
+                Toast.makeText(this, "Already at top", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            targetStart = content.lastIndexOf('\n', targetEnd - 1) + 1;
+        } else {
+            if (lineEnd >= content.length() - 1) {
+                Toast.makeText(this, "Already at bottom", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            targetStart = lineEnd + 1;
+            if (targetStart >= content.length()) {
+                Toast.makeText(this, "Already at bottom", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            targetEnd = content.indexOf('\n', targetStart);
+            if (targetEnd == -1) targetEnd = content.length();
+        }
+
+        String dividerLine = content.substring(lineStart, lineEnd);
+        String targetLine = content.substring(targetStart, targetEnd);
+
+        // ✅ STEP 1: Build new content FIRST
+        StringBuilder newContent = new StringBuilder();
+
+        if (moveUp) {
+            newContent.append(content.substring(0, targetStart));
+            newContent.append(dividerLine);
+            newContent.append("\n");
+            newContent.append(targetLine);
+            newContent.append(content.substring(lineEnd));
+        } else {
+            newContent.append(content.substring(0, lineStart));
+            newContent.append(targetLine);
+            newContent.append("\n");
+            newContent.append(dividerLine);
+            newContent.append(content.substring(targetEnd));
+        }
+
+        String finalNewContent = newContent.toString();
+
+        // ✅ STEP 2: Calculate position changes
+        int dividerLength = dividerLine.length() + 1;
+        int targetLength = targetLine.length() + 1;
+
+        // ✅ STEP 3: Update text
+        isUpdatingText = true;
+        noteContent.setText(finalNewContent);
+        isUpdatingText = false;
+
+        // ✅ STEP 4: Find new divider position
+        int newDividerPos = finalNewContent.indexOf(dividerPlaceholder);
+        int[] newDividerBounds = getLineBounds(finalNewContent, newDividerPos);
+        int newDividerStart = newDividerBounds[0];
+        int newDividerEnd = newDividerBounds[1];
+
+        // ✅ STEP 5: Update ALL bookmarks based on NEW content
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            List<Bookmark> bookmarksToSplit = new ArrayList<>();
+            Map<Bookmark, Bookmark> bookmarksToMerge = new LinkedHashMap<>(); // Keep order
+
+            for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                int oldStart = bookmark.getStartIndex();
+                int oldEnd = bookmark.getEndIndex();
+                int newStart = oldStart;
+                int newEnd = oldEnd;
+                boolean needsUpdate = false;
+
+                if (moveUp) {
+                    // Target line moved down (after divider now)
+                    if (oldStart >= targetStart && oldEnd <= targetEnd) {
+                        newStart = oldStart + dividerLength;
+                        newEnd = oldEnd + dividerLength;
+                        needsUpdate = true;
+                    }
+                    // Between old target and divider
+                    else if (oldStart >= targetEnd + 1 && oldStart < lineStart) {
+                        newStart = oldStart + dividerLength - targetLength;
+                        newEnd = oldEnd + dividerLength - targetLength;
+                        needsUpdate = true;
+                    }
+                } else {
+                    // Target line moved up (before divider now)
+                    if (oldStart >= targetStart && oldEnd <= targetEnd) {
+                        newStart = oldStart - dividerLength;
+                        newEnd = oldEnd - dividerLength;
+                        needsUpdate = true;
+                    }
+                    // Between divider and old target
+                    else if (oldStart > lineEnd && oldStart < targetStart) {
+                        newStart = oldStart + targetLength - dividerLength;
+                        newEnd = oldEnd + targetLength - dividerLength;
+                        needsUpdate = true;
+                    }
+                }
+
+                // ✅ CHECK: Does divider now split this bookmark?
+                if (newStart < newDividerStart && newEnd > newDividerEnd) {
+                    bookmarksToSplit.add(bookmark);
+                    continue;
+                }
+
+                if (needsUpdate && newStart >= 0 && newEnd <= finalNewContent.length() && newStart < newEnd) {
+                    try {
+                        String newText = finalNewContent.substring(newStart, newEnd).trim();
+                        if (!newText.isEmpty() && !newText.contains(dividerPlaceholder)) {
+                            updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, newText);
+                            bookmark.setStartIndex(newStart);
+                            bookmark.setEndIndex(newEnd);
+                            bookmark.setText(newText);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
+            // ✅ STEP 6: Check for bookmarks that should be MERGED
+            // Find bookmarks that are now adjacent (no divider between them anymore)
+            List<Bookmark> sortedBookmarks = new ArrayList<>(currentBookmarks);
+            sortedBookmarks.sort((b1, b2) -> Integer.compare(b1.getStartIndex(), b2.getStartIndex()));
+
+            for (int i = 0; i < sortedBookmarks.size() - 1; i++) {
+                Bookmark first = sortedBookmarks.get(i);
+                Bookmark second = sortedBookmarks.get(i + 1);
+
+                // Check if they have the same color and style
+                if (!first.getColor().equals(second.getColor()) ||
+                        !first.getStyle().equals(second.getStyle())) {
+                    continue;
+                }
+
+                // Check if they are adjacent (separated only by whitespace/newline)
+                int gapStart = first.getEndIndex();
+                int gapEnd = second.getStartIndex();
+
+                if (gapStart < gapEnd && gapEnd <= finalNewContent.length()) {
+                    try {
+                        String between = finalNewContent.substring(gapStart, gapEnd);
+                        // If only whitespace/newlines between them, AND no divider, merge them
+                        if (between.replaceAll("\\s", "").isEmpty() &&
+                                !between.contains(dividerPlaceholder)) {
+                            bookmarksToMerge.put(first, second);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
+            // ✅ STEP 7: Perform merges
+            for (Map.Entry<Bookmark, Bookmark> entry : bookmarksToMerge.entrySet()) {
+                Bookmark first = entry.getKey();
+                Bookmark second = entry.getValue();
+
+                // Merge into the first bookmark
+                int mergedStart = first.getStartIndex();
+                int mergedEnd = second.getEndIndex();
+
+                try {
+                    String mergedText = finalNewContent.substring(mergedStart, mergedEnd).trim();
+
+                    if (!mergedText.isEmpty() && !mergedText.contains(dividerPlaceholder)) {
+                        // Update first bookmark
+                        updateBookmarkInFirestore(first.getId(), mergedStart, mergedEnd, mergedText);
+                        first.setStartIndex(mergedStart);
+                        first.setEndIndex(mergedEnd);
+                        first.setText(mergedText);
+
+                        // Delete second bookmark
+                        deleteBookmarkFromFirestore(second.getId());
+                        currentBookmarks.remove(second);
+
+                        Toast.makeText(this, "Bookmarks merged", Toast.LENGTH_SHORT).show();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            // ✅ STEP 8: Split bookmarks if divider is between them
+            for (Bookmark bookmark : bookmarksToSplit) {
+                int bStart = bookmark.getStartIndex();
+                int bEnd = bookmark.getEndIndex();
+
+                // Recalculate positions based on move
+                if (moveUp) {
+                    if (bStart >= targetStart && bStart < lineStart) {
+                        bStart += dividerLength - targetLength;
+                        bEnd += dividerLength - targetLength;
+                    }
+                } else {
+                    if (bStart > lineEnd && bStart < targetStart) {
+                        bStart += targetLength - dividerLength;
+                        bEnd += targetLength - dividerLength;
+                    }
+                }
+
+                // Create first part (before divider)
+                int firstPartEnd = newDividerStart - 1;
+                if (firstPartEnd > bStart) {
+                    String firstPartText = finalNewContent.substring(bStart, firstPartEnd).trim();
+                    if (!firstPartText.isEmpty()) {
+                        updateBookmarkInFirestore(bookmark.getId(), bStart, firstPartEnd, firstPartText);
+                        bookmark.setStartIndex(bStart);
+                        bookmark.setEndIndex(firstPartEnd);
+                        bookmark.setText(firstPartText);
+                    }
+                }
+
+                // Create second part (after divider)
+                int secondPartStart = newDividerEnd + 1;
+                if (secondPartStart < bEnd && secondPartStart < finalNewContent.length()) {
+                    String secondPartText = finalNewContent.substring(secondPartStart, Math.min(bEnd, finalNewContent.length())).trim();
+                    if (!secondPartText.isEmpty()) {
+                        Bookmark newBookmark = new Bookmark(
+                                secondPartText,
+                                bookmark.getNote(),
+                                bookmark.getColor(),
+                                bookmark.getStyle(),
+                                secondPartStart,
+                                Math.min(bEnd, finalNewContent.length())
+                        );
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("bookmarks").add(newBookmark);
+                    }
+                }
+            }
+        }
+
+        // ✅ STEP 9: Rebuild divider styles
+        rebuildDividerStyles(finalNewContent);
+
+        // ✅ STEP 10: Reapply highlights
+        noteContent.postDelayed(() -> {
+            applyBookmarksToText();
+        }, 150);
+
+        saveNoteContentToFirestore(finalNewContent);
+    }
+    private void duplicateDivider(int dividerPos) {
+        String content = noteContent.getText().toString();
+        String dividerPlaceholder = "〔DIVIDER〕";
+        String style = dividerStyles.get(dividerPos);
+
+        int[] bounds = getLineBounds(content, dividerPos);
+        int lineEnd = bounds[1];
+
+        // Insert new divider one line below
+        String newContent = content.substring(0, lineEnd) +
+                "\n" + dividerPlaceholder + "\n" +
+                content.substring(lineEnd);
+
+        isUpdatingText = true;
+        noteContent.setText(newContent.replaceAll("\n{2,}", "\n"));
+        isUpdatingText = false;
+
+        String updatedText = noteContent.getText().toString();
+
+        // ✅ FIX: Add the new divider style before rebuilding
+        int newDividerPos = updatedText.indexOf(dividerPlaceholder, lineEnd + 1);
+        if (newDividerPos != -1) {
+            dividerStyles.put(newDividerPos, style);
+        }
+        rebuildDividerStyles(updatedText);
+
+        applyBookmarksToText();
+        saveNoteContentToFirestore(updatedText);
+        Toast.makeText(this, "Divider duplicated", Toast.LENGTH_SHORT).show();
+    }
+
+    private void deleteDivider(int dividerPos) {
+        String content = noteContent.getText().toString();
+        String dividerPlaceholder = "〔DIVIDER〕";
+
+        int[] bounds = getLineBounds(content, dividerPos);
+        int lineStart = bounds[0];
+        int lineEnd = bounds[1];
+
+        // ✅ Merge bookmarks first, then delete
+        mergeSplitBookmarks(lineStart, lineEnd, () -> {
+
+            String currentContent = noteContent.getText().toString();
+            int[] currentBounds = getLineBounds(currentContent, dividerPos);
+            int currentLineStart = currentBounds[0];
+            int currentLineEnd = currentBounds[1];
+
+            int removeLength = currentLineEnd - currentLineStart + 1;
+
+            FirebaseUser user = auth.getCurrentUser();
+            if (user != null) {
+                for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                    if (bookmark.getStartIndex() > currentLineEnd) {
+                        updateBookmarkInFirestore(bookmark.getId(),
+                                bookmark.getStartIndex() - removeLength,
+                                bookmark.getEndIndex() - removeLength,
+                                bookmark.getText());
+                    }
+                }
+            }
+
+            String newContent = currentContent.substring(0, Math.max(0, currentLineStart - 1)) +
+                    currentContent.substring(Math.min(currentLineEnd + 1, currentContent.length()));
+
+            isUpdatingText = true;
+            noteContent.setText(newContent.replaceAll("\n{2,}", "\n"));
+            isUpdatingText = false;
+
+            rebuildDividerStyles(noteContent.getText().toString());
+
+            // ✅ Reapply after deletion
+            noteContent.postDelayed(() -> {
+                applyBookmarksToText();
+            }, 200);
+
+            saveNoteContentToFirestore(noteContent.getText().toString());
+            Toast.makeText(this, "Divider deleted", Toast.LENGTH_SHORT).show();
+        });
+    }
+    private void mergeSplitBookmarks(int dividerLineStart, int dividerLineEnd, Runnable onComplete) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+
+        String content = noteContent.getText().toString();
+
+        // Find bookmarks immediately before and after the divider
+        Bookmark bookmarkBefore = null;
+        Bookmark bookmarkAfter = null;
+
+        for (Bookmark bookmark : currentBookmarks) {
+            // Bookmark ends right before divider line
+            if (bookmark.getEndIndex() <= dividerLineStart && bookmark.getEndIndex() >= dividerLineStart - 50) {
+                if (bookmarkBefore == null || bookmark.getEndIndex() > bookmarkBefore.getEndIndex()) {
+                    bookmarkBefore = bookmark;
+                }
+            }
+            // Bookmark starts right after divider line
+            if (bookmark.getStartIndex() >= dividerLineEnd && bookmark.getStartIndex() <= dividerLineEnd + 50) {
+                if (bookmarkAfter == null || bookmark.getStartIndex() < bookmarkAfter.getStartIndex()) {
+                    bookmarkAfter = bookmark;
+                }
+            }
+        }
+
+        // If we found matching bookmarks with same color and style, merge them
+        if (bookmarkBefore != null && bookmarkAfter != null &&
+                bookmarkBefore.getColor().equals(bookmarkAfter.getColor()) &&
+                bookmarkBefore.getStyle().equals(bookmarkAfter.getStyle())) {
+
+            // Calculate new positions BEFORE divider removal
+            int dividerLength = dividerLineEnd - dividerLineStart + 1;
+
+            int mergedStart = bookmarkBefore.getStartIndex();
+            int mergedEnd = bookmarkAfter.getEndIndex() - dividerLength;
+
+            String beforeText = content.substring(bookmarkBefore.getStartIndex(), bookmarkBefore.getEndIndex());
+            String afterText = content.substring(bookmarkAfter.getStartIndex(), bookmarkAfter.getEndIndex());
+            String mergedText = beforeText + afterText;
+
+            final Bookmark finalBookmarkBefore = bookmarkBefore;
+            final Bookmark finalBookmarkAfter = bookmarkAfter;
+            final int finalMergedStart = mergedStart;
+            final int finalMergedEnd = mergedEnd;
+            final String finalMergedText = mergedText;
+
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("startIndex", finalMergedStart);
+            updates.put("endIndex", finalMergedEnd);
+            updates.put("text", finalMergedText);
+
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("bookmarks").document(finalBookmarkBefore.getId())
+                    .update(updates)
+                    .addOnSuccessListener(aVoid -> {
+                        // Update local bookmark immediately
+                        finalBookmarkBefore.setStartIndex(finalMergedStart);
+                        finalBookmarkBefore.setEndIndex(finalMergedEnd);
+                        finalBookmarkBefore.setText(finalMergedText);
+
+                        // Delete the second bookmark
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("bookmarks").document(finalBookmarkAfter.getId())
+                                .delete()
+                                .addOnSuccessListener(aVoid2 -> {
+                                    // Remove from local list
+                                    currentBookmarks.remove(finalBookmarkAfter);
+
+                                    // ✅ Run callback after both operations complete
+                                    if (onComplete != null) {
+                                        onComplete.run();
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    if (onComplete != null) onComplete.run();
+                                });
+                    })
+                    .addOnFailureListener(e -> {
+                        if (onComplete != null) onComplete.run();
+                    });
+        } else {
+            // No merge needed, run callback immediately
+            if (onComplete != null) onComplete.run();
+        }
+    }
     private void saveNoteContentDebounced(String content) {
         // cancel previous pending save
         if (bookmarkSaveRunnable != null) {
@@ -340,9 +1095,16 @@ public class NoteActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) return;
 
+        // ✅ Convert Integer keys to String keys for Firestore
+        Map<String, String> dividerStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
         Map<String, Object> updates = new HashMap<>();
         updates.put("content", content);
         updates.put("timestamp", System.currentTimeMillis());
+        updates.put("dividerStyles", dividerStylesForFirestore);
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
@@ -380,13 +1142,43 @@ public class NoteActivity extends AppCompatActivity {
         super.onDestroy();
         if (bookmarkListener != null) bookmarkListener.remove();
     }
-
     private void setupTextSelection() {
+        noteContent.setOnLongClickListener(v -> {
+            int cursorPos = noteContent.getSelectionStart();
+
+            // ✅ Check if long-press is on a divider
+            String content = noteContent.getText().toString();
+            String dividerPlaceholder = "〔DIVIDER〕";
+
+            int dividerIndex = content.indexOf(dividerPlaceholder);
+            while (dividerIndex != -1) {
+                int dividerEnd = dividerIndex + dividerPlaceholder.length();
+
+                if (cursorPos >= dividerIndex && cursorPos <= dividerEnd) {
+                    // Show divider action menu
+                    showDividerActionMenu(dividerIndex);
+                    return true; // Consume the event
+                }
+
+                dividerIndex = content.indexOf(dividerPlaceholder, dividerEnd);
+            }
+
+            return false; // Let default behavior happen
+        });
+
         noteContent.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
             @Override
             public boolean onCreateActionMode(ActionMode mode, Menu menu) {
                 int start = noteContent.getSelectionStart();
                 int end = noteContent.getSelectionEnd();
+
+                String selectedText = noteContent.getText().toString().substring(start, end);
+
+                // ✅ Check if selection contains divider
+                if (selectedText.contains("〔DIVIDER〕")) {
+                    noteContent.setSelection(start);
+                    return false;
+                }
 
                 // Check if selection is within any bookmark
                 Bookmark selectedBookmark = getBookmarkAtSelection(start, end);
@@ -479,35 +1271,52 @@ public class NoteActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
-        // Calculate the expanded range
+        String currentText = noteContent.getText().toString();
         int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
         int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
 
-        String currentText = noteContent.getText().toString();
-
-        // Trim spaces from both ends
-        while (expandedStart < expandedEnd && expandedStart < currentText.length()
-                && currentText.charAt(expandedStart) == ' ') {
-            expandedStart++;
-        }
-        while (expandedEnd > expandedStart && expandedEnd > 0
-                && currentText.charAt(expandedEnd - 1) == ' ') {
-            expandedEnd--;
-        }
-
-        if (expandedStart >= expandedEnd || expandedStart < 0 || expandedEnd > currentText.length()) {
-            Toast.makeText(this, "Invalid selection", Toast.LENGTH_SHORT).show();
+        // Bounds safety
+        if (expandedStart < 0 || expandedEnd > currentText.length() || expandedStart >= expandedEnd) {
+            Toast.makeText(this, "Invalid selection range", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        String expandedText = currentText.substring(expandedStart, expandedEnd);
+        // Trim outer spaces
+        while (expandedStart < expandedEnd && expandedStart < currentText.length()
+                && Character.isWhitespace(currentText.charAt(expandedStart))) {
+            expandedStart++;
+        }
+        while (expandedEnd > expandedStart && expandedEnd > 0
+                && Character.isWhitespace(currentText.charAt(expandedEnd - 1))) {
+            expandedEnd--;
+        }
 
-        // ✅ Create final variables for use in lambda
+        // Extract and clean the selected text
+        String expandedText = currentText.substring(expandedStart, expandedEnd);
+        // ✅ ADD THIS CHECK
+        if (expandedText.contains("〔DIVIDER〕")) {
+            Toast.makeText(this, "Cannot include dividers in bookmarks", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // ✅ Validate: must contain *at least one visible character*
+        if (expandedText.trim().isEmpty()) {
+            Toast.makeText(this, "Cannot bookmark empty or blank lines", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // ✅ Ensure no full-line-only newlines
+        if (expandedText.replaceAll("[\\n\\r\\s]+", "").isEmpty()) {
+            Toast.makeText(this, "Bookmark must contain text, not just blank lines", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // ✅ Create final variables for lambda
         final int finalExpandedStart = expandedStart;
         final int finalExpandedEnd = expandedEnd;
         final String finalExpandedText = expandedText;
 
-        // Update the bookmark with new indices
+        // Save update to Firestore
         Map<String, Object> updates = new HashMap<>();
         updates.put("startIndex", finalExpandedStart);
         updates.put("endIndex", finalExpandedEnd);
@@ -518,13 +1327,12 @@ public class NoteActivity extends AppCompatActivity {
                 .collection("bookmarks").document(bookmark.getId())
                 .update(updates)
                 .addOnSuccessListener(aVoid -> {
-                    // ✅ Update the local bookmark object immediately
                     bookmark.setStartIndex(finalExpandedStart);
                     bookmark.setEndIndex(finalExpandedEnd);
                     bookmark.setText(finalExpandedText);
 
                     Toast.makeText(this, "Bookmark expanded", Toast.LENGTH_SHORT).show();
-                    applyBookmarksToText(); // Refresh to show updated bookmark
+                    applyBookmarksToText();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Error expanding bookmark", Toast.LENGTH_SHORT).show();
@@ -658,7 +1466,6 @@ public class NoteActivity extends AppCompatActivity {
         bottomSheet.show();
     }
 
-    // Add this helper method
     private void setColorScale(View violet, View yellow, View pink, View green, View blue, View orange, View red, View cyan, String currentColor) {
         resetColorSelection(violet, yellow, pink, green, blue, orange, red, cyan);
 
@@ -680,6 +1487,7 @@ public class NoteActivity extends AppCompatActivity {
         }
     }
 
+
     // Delete bookmark confirmation
     private void showDeleteBookmarkConfirmation(Bookmark bookmark) {
         new AlertDialog.Builder(this)
@@ -691,6 +1499,16 @@ public class NoteActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .show();
     }
+
+    private boolean isTextAlreadyBookmarked(int start, int end) {
+        for (Bookmark bookmark : currentBookmarks) {
+            if ((start >= bookmark.getStartIndex() && start < bookmark.getEndIndex()) ||
+                    (end > bookmark.getStartIndex() && end <= bookmark.getEndIndex()) ||
+                    (start <= bookmark.getStartIndex() && end >= bookmark.getEndIndex())) return true;
+        }
+        return false;
+    }
+
     private void showBookmarkBottomSheet(String selectedText, int startIndex, int endIndex) {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet, null);
@@ -778,12 +1596,53 @@ public class NoteActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
-        Bookmark bookmark = new Bookmark(text, note, color, style, startIndex, endIndex);
+        // ✅ Trim whitespace and newlines from selection
+        String currentText = noteContent.getText().toString();
+
+        // Trim from start
+        while (startIndex < endIndex && startIndex < currentText.length()) {
+            char c = currentText.charAt(startIndex);
+            if (Character.isWhitespace(c) || c == '\n' || c == '\r' || c == '\t') {
+                startIndex++;
+            } else {
+                break;
+            }
+        }
+
+        // Trim from end
+        while (endIndex > startIndex && endIndex > 0) {
+            char c = currentText.charAt(endIndex - 1);
+            if (Character.isWhitespace(c) || c == '\n' || c == '\r' || c == '\t') {
+                endIndex--;
+            } else {
+                break;
+            }
+        }
+
+        // Validate trimmed range
+        if (startIndex >= endIndex || startIndex < 0 || endIndex > currentText.length()) {
+            Toast.makeText(this, "Invalid selection - only whitespace selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Get the trimmed text
+        String trimmedText = currentText.substring(startIndex, endIndex);
+        // ✅ ADD THIS CHECK
+        if (trimmedText.contains("〔DIVIDER〕")) {
+            Toast.makeText(this, "Cannot bookmark divider lines", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Bookmark bookmark = new Bookmark(trimmedText, note, color, style, startIndex, endIndex);
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .collection("bookmarks").add(bookmark)
-                .addOnSuccessListener(doc -> Toast.makeText(this, "Bookmark created", Toast.LENGTH_SHORT).show())
+                .addOnSuccessListener(doc -> {
+                    Toast.makeText(this, "Bookmark created", Toast.LENGTH_SHORT).show();
+                    // ✅ IMPORTANT: Save note content immediately after creating bookmark
+                    saveNoteContentToFirestore(currentText);
+                })
                 .addOnFailureListener(e -> Toast.makeText(this, "Error creating bookmark", Toast.LENGTH_SHORT).show());
     }
 
@@ -825,23 +1684,87 @@ public class NoteActivity extends AppCompatActivity {
         String content = noteContent.getText().toString();
         if (content.isEmpty()) { isUpdatingText = false; return; }
 
-        SpannableString span = new SpannableString(content);
+        android.text.SpannableString span = new android.text.SpannableString(content);
 
-        for (Bookmark b : currentBookmarks) {
-            int s = b.getStartIndex(), e = b.getEndIndex();
-            if (s >= 0 && e <= content.length() && s < e) {
-                try {
-                    int color = Color.parseColor(b.getColor());
-                    if ("highlight".equals(b.getStyle()))
-                        span.setSpan(new BackgroundColorSpan(color), s, e, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    else if ("underline".equals(b.getStyle()))
-                        span.setSpan(new CustomUnderlineSpan(color, s, e), s, e, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                } catch (Exception ignored) {}
+        String dividerPlaceholder = "〔DIVIDER〕";
+
+        // ✅ Collect all divider positions first
+        List<int[]> dividerRanges = new ArrayList<>();
+        int dividerIndex = 0;
+        while ((dividerIndex = content.indexOf(dividerPlaceholder, dividerIndex)) != -1) {
+            dividerRanges.add(new int[]{dividerIndex, dividerIndex + dividerPlaceholder.length()});
+            dividerIndex += dividerPlaceholder.length();
+        }
+
+        // Apply all dividers with their saved styles
+        Map<Integer, String> newDividerStyles = new HashMap<>();
+        dividerIndex = 0;
+        while ((dividerIndex = content.indexOf(dividerPlaceholder, dividerIndex)) != -1) {
+            int dividerEnd = dividerIndex + dividerPlaceholder.length();
+
+            String style = "solid";
+            for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+                int savedPos = entry.getKey();
+                if (Math.abs(savedPos - dividerIndex) < 10) {
+                    style = entry.getValue();
+                    break;
+                }
             }
+
+            newDividerStyles.put(dividerIndex, style);
+
+            span.setSpan(
+                    new DividerSpan(style, 0xFF666666),
+                    dividerIndex,
+                    dividerEnd,
+                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
+
+            dividerIndex = dividerEnd;
+        }
+
+        dividerStyles = newDividerStyles;
+
+        // ✅ Apply bookmarks (AVOID divider areas completely)
+        for (Bookmark b : currentBookmarks) {
+            int s = b.getStartIndex();
+            int e = b.getEndIndex();
+
+            // Validate bounds
+            if (s < 0 || e > content.length() || s >= e) continue;
+
+            String bookmarkText = content.substring(s, e);
+
+            // ✅ Skip if bookmark contains divider placeholder
+            if (bookmarkText.contains(dividerPlaceholder)) continue;
+
+            // ✅ Check if bookmark overlaps with any divider range
+            boolean overlaps = false;
+            for (int[] dividerRange : dividerRanges) {
+                int dStart = dividerRange[0];
+                int dEnd = dividerRange[1];
+
+                // Check if bookmark overlaps with this divider
+                if ((s >= dStart && s < dEnd) || (e > dStart && e <= dEnd) ||
+                        (s < dStart && e > dEnd)) {
+                    overlaps = true;
+                    break;
+                }
+            }
+
+            if (overlaps) continue;
+
+            try {
+                int color = android.graphics.Color.parseColor(b.getColor());
+                if ("highlight".equals(b.getStyle()))
+                    span.setSpan(new android.text.style.BackgroundColorSpan(color), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                else if ("underline".equals(b.getStyle()))
+                    span.setSpan(new CustomUnderlineSpan(color, s, e), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } catch (Exception ignored) {}
         }
 
         int sel = noteContent.getSelectionStart();
-        noteContent.setText(span, TextView.BufferType.SPANNABLE);
+        noteContent.setText(span, android.widget.TextView.BufferType.SPANNABLE);
         if (sel >= 0 && sel <= content.length()) noteContent.setSelection(sel);
 
         lastSavedContent = content;
@@ -871,6 +1794,21 @@ public class NoteActivity extends AppCompatActivity {
                     if (doc.exists()) {
                         String title = doc.getString("title");
                         String content = doc.getString("content");
+
+                        // ✅ Load divider styles
+                        Map<String, Object> savedStyles = (Map<String, Object>) doc.get("dividerStyles");
+                        if (savedStyles != null) {
+                            dividerStyles.clear();
+                            for (Map.Entry<String, Object> entry : savedStyles.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    String style = (String) entry.getValue();
+                                    dividerStyles.put(position, style);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
 
                         // ✅ Set flag to prevent text watcher from running
                         isUpdatingText = true;
@@ -951,11 +1889,18 @@ public class NoteActivity extends AppCompatActivity {
         String title = noteTitle.getText().toString();
         String content = noteContent.getText().toString();
 
+        // ✅ Convert Integer keys to String keys for Firestore
+        Map<String, String> dividerStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
         Map<String, Object> noteData = new HashMap<>();
         noteData.put("title", title);
         noteData.put("content", content);
         noteData.put("color", currentNoteColor);
         noteData.put("timestamp", System.currentTimeMillis());
+        noteData.put("dividerStyles", dividerStylesForFirestore);
 
         db.collection("users").document(user.getUid())
                 .collection("notes")

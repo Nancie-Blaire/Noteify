@@ -184,6 +184,41 @@
                     android:contentDescription="Toggle password visibility" />
             </LinearLayout>
 
+            <!-- Email Verification Message (Hidden by Default) -->
+            <TextView
+                android:id="@+id/tvVerifyMessage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="✉️ Verification email sent!\n\nPlease check your inbox and click the verification link. This page will automatically proceed once verified."
+                android:textColor="#00BFA5"
+                android:textSize="16sp"
+                android:fontFamily="@font/inter_regular"
+                android:gravity="center"
+                android:visibility="gone"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="16dp"
+                android:padding="16dp"
+                android:background="@drawable/input_border_default" />
+
+            <!-- Resend Verification Button (Hidden by Default) -->
+            <Button
+                android:id="@+id/btnResendVerification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Resend Verification Email"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#00BFA5"
+                android:fontFamily="@font/inter_regular"
+                android:letterSpacing=".1"
+                android:backgroundTint="#FFFFFF"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone" />
+
             <!-- Sign Up Button -->
             <Button
                 android:id="@+id/btnSignUp"

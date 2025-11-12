@@ -7,7 +7,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.SearchView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -43,7 +42,7 @@ public class Notes extends Fragment {
     private NoteAdapter starredAdapter;
     private RecyclerView prioNotesRecyclerView;
     private RecyclerView notesRecyclerView;
-    private EditText editText;
+    private EditText searchBar;
 
     private NoteAdapter.ItemTypeDetector typeDetector;
 
@@ -80,13 +79,13 @@ public class Notes extends Fragment {
         FirebaseUser user = auth.getCurrentUser();
 
         // Initialize search bar
-        editText = view.findViewById(R.id.editText);
-        editText.clearFocus();
+        searchBar = view.findViewById(R.id.searchBar);
+        searchBar.clearFocus();
 
-        editText.setOnClickListener(v -> {
-            editText.setFocusable(true);
-            editText.setFocusableInTouchMode(true);
-            editText.requestFocus();
+        searchBar.setOnClickListener(v -> {
+            searchBar.setFocusable(true);
+            searchBar.setFocusableInTouchMode(true);
+            searchBar.requestFocus();
         });
 
         // Check if user is logged in

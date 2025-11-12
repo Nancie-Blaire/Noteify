@@ -51,10 +51,15 @@ public class SignUp extends AppCompatActivity {
     private boolean isPasswordVisible = false;
     private boolean isConfirmPasswordVisible = false;
     private ScrollView scrollView;
+    private View dividerLayout;
 
     private Handler verificationCheckHandler;
     private Runnable verificationCheckRunnable;
     private boolean isCheckingVerification = false;
+    private String pendingFullName = "";
+    private String pendingEmail = "";
+    private long lastResendTime = 0;
+    private static final long RESEND_COOLDOWN = 60000; // 60 seconds cooldown
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,6 +93,34 @@ public class SignUp extends AppCompatActivity {
         ivTogglePassword = findViewById(R.id.ivTogglePassword);
         ivToggleConfirmPassword = findViewById(R.id.ivToggleConfirmPassword);
         scrollView = findViewById(R.id.scrollView);
+        dividerLayout = findViewById(R.id.dividerLayout);
+
+        // Handle back press with OnBackPressedDispatcher
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // If currently checking verification, stop it and sign out the unverified user
+                if (isCheckingVerification) {
+                    stopVerificationCheck();
+                    FirebaseUser currentUser = auth.getCurrentUser();
+                    if (currentUser != null && !currentUser.isEmailVerified()) {
+                        // Delete the unverified account
+                        currentUser.delete().addOnCompleteListener(task -> {
+                            if (task.isSuccessful()) {
+                                Log.d(TAG, "Unverified account deleted");
+                            }
+                        });
+                    }
+                    auth.signOut();
+                    // Restore the sign-up form
+                    restoreSignUpForm();
+                } else {
+                    // Normal back press behavior - finish activity
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
 
         // Get parent LinearLayouts
         View nameContainer = (View) etFullName.getParent();
@@ -96,7 +129,11 @@ public class SignUp extends AppCompatActivity {
         View confirmContainer = (View) etConfirmPassword.getParent();
 
         // Google Sign-In button
-        btnGoogleSignIn.setOnClickListener(v -> signInWithGoogle());
+        btnGoogleSignIn.setOnClickListener(v -> {
+            // Stop verification check if switching to Google sign-in
+            stopVerificationCheck();
+            signInWithGoogle();
+        });
 
         // Email Sign up button
         btnSignUp.setOnClickListener(v -> {
@@ -171,6 +208,25 @@ public class SignUp extends AppCompatActivity {
 
     // Google Sign-In
     private void signInWithGoogle() {
+        // If there's an unverified user waiting, clean up first
+        if (isCheckingVerification) {
+            stopVerificationCheck();
+            FirebaseUser currentUser = auth.getCurrentUser();
+            if (currentUser != null && !currentUser.isEmailVerified()) {
+                // Delete the unverified account before Google sign-in
+                currentUser.delete().addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        Log.d(TAG, "Unverified account deleted before Google sign-in");
+                    }
+                    auth.signOut();
+                    // Proceed with Google sign-in
+                    Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+                    startActivityForResult(signInIntent, RC_SIGN_IN);
+                });
+                return;
+            }
+        }
+
         Intent signInIntent = mGoogleSignInClient.getSignInIntent();
         startActivityForResult(signInIntent, RC_SIGN_IN);
     }
@@ -183,10 +239,34 @@ public class SignUp extends AppCompatActivity {
             Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
             try {
                 GoogleSignInAccount account = task.getResult(ApiException.class);
-                firebaseAuthWithGoogle(account.getIdToken());
+                // Delete unverified email account before proceeding with Google
+                FirebaseUser currentUser = auth.getCurrentUser();
+                if (currentUser != null && !currentUser.isEmailVerified()) {
+                    stopVerificationCheck();
+                    currentUser.delete().addOnCompleteListener(deleteTask -> {
+                        if (deleteTask.isSuccessful()) {
+                            Log.d(TAG, "Unverified email account deleted before Google sign-in");
+                        }
+                        // Now proceed with Google authentication
+                        firebaseAuthWithGoogle(account.getIdToken());
+                    });
+                } else {
+                    // No unverified account, proceed normally
+                    firebaseAuthWithGoogle(account.getIdToken());
+                }
             } catch (ApiException e) {
                 Log.w(TAG, "Google sign in failed", e);
                 Toast.makeText(this, "Google sign in failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+
+                // User cancelled or failed Google sign-in
+                // Check if there's an unverified user and show verification UI
+                FirebaseUser currentUser = auth.getCurrentUser();
+                if (currentUser != null && !currentUser.isEmailVerified()) {
+                    showVerificationUI();
+                    if (!isCheckingVerification) {
+                        startVerificationCheck(currentUser);
+                    }
+                }
             }
         }
     }
@@ -216,6 +296,7 @@ public class SignUp extends AppCompatActivity {
         userData.put("displayName", user.getDisplayName());
         userData.put("photoUrl", user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : null);
         userData.put("authProvider", "google");
+        userData.put("emailVerified", true);
         userData.put("createdAt", System.currentTimeMillis());
 
         db.collection("users")
@@ -303,6 +384,13 @@ public class SignUp extends AppCompatActivity {
             return false;
         }
 
+        // Check if email ends with @gmail.com
+        if (!email.toLowerCase().endsWith("@gmail.com")) {
+            etEmail.setError("Invalid Gmail account. Please use @gmail.com");
+            etEmail.requestFocus();
+            return false;
+        }
+
         if (password.isEmpty()) {
             etPassword.setError("Password is required");
             etPassword.requestFocus();
@@ -339,7 +427,10 @@ public class SignUp extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         FirebaseUser user = auth.getCurrentUser();
                         if (user != null) {
-                            sendVerificationEmail(user, fullName, email);
+                            // Save the pending data
+                            pendingFullName = fullName;
+                            pendingEmail = email;
+                            sendVerificationEmail(user);
                         }
                     } else {
                         progressBar.setVisibility(View.GONE);
@@ -352,7 +443,7 @@ public class SignUp extends AppCompatActivity {
                 });
     }
 
-    private void sendVerificationEmail(FirebaseUser user, String fullName, String email) {
+    private void sendVerificationEmail(FirebaseUser user) {
         user.sendEmailVerification()
                 .addOnCompleteListener(task -> {
                     progressBar.setVisibility(View.GONE);
@@ -364,7 +455,7 @@ public class SignUp extends AppCompatActivity {
                         showVerificationUI();
 
                         // Start checking for email verification
-                        startVerificationCheck(user, fullName, email);
+                        startVerificationCheck(user);
 
                         Toast.makeText(SignUp.this,
                                 "Verification email sent to " + user.getEmail(),
@@ -386,7 +477,6 @@ public class SignUp extends AppCompatActivity {
         etPassword.setVisibility(View.GONE);
         etConfirmPassword.setVisibility(View.GONE);
         btnSignUp.setVisibility(View.GONE);
-        btnGoogleSignIn.setVisibility(View.GONE);
 
         // Hide parent containers
         ((View) etFullName.getParent()).setVisibility(View.GONE);
@@ -399,11 +489,22 @@ public class SignUp extends AppCompatActivity {
         if (btnResendVerification != null) {
             btnResendVerification.setVisibility(View.VISIBLE);
         }
+
+        // Keep divider and Google button visible
+        if (dividerLayout != null) {
+            dividerLayout.setVisibility(View.VISIBLE);
+        }
+        btnGoogleSignIn.setVisibility(View.VISIBLE);
     }
 
-    private void startVerificationCheck(FirebaseUser user, String fullName, String email) {
+    private void startVerificationCheck(FirebaseUser user) {
         isCheckingVerification = true;
         verificationCheckHandler = new Handler(Looper.getMainLooper());
+
+        // Store the pending data if not already stored
+        if (pendingEmail.isEmpty() && user.getEmail() != null) {
+            pendingEmail = user.getEmail();
+        }
 
         verificationCheckRunnable = new Runnable() {
             @Override
@@ -415,7 +516,13 @@ public class SignUp extends AppCompatActivity {
                         if (user.isEmailVerified()) {
                             // Email is verified, save to Firestore and proceed
                             stopVerificationCheck();
-                            saveUserToFirestore(user.getUid(), fullName, email);
+                            // Get display name from Firestore or use email
+                            if (pendingFullName.isEmpty()) {
+                                String email = user.getEmail();
+                                pendingFullName = email != null && email.contains("@") ?
+                                        email.split("@")[0] : "User";
+                            }
+                            saveUserToFirestore(user.getUid(), pendingFullName, pendingEmail);
                         } else {
                             // Check again after 3 seconds
                             if (isCheckingVerification) {
@@ -444,31 +551,81 @@ public class SignUp extends AppCompatActivity {
     }
 
     private void resendVerificationEmail() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user != null && !user.isEmailVerified()) {
-            progressBar.setVisibility(View.VISIBLE);
-            if (btnResendVerification != null) {
-                btnResendVerification.setEnabled(false);
-            }
+        // Check cooldown period
+        long currentTime = System.currentTimeMillis();
+        long timeSinceLastResend = currentTime - lastResendTime;
 
-            user.sendEmailVerification()
-                    .addOnCompleteListener(task -> {
-                        progressBar.setVisibility(View.GONE);
-                        if (btnResendVerification != null) {
-                            btnResendVerification.setEnabled(true);
-                        }
-
-                        if (task.isSuccessful()) {
-                            Toast.makeText(SignUp.this,
-                                    "Verification email resent!",
-                                    Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(SignUp.this,
-                                    "Failed to resend email. Please try again.",
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    });
+        if (lastResendTime != 0 && timeSinceLastResend < RESEND_COOLDOWN) {
+            long remainingSeconds = (RESEND_COOLDOWN - timeSinceLastResend) / 1000;
+            Toast.makeText(SignUp.this,
+                    "Please wait " + remainingSeconds + " seconds before resending",
+                    Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        FirebaseUser user = auth.getCurrentUser();
+
+        if (user == null) {
+            Toast.makeText(SignUp.this, "No user found. Please sign up again.", Toast.LENGTH_SHORT).show();
+            restoreSignUpForm();
+            return;
+        }
+
+        if (user.isEmailVerified()) {
+            Toast.makeText(SignUp.this, "Email already verified!", Toast.LENGTH_SHORT).show();
+            // Proceed to save user data
+            saveUserToFirestore(user.getUid(), pendingFullName, pendingEmail);
+            return;
+        }
+
+        progressBar.setVisibility(View.VISIBLE);
+        if (btnResendVerification != null) {
+            btnResendVerification.setEnabled(false);
+        }
+
+        // Reload user first to ensure we have latest state
+        user.reload().addOnCompleteListener(reloadTask -> {
+            if (reloadTask.isSuccessful()) {
+                user.sendEmailVerification()
+                        .addOnCompleteListener(task -> {
+                            progressBar.setVisibility(View.GONE);
+                            if (btnResendVerification != null) {
+                                btnResendVerification.setEnabled(true);
+                            }
+
+                            if (task.isSuccessful()) {
+                                lastResendTime = System.currentTimeMillis();
+                                Toast.makeText(SignUp.this,
+                                        "Verification email sent to " + user.getEmail(),
+                                        Toast.LENGTH_LONG).show();
+                                Log.d(TAG, "Verification email resent successfully");
+                            } else {
+                                String errorMsg = task.getException() != null ?
+                                        task.getException().getMessage() : "Unknown error";
+
+                                // Check if it's a rate limit error
+                                if (errorMsg.contains("unusual activity") || errorMsg.contains("blocked")) {
+                                    Toast.makeText(SignUp.this,
+                                            "Too many requests. Please wait a few minutes and try again.",
+                                            Toast.LENGTH_LONG).show();
+                                } else {
+                                    Toast.makeText(SignUp.this,
+                                            "Failed to resend email: " + errorMsg,
+                                            Toast.LENGTH_LONG).show();
+                                }
+                                Log.e(TAG, "Failed to resend verification email", task.getException());
+                            }
+                        });
+            } else {
+                progressBar.setVisibility(View.GONE);
+                if (btnResendVerification != null) {
+                    btnResendVerification.setEnabled(true);
+                }
+                Toast.makeText(SignUp.this,
+                        "Failed to reload user. Please try again.",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void saveUserToFirestore(String userId, String fullName, String email) {
@@ -511,10 +668,36 @@ public class SignUp extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        // Only redirect if user is logged in AND email is verified
         FirebaseUser currentUser = auth.getCurrentUser();
         if (currentUser != null && currentUser.isEmailVerified()) {
             startActivity(new Intent(this, MainActivity.class));
             finish();
+        } else if (currentUser != null && !currentUser.isEmailVerified()) {
+            // User exists but not verified - stay on this screen
+            // Check if we should show verification UI
+            if (!isCheckingVerification && tvVerifyMessage.getVisibility() != View.VISIBLE) {
+                // Show verification UI if not already showing
+                showVerificationUI();
+                startVerificationCheck(currentUser);
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Check user state when resuming (e.g., coming back from Google sign-in)
+        FirebaseUser currentUser = auth.getCurrentUser();
+        if (currentUser != null && !currentUser.isEmailVerified()) {
+            // User is not verified, ensure verification UI is showing
+            if (tvVerifyMessage.getVisibility() != View.VISIBLE) {
+                showVerificationUI();
+            }
+            // Restart verification check if it was stopped
+            if (!isCheckingVerification) {
+                startVerificationCheck(currentUser);
+            }
         }
     }
 
@@ -522,5 +705,37 @@ public class SignUp extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopVerificationCheck();
+    }
+
+    private void restoreSignUpForm() {
+        // Show sign-up form elements
+        ((View) etFullName.getParent()).setVisibility(View.VISIBLE);
+        ((View) etEmail.getParent()).setVisibility(View.VISIBLE);
+        ((View) etPassword.getParent()).setVisibility(View.VISIBLE);
+        ((View) etConfirmPassword.getParent()).setVisibility(View.VISIBLE);
+        etFullName.setVisibility(View.VISIBLE);
+        etEmail.setVisibility(View.VISIBLE);
+        etPassword.setVisibility(View.VISIBLE);
+        etConfirmPassword.setVisibility(View.VISIBLE);
+        btnSignUp.setVisibility(View.VISIBLE);
+        btnSignUp.setEnabled(true);
+
+        // Hide verification UI
+        tvVerifyMessage.setVisibility(View.GONE);
+        if (btnResendVerification != null) {
+            btnResendVerification.setVisibility(View.GONE);
+        }
+
+        // Keep divider and Google button visible
+        if (dividerLayout != null) {
+            dividerLayout.setVisibility(View.VISIBLE);
+        }
+        btnGoogleSignIn.setVisibility(View.VISIBLE);
+
+        // Clear fields
+        etFullName.setText("");
+        etEmail.setText("");
+        etPassword.setText("");
+        etConfirmPassword.setText("");
     }
 }

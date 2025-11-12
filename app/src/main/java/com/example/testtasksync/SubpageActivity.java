@@ -20,7 +20,7 @@ import java.util.Map;
 public class SubpageActivity extends AppCompatActivity {
 
     private EditText subpageTitle, subpageContent;
-    private ImageView checkBtn, backBtn;
+    private ImageView checkBtn;
     private FirebaseFirestore db;
     private FirebaseAuth auth;
     private String noteId;
@@ -36,7 +36,6 @@ public class SubpageActivity extends AppCompatActivity {
         subpageTitle = findViewById(R.id.subpageTitle);
         subpageContent = findViewById(R.id.subpageContent);
         checkBtn = findViewById(R.id.checkBtn);
-        backBtn = findViewById(R.id.backBtn);
         rootView = findViewById(R.id.subpageLayout);
 
         db = FirebaseFirestore.getInstance();
@@ -54,7 +53,6 @@ public class SubpageActivity extends AppCompatActivity {
 
         // Button listeners - both save and exit
         checkBtn.setOnClickListener(v -> saveAndExit());
-        backBtn.setOnClickListener(v -> saveAndExit());
 
         if (subpageId != null) {
             loadSubpage();

@@ -17,6 +17,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -43,11 +44,11 @@ import java.util.Map;
 public class NoteActivity extends AppCompatActivity {
 
     private EditText noteTitle, noteContent;
-    private ImageView checkBtn, backBtn, addSubpageBtn;
-    private LinearLayout addSubpageContainer;
+    private ImageView checkBtn, addMenuBtn;
+    private HorizontalScrollView addOptionsMenu;
+    private boolean isMenuOpen = false;
     private RelativeLayout noteLayout;
     private View colorPickerPanel;
-    private ImageView colorPaletteBtn;
     private TextView bookmarksLink;
     private String currentColor = "#FAFAFA";
     private RecyclerView subpagesRecyclerView;
@@ -68,6 +69,10 @@ public class NoteActivity extends AppCompatActivity {
     private Runnable bookmarkSaveRunnable = null;
     private static final long BOOKMARK_SAVE_DELAY_MS = 600L; // debounce delay
     private Map<Integer, String> dividerStyles = new HashMap<>();
+    private boolean isNumberedListMode = false;
+    private boolean isBulletListMode = false;
+    private int currentListNumber = 1;
+
 
 
     @Override
@@ -79,24 +84,26 @@ public class NoteActivity extends AppCompatActivity {
         noteContent = findViewById(R.id.noteContent);
         noteLayout = findViewById(R.id.noteLayout);
         colorPickerPanel = findViewById(R.id.colorPickerPanel);
-        colorPaletteBtn = findViewById(R.id.colorPaletteBtn);
         checkBtn = findViewById(R.id.checkBtn);
-        backBtn = findViewById(R.id.backBtn);
-        addSubpageBtn = findViewById(R.id.addSubpageBtn);
-        addSubpageContainer = findViewById(R.id.addSubpageContainer);
+        addOptionsMenu = findViewById(R.id.addOptionsMenu);
         subpagesRecyclerView = findViewById(R.id.subpagesRecyclerView);
         bookmarksLink = findViewById(R.id.bookmarksLink);
-        ImageView dividerBtn = findViewById(R.id.dividerBtn);
-        dividerBtn.setOnClickListener(v -> showDividerBottomSheet());
+        addMenuBtn = findViewById(R.id.addMenuBtn);
+
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
         noteId = getIntent().getStringExtra("noteId");
         scrollToPosition = getIntent().getIntExtra("scrollToPosition", -1);
 
+        //  CALLING METHODS
         loadNoteColor();
-        colorPaletteBtn.setOnClickListener(v -> toggleColorPicker());
         setupColorPicker();
+        setupAddMenuOptions();
+        setupTextSelection();
+        setupTextWatcher();
+        setupNumberedListWatcher();
+        setupBulletListWatcher();
 
         // Create Firestore note if new
         if (noteId == null) {
@@ -116,13 +123,13 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
+        // LISTENERS:
         setupRecyclerView();
         checkBtn.setOnClickListener(v -> saveAndExit());
-        backBtn.setOnClickListener(v -> saveAndExit());
-        addSubpageBtn.setOnClickListener(v -> openSubpage());
+        addMenuBtn.setOnClickListener(v -> toggleAddMenu());
         bookmarksLink.setOnClickListener(v -> openBookmarks());
-        setupTextSelection();
-        setupTextWatcher();
+        findViewById(R.id.indentOption).setOnClickListener(v -> indentLine());
+        findViewById(R.id.outdentOption).setOnClickListener(v -> outdentLine());
 
         if (noteId != null) {
             loadNote();
@@ -1471,14 +1478,14 @@ public class NoteActivity extends AppCompatActivity {
 
         View selectedView = null;
         switch (currentColor) {
-            case "#E1BEE7": selectedView = violet; break;
-            case "#FFF9C4": selectedView = yellow; break;
-            case "#F8BBD0": selectedView = pink; break;
-            case "#C8E6C9": selectedView = green; break;
-            case "#BBDEFB": selectedView = blue; break;
-            case "#FFE0B2": selectedView = orange; break;
             case "#FFCDD2": selectedView = red; break;
+            case "#F8BBD0": selectedView = pink; break;
+            case "#E1BEE7": selectedView = violet; break;
+            case "#BBDEFB": selectedView = blue; break;
             case "#B2EBF2": selectedView = cyan; break;
+            case "#C8E6C9": selectedView = green; break;
+            case "#FFF9C4": selectedView = yellow; break;
+            case "#FFE0B2": selectedView = orange; break;
         }
 
         if (selectedView != null) {
@@ -1514,14 +1521,15 @@ public class NoteActivity extends AppCompatActivity {
         View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet, null);
         bottomSheet.setContentView(sheetView);
 
-        View colorViolet = sheetView.findViewById(R.id.colorViolet);
-        View colorYellow = sheetView.findViewById(R.id.colorYellow);
-        View colorPink = sheetView.findViewById(R.id.colorPink);
-        View colorGreen = sheetView.findViewById(R.id.colorGreen);
-        View colorBlue = sheetView.findViewById(R.id.colorBlue);
-        View colorOrange = sheetView.findViewById(R.id.colorOrange);
         View colorRed = sheetView.findViewById(R.id.colorRed);
+        View colorPink = sheetView.findViewById(R.id.colorPink);
+        View colorViolet = sheetView.findViewById(R.id.colorViolet);
+        View colorBlue = sheetView.findViewById(R.id.colorBlue);
         View colorCyan = sheetView.findViewById(R.id.colorCyan);
+        View colorGreen = sheetView.findViewById(R.id.colorGreen);
+        View colorYellow = sheetView.findViewById(R.id.colorYellow);
+        View colorOrange = sheetView.findViewById(R.id.colorOrange);
+
 
         colorViolet.setTag("#E1BEE7");
         colorYellow.setTag("#FFF9C4");
@@ -1868,7 +1876,8 @@ public class NoteActivity extends AppCompatActivity {
 
                         subpageAdapter.setSubpages(subpages);
                         hasSubpages = !subpages.isEmpty();
-                        addSubpageContainer.setVisibility(hasSubpages ? View.VISIBLE : View.GONE);
+                        // ✅ FIX: Show/hide the RecyclerView instead of the add button
+                        subpagesRecyclerView.setVisibility(hasSubpages ? View.VISIBLE : View.GONE);
                     }
                 });
     }
@@ -1923,11 +1932,14 @@ public class NoteActivity extends AppCompatActivity {
     private void setupColorPicker() {
         findViewById(R.id.colorDefault).setOnClickListener(v -> changeNoteColor("#FAFAFA"));
         findViewById(R.id.colorRed).setOnClickListener(v -> changeNoteColor("#FFCDD2"));
-        findViewById(R.id.colorYellow).setOnClickListener(v -> changeNoteColor("#FFF9C4"));
-        findViewById(R.id.colorGreen).setOnClickListener(v -> changeNoteColor("#C8E6C9"));
-        findViewById(R.id.colorBlue).setOnClickListener(v -> changeNoteColor("#BBDEFB"));
+        findViewById(R.id.colorPink).setOnClickListener(v -> changeNoteColor("#F8BBD0"));
         findViewById(R.id.colorPurple).setOnClickListener(v -> changeNoteColor("#E1BEE7"));
+        findViewById(R.id.colorBlue).setOnClickListener(v -> changeNoteColor("#BBDEFB"));
+        findViewById(R.id.colorCyan).setOnClickListener(v -> changeNoteColor("#B2EBF2"));
+        findViewById(R.id.colorGreen).setOnClickListener(v -> changeNoteColor("#C8E6C9"));
+        findViewById(R.id.colorYellow).setOnClickListener(v -> changeNoteColor("#FFF9C4"));
         findViewById(R.id.colorOrange).setOnClickListener(v -> changeNoteColor("#FFE0B2"));
+        findViewById(R.id.colorBrown).setOnClickListener(v -> changeNoteColor("#D7CCC8"));
         findViewById(R.id.colorGrey).setOnClickListener(v -> changeNoteColor("#E0E0E0"));
     }
 
@@ -1947,5 +1959,539 @@ public class NoteActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences("NotePrefs", MODE_PRIVATE);
         currentColor = prefs.getString("noteColor_" + noteId, "#FAFAFA");
         noteLayout.setBackgroundColor(Color.parseColor(currentColor));
+    }
+
+    private void insertNumberedList() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+        String numberedPoint = "\n1. ";
+
+        String newText = currentText.substring(0, cursorPosition) +
+                numberedPoint +
+                currentText.substring(cursorPosition);
+
+        noteContent.setText(newText);
+        noteContent.setSelection(cursorPosition + numberedPoint.length());
+
+        // Enable numbered list mode
+        isNumberedListMode = true;
+    }
+
+    private void setupNumberedListWatcher() {
+        noteContent.addTextChangedListener(new TextWatcher() {
+            private boolean isProcessing = false;
+
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (isProcessing) return;
+
+                // Check if user pressed Enter (added newline)
+                if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
+                    isProcessing = true;
+
+                    // Get the line before the newline
+                    String textBeforeNewline = s.toString().substring(0, start);
+                    int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
+                    String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
+
+                    // Check if the current line is a numbered item (with or without content)
+                    // Updated regex to handle different number formats and indentations
+                    if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
+                            currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
+                            currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
+
+                        // Re-enable numbered list mode if it was disabled
+                        isNumberedListMode = true;
+
+                        // Check if the current line is an empty numbered item
+                        if (currentLine.matches("^\\s*\\d+[.)]*\\s*$") ||
+                                currentLine.matches("^\\s*[a-z][.)]*\\s*$") ||
+                                currentLine.matches("^\\s*[ivx]+[.)]*\\s*$")) {
+                            // Double enter detected - exit numbered list mode
+                            isNumberedListMode = false;
+
+                            // Remove the empty numbered line
+                            String newText = s.toString().substring(0, lastNewlineIndex + 1) +
+                                    s.toString().substring(start + 1);
+                            noteContent.setText(newText);
+                            noteContent.setSelection(lastNewlineIndex + 1);
+                        } else {
+                            // Get the next number format based on indentation
+                            String nextNumberText = getNextNumberFormat(currentLine);
+
+                            // Add next numbered item with same indentation
+                            String newText = s.toString().substring(0, start + 1) +
+                                    nextNumberText +
+                                    s.toString().substring(start + 1);
+
+                            noteContent.setText(newText);
+                            noteContent.setSelection(start + 1 + nextNumberText.length());
+                        }
+                    }
+
+                    isProcessing = false;
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+    }
+
+    // Helper method to get the next number format based on current line
+    private String getNextNumberFormat(String currentLine) {
+        // Level 0: Regular numbers (1. 2. 3.)
+        if (currentLine.matches("^\\d+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\d+)\\.");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                int currentNumber = Integer.parseInt(matcher.group(1));
+                return (currentNumber + 1) + ". ";
+            }
+            return "1. ";
+        }
+
+        // Level 1: Lowercase letters (a. b. c.) with 4 spaces
+        if (currentLine.matches("^\\s{4}[a-z]\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{4}([a-z])\\.");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                char currentLetter = matcher.group(1).charAt(0);
+                char nextLetter = (char) (currentLetter + 1);
+                if (nextLetter > 'z') nextLetter = 'a';
+                return "    " + nextLetter + ". ";
+            }
+            return "    a. ";
+        }
+
+        // Level 2: Roman numerals (i. ii. iii.) with 8 spaces
+        if (currentLine.matches("^\\s{8}[ivx]+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{8}([ivx]+)\\.");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                String currentRoman = matcher.group(1);
+                String nextRoman = getNextRoman(currentRoman);
+                return "        " + nextRoman + ". ";
+            }
+            return "        i. ";
+        }
+
+        // Level 3+: Continue with numbers but more indentation
+        if (currentLine.matches("^\\s{12,}\\d+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\s+)(\\d+)\\.");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                String indent = matcher.group(1);
+                int currentNumber = Integer.parseInt(matcher.group(2));
+                return indent + (currentNumber + 1) + ". ";
+            }
+            return "            1. ";
+        }
+
+        return "1. ";
+    }
+
+    // Helper method for roman numeral increment
+    private String getNextRoman(String current) {
+        String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
+        for (int i = 0; i < romans.length - 1; i++) {
+            if (romans[i].equals(current)) {
+                return romans[i + 1];
+            }
+        }
+        return "i";
+    }
+
+    private void insertBulletList() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+        String bulletPoint = "\n● ";
+
+        String newText = currentText.substring(0, cursorPosition) +
+                bulletPoint +
+                currentText.substring(cursorPosition);
+
+        noteContent.setText(newText);
+        noteContent.setSelection(cursorPosition + bulletPoint.length());
+
+        // Enable bullet list mode
+        isBulletListMode = true;
+    }
+
+    private void setupBulletListWatcher() {
+        noteContent.addTextChangedListener(new TextWatcher() {
+            private boolean isProcessing = false;
+
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (isProcessing) return;
+
+                // Check if user pressed Enter (added newline)
+                if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
+                    isProcessing = true;
+
+                    // Get the line before the newline
+                    String textBeforeNewline = s.toString().substring(0, start);
+                    int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
+                    String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
+
+                    // Check if the current line is a bullet item
+                    if (currentLine.matches("^\\s*[●○■]\\s.*")) {
+                        // Re-enable bullet list mode if it was disabled
+                        isBulletListMode = true;
+
+                        // Check if the current line is an empty bullet item
+                        if (currentLine.matches("^\\s*[●○■]\\s*$")) {
+                            // Double enter detected - exit bullet list mode
+                            isBulletListMode = false;
+
+                            // Remove the empty bullet line
+                            String newText = s.toString().substring(0, lastNewlineIndex + 1) +
+                                    s.toString().substring(start + 1);
+                            noteContent.setText(newText);
+                            noteContent.setSelection(lastNewlineIndex + 1);
+                        } else {
+                            // Get the indentation and bullet type from current line
+                            String indentAndBullet = getBulletWithIndentation(currentLine);
+
+                            // Add next bullet item with same indentation
+                            String newText = s.toString().substring(0, start + 1) +
+                                    indentAndBullet +
+                                    s.toString().substring(start + 1);
+
+                            noteContent.setText(newText);
+                            noteContent.setSelection(start + 1 + indentAndBullet.length());
+                        }
+                    }
+
+                    isProcessing = false;
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+    }
+
+    // Helper method to extract bullet type and indentation from current line
+    private String getBulletWithIndentation(String line) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\s*)([●○■])\\s");
+        java.util.regex.Matcher matcher = pattern.matcher(line);
+
+        if (matcher.find()) {
+            String indentation = matcher.group(1);
+            String bulletChar = matcher.group(2);
+            return indentation + bulletChar + " ";
+        }
+
+        return "● ";
+    }
+
+    // UNIVERSAL INDENT - Works for bullets, numbers, and regular text
+    private void indentLine() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+
+        // Find the start of the current line
+        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
+        int lineEnd = currentText.indexOf('\n', cursorPosition);
+        if (lineEnd == -1) lineEnd = currentText.length();
+
+        String currentLine = currentText.substring(lineStart, lineEnd);
+        String newLine;
+
+        // Check if it's a bullet line
+        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
+            newLine = indentBulletLine(currentLine);
+        }
+        // Check if it's a numbered line
+        else if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
+                currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
+                currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
+            newLine = indentNumberedLine(currentLine);
+        }
+        // Regular text - just add 4 spaces
+        else {
+            newLine = "    " + currentLine;
+        }
+
+        String newText = currentText.substring(0, lineStart) +
+                newLine +
+                currentText.substring(lineEnd);
+
+        noteContent.setText(newText);
+        int addedChars = newLine.length() - currentLine.length();
+        noteContent.setSelection(cursorPosition + addedChars);
+    }
+
+    // UNIVERSAL OUTDENT - Works for bullets, numbers, and regular text
+    private void outdentLine() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+
+        // Find the start of the current line
+        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
+        int lineEnd = currentText.indexOf('\n', cursorPosition);
+        if (lineEnd == -1) lineEnd = currentText.length();
+
+        String currentLine = currentText.substring(lineStart, lineEnd);
+        String newLine;
+
+        // Check if it's a bullet line
+        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
+            newLine = outdentBulletLine(currentLine);
+        }
+        // Check if it's a numbered line
+        else if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
+                currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
+                currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
+            newLine = outdentNumberedLine(currentLine);
+        }
+        // Regular text - remove 4 spaces if possible
+        else {
+            if (currentLine.startsWith("    ")) {
+                newLine = currentLine.substring(4);
+            } else if (currentLine.startsWith("  ")) {
+                newLine = currentLine.substring(2);
+            } else if (currentLine.startsWith(" ")) {
+                newLine = currentLine.substring(1);
+            } else {
+                newLine = currentLine;
+            }
+        }
+
+        String newText = currentText.substring(0, lineStart) +
+                newLine +
+                currentText.substring(lineEnd);
+
+        noteContent.setText(newText);
+        int removedChars = currentLine.length() - newLine.length();
+        noteContent.setSelection(Math.max(lineStart, cursorPosition - removedChars));
+    }
+
+    // Helper method to indent bullet lines
+    private String indentBulletLine(String currentLine) {
+        String contentAfterBullet;
+
+        if (currentLine.matches("^\\s{0,2}●\\s.*")) {
+            int bulletIndex = currentLine.indexOf("●");
+            contentAfterBullet = currentLine.substring(bulletIndex + 2);
+            return "    ○ " + contentAfterBullet;
+        } else if (currentLine.matches("^\\s{4}○\\s.*")) {
+            contentAfterBullet = currentLine.substring(6);
+            return "        ■ " + contentAfterBullet;
+        } else if (currentLine.matches("^\\s{8}■\\s.*")) {
+            contentAfterBullet = currentLine.substring(10);
+            return "            ■ " + contentAfterBullet;
+        } else {
+            return "    " + currentLine;
+        }
+    }
+
+    // Helper method to outdent bullet lines
+    private String outdentBulletLine(String currentLine) {
+        String contentAfterBullet;
+
+        if (currentLine.matches("^\\s{12}■\\s.*")) {
+            contentAfterBullet = currentLine.substring(14);
+            return "        ■ " + contentAfterBullet;
+        } else if (currentLine.matches("^\\s{8}■\\s.*")) {
+            contentAfterBullet = currentLine.substring(10);
+            return "    ○ " + contentAfterBullet;
+        } else if (currentLine.matches("^\\s{4}○\\s.*")) {
+            contentAfterBullet = currentLine.substring(6);
+            return "● " + contentAfterBullet;
+        } else if (currentLine.startsWith("    ")) {
+            return currentLine.substring(4);
+        } else {
+            return currentLine;
+        }
+    }
+
+    // Helper method to indent numbered lines - RESETS TO 1/a/i based on level
+    private String indentNumberedLine(String currentLine) {
+        String contentAfterNumber;
+
+        // Level 0: Regular numbers -> Level 1: Letters
+        if (currentLine.matches("^\\d+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\d+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "    a. " + contentAfterNumber;
+            }
+        }
+
+        // Level 1: Letters -> Level 2: Roman numerals
+        if (currentLine.matches("^\\s{4}[a-z]\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{4}[a-z]\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "        i. " + contentAfterNumber;
+            }
+        }
+
+        // Level 2: Roman numerals -> Level 3: Numbers again
+        if (currentLine.matches("^\\s{8}[ivx]+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{8}[ivx]+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "            1. " + contentAfterNumber;
+            }
+        }
+
+        // Level 3+: Just add more indentation
+        if (currentLine.matches("^\\s{12,}\\d+\\.\\s.*")) {
+            return "    " + currentLine;
+        }
+
+        return "    " + currentLine;
+    }
+
+    // Helper method to outdent numbered lines - RESETS TO LAST NUMBER OF PREVIOUS LEVEL
+    private String outdentNumberedLine(String currentLine) {
+        String contentAfterNumber;
+
+        // Level 3+: Deep indentation -> Roman numerals
+        if (currentLine.matches("^\\s{12,}\\d+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s+\\d+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "        i. " + contentAfterNumber;
+            }
+        }
+
+        // Level 2: Roman numerals -> Letters
+        if (currentLine.matches("^\\s{8}[ivx]+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{8}[ivx]+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "    a. " + contentAfterNumber;
+            }
+        }
+
+        // Level 1: Letters -> Regular numbers
+        if (currentLine.matches("^\\s{4}[a-z]\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{4}[a-z]\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "1. " + contentAfterNumber;
+            }
+        }
+
+        // Level 0: Can't outdent further, just remove spaces if any
+        if (currentLine.startsWith("    ")) {
+            return currentLine.substring(4);
+        }
+
+        return currentLine;
+    }
+
+    // + BUTTON MENU
+    private void setupAddMenuOptions() {
+        // Subpage
+        findViewById(R.id.addSubpageOption).setOnClickListener(v -> {
+            openSubpage();
+            closeAddMenu();
+        });
+
+        // Theme
+        findViewById(R.id.addThemeOption).setOnClickListener(v -> {
+            toggleColorPicker();
+            closeAddMenu();
+        });
+
+        // Divider
+        findViewById(R.id.addDividerOption).setOnClickListener(v -> {
+            showDividerBottomSheet();
+            closeAddMenu();
+        });
+
+        // Link
+        findViewById(R.id.addLinkOption).setOnClickListener(v -> {
+            insertLink();
+            closeAddMenu();
+        });
+
+        // Bullet List
+        findViewById(R.id.addBulletListOption).setOnClickListener(v -> {
+            insertBulletList();
+            closeAddMenu();
+        });
+
+        // Numbered List
+        findViewById(R.id.addNumberedListOption).setOnClickListener(v -> {
+            insertNumberedList();
+            closeAddMenu();
+        });
+
+        // Toggle List
+        findViewById(R.id.addToggleListOption).setOnClickListener(v -> {
+            insertToggleList();
+            closeAddMenu();
+        });
+
+        // Checkbox
+        findViewById(R.id.addCheckboxOption).setOnClickListener(v -> {
+            insertCheckbox();
+            closeAddMenu();
+        });
+    }
+
+    private void toggleAddMenu() {
+        if (isMenuOpen) {
+            closeAddMenu();
+        } else {
+            openAddMenu();
+        }
+    }
+
+    private void openAddMenu() {
+        addOptionsMenu.setVisibility(View.VISIBLE);
+        isMenuOpen = true;
+
+        // Rotate the + icon
+        addMenuBtn.animate().rotation(45f).setDuration(200).start();
+    }
+
+    private void closeAddMenu() {
+        addOptionsMenu.setVisibility(View.GONE);
+        isMenuOpen = false;
+
+        // Reset the + icon rotation
+        addMenuBtn.animate().rotation(0f).setDuration(200).start();
+    }
+
+    // Placeholder methods - implement these based on your needs
+    private void insertLink() {
+        Toast.makeText(this, "Insert Link - Coming soon", Toast.LENGTH_SHORT).show();
+    }
+
+    private void insertToggleList() {
+        Toast.makeText(this, "Insert Toggle List - Coming soon", Toast.LENGTH_SHORT).show();
+    }
+
+    private void insertCheckbox() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+        String checkbox = "\n☐ ";
+
+        String newText = currentText.substring(0, cursorPosition) +
+                checkbox +
+                currentText.substring(cursorPosition);
+
+        noteContent.setText(newText);
+        noteContent.setSelection(cursorPosition + checkbox.length());
     }
 }

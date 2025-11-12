@@ -20,7 +20,7 @@
         android:elevation="2dp">
 
         <ImageView
-            android:id="@+id/backBtn"
+            android:id="@+id/checkBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="12dp"
@@ -37,15 +37,6 @@
             android:textColor="#666"
             android:gravity="center"
             android:textStyle="bold" />
-
-        <ImageView
-            android:id="@+id/checkBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:src="@drawable/ic_check"
-            android:contentDescription="Save"
-            android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="#4CAF50" />
 
     </LinearLayout>

@@ -73,7 +73,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:layout_marginTop="16dp"
-            android:text="Blaire Naniong"
+            android:text=""
             android:textColor="#000000"
             android:textSize="22sp"
             android:textStyle="bold" />

@@ -20,7 +20,7 @@
         android:elevation="2dp">
 
         <ImageView
-            android:id="@+id/backBtn"
+            android:id="@+id/checkBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="12dp"
@@ -48,38 +48,6 @@
             android:clickable="true"
             android:focusable="true"
             android:background="?attr/selectableItemBackgroundBorderless" />
-
-        <!-- Divider Button -->
-        <ImageView
-            android:id="@+id/dividerBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:src="@drawable/ic_notes_feature_divider"
-            android:contentDescription="Insert Divider"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="#757575" />
-
-        <!-- Color Palette Button -->
-        <ImageView
-            android:id="@+id/colorPaletteBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:src="@drawable/ic_notes_feature_palette"
-            android:contentDescription="Change Color"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="#757575" />
-
-        <ImageView
-            android:id="@+id/checkBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:src="@drawable/ic_check"
-            android:contentDescription="Save"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="#4CAF50" />
 
     </LinearLayout>
 
@@ -111,7 +79,7 @@
                 android:backgroundTint="#FAFAFA"
                 android:tag="#FAFAFA" />
 
-            <!-- Red -->
+            <!-- 1. Red -->
             <View
                 android:id="@+id/colorRed"
                 android:layout_width="48dp"
@@ -121,7 +89,7 @@
                 android:backgroundTint="#FFCDD2"
                 android:tag="#FFCDD2" />
 
-            <!-- Pink -->
+            <!-- 2. Pink -->
             <View
                 android:id="@+id/colorPink"
                 android:layout_width="48dp"
@@ -131,7 +99,7 @@
                 android:backgroundTint="#F8BBD0"
                 android:tag="#F8BBD0" />
 
-            <!-- Purple -->
+            <!-- 3. Purple -->
             <View
                 android:id="@+id/colorPurple"
                 android:layout_width="48dp"
@@ -141,7 +109,7 @@
                 android:backgroundTint="#E1BEE7"
                 android:tag="#E1BEE7" />
 
-            <!-- Blue -->
+            <!-- 4. Blue -->
             <View
                 android:id="@+id/colorBlue"
                 android:layout_width="48dp"
@@ -151,7 +119,7 @@
                 android:backgroundTint="#BBDEFB"
                 android:tag="#BBDEFB" />
 
-            <!-- Cyan -->
+            <!-- 5. Cyan -->
             <View
                 android:id="@+id/colorCyan"
                 android:layout_width="48dp"
@@ -161,7 +129,7 @@
                 android:backgroundTint="#B2EBF2"
                 android:tag="#B2EBF2" />
 
-            <!-- Green -->
+            <!-- 6. Green -->
             <View
                 android:id="@+id/colorGreen"
                 android:layout_width="48dp"
@@ -171,7 +139,7 @@
                 android:backgroundTint="#C8E6C9"
                 android:tag="#C8E6C9" />
 
-            <!-- Yellow -->
+            <!-- 7. Yellow -->
             <View
                 android:id="@+id/colorYellow"
                 android:layout_width="48dp"
@@ -181,7 +149,7 @@
                 android:backgroundTint="#FFF9C4"
                 android:tag="#FFF9C4" />
 
-            <!-- Orange -->
+            <!-- 8. Orange -->
             <View
                 android:id="@+id/colorOrange"
                 android:layout_width="48dp"
@@ -191,7 +159,7 @@
                 android:backgroundTint="#FFE0B2"
                 android:tag="#FFE0B2" />
 
-            <!-- Brown -->
+            <!-- 9. Brown -->
             <View
                 android:id="@+id/colorBrown"
                 android:layout_width="48dp"
@@ -201,7 +169,7 @@
                 android:backgroundTint="#D7CCC8"
                 android:tag="#D7CCC8" />
 
-            <!-- Grey -->
+            <!-- 10. Grey -->
             <View
                 android:id="@+id/colorGrey"
                 android:layout_width="48dp"
@@ -228,7 +196,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="20dp"
-            android:paddingBottom="80dp">
+            android:minHeight="?android:attr/listPreferredItemHeight">
 
             <!-- Icon -->
             <ImageView
@@ -269,35 +237,11 @@
                 android:textSize="16sp"
                 android:textIsSelectable="true" />
 
-            <!-- Add Subpage Button -->
-            <LinearLayout
-                android:id="@+id/addSubpageContainer"
+            <!-- Spacer to push subpages to bottom -->
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="start"
-                android:paddingVertical="16dp"
-                android:paddingHorizontal="8dp">
-
-                <ImageView
-                    android:id="@+id/addSubpageBtn"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/ic_fab_add"
-                    android:padding="6dp"
-                    android:background="@drawable/circle_bg"
-                    android:contentDescription="Add Subpage" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Add Subpage"
-                    android:textSize="14sp"
-                    android:textColor="#666"
-                    android:layout_marginStart="8dp"
-                    android:layout_gravity="center_vertical" />
-
-            </LinearLayout>
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
             <!-- Subpages Section -->
             <LinearLayout
@@ -312,6 +256,379 @@
                     android:layout_height="wrap_content"
                     android:nestedScrollingEnabled="false"
                     android:visibility="gone" />
+
+            </LinearLayout>
+
+            <!-- Add Menu Container -->
+            <LinearLayout
+                android:id="@+id/addMenuContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="16dp"
+                android:paddingHorizontal="8dp"
+                android:paddingBottom="80dp">
+
+                <!-- Add Button -->
+                <LinearLayout
+                    android:id="@+id/addButtonContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="start"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:id="@+id/addMenuBtn"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:padding="6dp"
+                        android:background="@drawable/circle_bg"
+                        android:contentDescription="Add Menu" />
+
+<!--                    <TextView-->
+<!--                        android:layout_width="wrap_content"-->
+<!--                        android:layout_height="wrap_content"-->
+<!--                        android:text="Add Content"-->
+<!--                        android:textSize="14sp"-->
+<!--                        android:textColor="#666"-->
+<!--                        android:layout_marginStart="8dp"-->
+<!--                        android:layout_gravity="center_vertical" />-->
+
+                </LinearLayout>
+
+                <!-- Horizontal Options Menu (Initially Hidden) -->
+                <HorizontalScrollView
+                    android:id="@+id/addOptionsMenu"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <!-- Subpage Option -->
+                        <LinearLayout
+                            android:id="@+id/addSubpageOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_fab_notes"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Subpage"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Theme Option -->
+                        <LinearLayout
+                            android:id="@+id/addThemeOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_notes_feature_palette"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Theme"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Indent Option -->
+                        <LinearLayout
+                            android:id="@+id/indentOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_launcher_foreground"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Indent"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Outdent Option -->
+                        <LinearLayout
+                            android:id="@+id/outdentOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_launcher_foreground"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Outdent"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Divider Option -->
+                        <LinearLayout
+                            android:id="@+id/addDividerOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_notes_feature_divider"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Divider"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Link Option -->
+                        <LinearLayout
+                            android:id="@+id/addLinkOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_launcher_foreground"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Link"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Bullet List Option -->
+                        <LinearLayout
+                            android:id="@+id/addBulletListOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_launcher_foreground"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Bullets"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Numbered List Option -->
+                        <LinearLayout
+                            android:id="@+id/addNumberedListOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_launcher_foreground"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Numbered"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Toggle List Option -->
+                        <LinearLayout
+                            android:id="@+id/addToggleListOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_launcher_foreground"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Toggle"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <!-- Checkbox Option -->
+                        <LinearLayout
+                            android:id="@+id/addCheckboxOption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_launcher_foreground"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Checkbox"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </HorizontalScrollView>
 
             </LinearLayout>
 

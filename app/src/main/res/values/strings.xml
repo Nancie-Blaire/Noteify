@@ -11,4 +11,6 @@
     <string name="underlined_text_pass"><u>Change Password</u></string>
     <string name="underlined_text_edtProfile"><u>Edit Profile</u></string>
     <string name="underlined_text_secSettings"><u>Security Settings</u></string>
+
+    <string name="underlined_text_cancel"><u>Cancel</u></string>
 </resources>

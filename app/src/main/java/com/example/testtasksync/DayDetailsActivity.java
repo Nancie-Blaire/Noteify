@@ -1,6 +1,7 @@
 package com.example.testtasksync;
 
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Paint;
 import android.os.Bundle;
 import android.util.Log;
@@ -11,6 +12,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -119,7 +121,8 @@ public class DayDetailsActivity extends AppCompatActivity {
                 if (isDeleteMode) {
                     toggleScheduleSelection(schedule);
                 } else {
-                    showScheduleDetailsDialog(schedule);
+                    // ✅ NEW: Navigate directly to the source activity
+                    openScheduleSource(schedule);
                 }
             }
 
@@ -234,7 +237,6 @@ public class DayDetailsActivity extends AppCompatActivity {
                     loadScheduledTodoTasksForDate();
                 });
     }
-    // ✅ NEW: Load scheduled todo tasks for this specific date
 
     private void loadScheduledTodoTasksForDate() {
         FirebaseUser user = auth.getCurrentUser();
@@ -351,7 +353,8 @@ public class DayDetailsActivity extends AppCompatActivity {
                                 });
                     }
                 });
-    } private void loadWeeklyPlansForDate() {
+    }
+    private void loadWeeklyPlansForDate() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
@@ -591,6 +594,38 @@ public class DayDetailsActivity extends AppCompatActivity {
         }
     }
 
+    // Add this method to DayDetailsActivity.java
+// Replace the existing showScheduleDetailsDialog method with this version:
+    private void openScheduleSource(Schedule schedule) {
+        String category = schedule.getCategory();
+        String sourceId = schedule.getSourceId();
+
+        if (sourceId == null || sourceId.isEmpty()) {
+            Toast.makeText(this, "Cannot open this item", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if ("todo".equals(category)) {
+            // Navigate to TodoActivity
+            Intent intent = new Intent(this, TodoActivity.class);
+            intent.putExtra("listId", sourceId);
+            startActivity(intent);
+        } else if ("todo_task".equals(category)) {
+            // Navigate to TodoActivity (for individual scheduled tasks)
+            Intent intent = new Intent(this, TodoActivity.class);
+            intent.putExtra("listId", sourceId);
+            startActivity(intent);
+        } else if ("weekly".equals(category)) {
+            // Navigate to WeeklyActivity
+            Intent intent = new Intent(this, WeeklyActivity.class);
+            intent.putExtra("planId", sourceId);
+            startActivity(intent);
+        } else {
+            // For regular schedules without source, show details dialog
+            showScheduleDetailsDialog(schedule);
+        }
+    }
+
     private void showScheduleDetailsDialog(Schedule schedule) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this)
@@ -599,7 +634,7 @@ public class DayDetailsActivity extends AppCompatActivity {
 
         AlertDialog dialog = builder.create();
 
-        TextView timeContainer = dialogView.findViewById(R.id.timeContainer);
+        View timeContainer = dialogView.findViewById(R.id.timeContainer);
         TextView scheduleTime = dialogView.findViewById(R.id.scheduleTime);
         TextView scheduleAmPm = dialogView.findViewById(R.id.scheduleAmPm);
         TextView titleText = dialogView.findViewById(R.id.scheduleDetailTitle);
@@ -840,6 +875,7 @@ public class DayDetailsActivity extends AppCompatActivity {
         }
     }
 
+
     private void showAddScheduleDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_schedule, null);
@@ -847,7 +883,6 @@ public class DayDetailsActivity extends AppCompatActivity {
         AlertDialog dialog = builder.create();
 
         EditText titleInput = dialogView.findViewById(R.id.scheduleTitleInput);
-        EditText descriptionInput = dialogView.findViewById(R.id.scheduleDescriptionInput);
         LinearLayout datePickerButton = dialogView.findViewById(R.id.datePickerButton);
         TextView selectedDateText = dialogView.findViewById(R.id.selectedDateText);
         RadioGroup categoryRadioGroup = dialogView.findViewById(R.id.categoryRadioGroup);
@@ -861,6 +896,13 @@ public class DayDetailsActivity extends AppCompatActivity {
         Button cancelButton = dialogView.findViewById(R.id.cancelButton);
         Button saveButton = dialogView.findViewById(R.id.saveButton);
 
+        // Dynamic sections
+        LinearLayout todoTasksSection = dialogView.findViewById(R.id.todoTasksSection);
+        LinearLayout todoTasksContainer = dialogView.findViewById(R.id.todoTasksContainer);
+        LinearLayout addTodoTaskButton = dialogView.findViewById(R.id.addTodoTaskButton);
+        LinearLayout weeklyTasksSection = dialogView.findViewById(R.id.weeklyTasksSection);
+        LinearLayout weeklyDaysContainer = dialogView.findViewById(R.id.weeklyDaysContainer);
+
         SimpleDateFormat dateFormat = new SimpleDateFormat("MMMM d, yyyy", Locale.getDefault());
         selectedDateText.setText(dateFormat.format(selectedDate.getTime()));
 
@@ -869,6 +911,17 @@ public class DayDetailsActivity extends AppCompatActivity {
         final Calendar[] customStartDate = {null};
         final Calendar[] customEndDate = {null};
         final String[] selectedCategory = {"todo"};
+
+        // Store task data for both categories
+        final List<String> todoTasks = new ArrayList<>();
+        final Map<String, List<String>> weeklyTasks = new HashMap<>();
+        weeklyTasks.put("Mon", new ArrayList<>());
+        weeklyTasks.put("Tues", new ArrayList<>());
+        weeklyTasks.put("Wed", new ArrayList<>());
+        weeklyTasks.put("Thur", new ArrayList<>());
+        weeklyTasks.put("Fri", new ArrayList<>());
+        weeklyTasks.put("Sat", new ArrayList<>());
+        weeklyTasks.put("Sun", new ArrayList<>());
 
         todoRadio.setChecked(true);
 
@@ -881,21 +934,34 @@ public class DayDetailsActivity extends AppCompatActivity {
             reminderTimeSpinner.setVisibility(isChecked ? View.VISIBLE : View.GONE);
         });
 
+        // Category change listener
         categoryRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (checkedId == R.id.todoRadio) {
                 selectedCategory[0] = "todo";
+                todoTasksSection.setVisibility(View.VISIBLE);
+                weeklyTasksSection.setVisibility(View.GONE);
                 selectedDateText.setText(dateFormat.format(selectedDate.getTime()));
                 customStartDate[0] = null;
                 customEndDate[0] = null;
             } else if (checkedId == R.id.weeklyRadio) {
                 selectedCategory[0] = "weekly";
+                todoTasksSection.setVisibility(View.GONE);
+                weeklyTasksSection.setVisibility(View.VISIBLE);
                 selectedDateText.setText("Select date range");
                 customStartDate[0] = null;
                 customEndDate[0] = null;
+
+                // Build weekly days UI
+                buildWeeklyDaysUI(weeklyDaysContainer, weeklyTasks);
             }
         });
 
-        // ✅ FIXED: Custom date range picker
+        // Add task button for To-Do
+        addTodoTaskButton.setOnClickListener(v -> {
+            addTaskInputField(todoTasksContainer, todoTasks, null);
+        });
+
+        // Date picker
         datePickerButton.setOnClickListener(v -> {
             if ("todo".equals(selectedCategory[0])) {
                 showSingleDatePicker(selectedScheduleDate, selectedDateText, dateFormat);
@@ -904,6 +970,7 @@ public class DayDetailsActivity extends AppCompatActivity {
             }
         });
 
+        // Time picker
         timePickerButton.setOnClickListener(v -> {
             Calendar currentTime = Calendar.getInstance();
             int hour = currentTime.get(Calendar.HOUR_OF_DAY);
@@ -918,6 +985,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                         try {
                             Date d = input.parse(selectedTime[0]);
                             selectedTimeText.setText(output.format(d));
+                            selectedTimeText.setTextColor(getResources().getColor(android.R.color.black));
                             clearTimeButton.setVisibility(View.VISIBLE);
                         } catch (Exception e) {
                             selectedTimeText.setText(selectedTime[0]);
@@ -929,6 +997,7 @@ public class DayDetailsActivity extends AppCompatActivity {
         clearTimeButton.setOnClickListener(v -> {
             selectedTime[0] = null;
             selectedTimeText.setText("Select Time");
+            selectedTimeText.setTextColor(getResources().getColor(android.R.color.darker_gray));
             clearTimeButton.setVisibility(View.GONE);
         });
 
@@ -936,11 +1005,46 @@ public class DayDetailsActivity extends AppCompatActivity {
 
         saveButton.setOnClickListener(v -> {
             String title = titleInput.getText().toString().trim();
-            String description = descriptionInput.getText().toString().trim();
 
             if (title.isEmpty()) {
                 Toast.makeText(this, "Please enter a title", Toast.LENGTH_SHORT).show();
                 return;
+            }
+
+            // ✅ COLLECT TASKS HERE (before saving)
+            if ("todo".equals(selectedCategory[0])) {
+                // Collect todo tasks
+                todoTasks.clear();
+                for (int i = 0; i < todoTasksContainer.getChildCount(); i++) {
+                    View taskView = todoTasksContainer.getChildAt(i);
+                    EditText taskInput = taskView.findViewById(R.id.taskInput);
+                    String taskText = taskInput.getText().toString().trim();
+                    if (!taskText.isEmpty()) {
+                        todoTasks.add(taskText);
+                    }
+                }
+            } else if ("weekly".equals(selectedCategory[0])) {
+                // Collect weekly tasks
+                for (String day : weeklyTasks.keySet()) {
+                    weeklyTasks.get(day).clear();
+                }
+
+                for (int i = 0; i < weeklyDaysContainer.getChildCount(); i++) {
+                    View daySection = weeklyDaysContainer.getChildAt(i);
+                    TextView dayLabel = daySection.findViewById(R.id.dayLabel);
+                    LinearLayout tasksContainer = daySection.findViewById(R.id.dayTasksContainer);
+
+                    String day = dayLabel.getText().toString();
+
+                    for (int j = 0; j < tasksContainer.getChildCount(); j++) {
+                        View taskView = tasksContainer.getChildAt(j);
+                        EditText taskInput = taskView.findViewById(R.id.taskInput);
+                        String taskText = taskInput.getText().toString().trim();
+                        if (!taskText.isEmpty()) {
+                            weeklyTasks.get(day).add(taskText);
+                        }
+                    }
+                }
             }
 
             if ("weekly".equals(selectedCategory[0])) {
@@ -954,16 +1058,290 @@ public class DayDetailsActivity extends AppCompatActivity {
             if (user == null) return;
 
             if ("todo".equals(selectedCategory[0])) {
-                saveTodoSchedule(user, title, description, selectedScheduleDate[0], selectedTime[0],
-                        notificationCheckbox.isChecked(), reminderTimeSpinner, dialog);
+                saveTodoScheduleWithTasks(user, title, "", selectedScheduleDate[0], selectedTime[0],
+                        notificationCheckbox.isChecked(), reminderTimeSpinner, todoTasks, dialog);
             } else if ("weekly".equals(selectedCategory[0])) {
-                saveWeeklySchedule(user, title, description, customStartDate[0], customEndDate[0],
-                        selectedTime[0], notificationCheckbox.isChecked(), reminderTimeSpinner, dialog);
+                saveWeeklyScheduleWithTasks(user, title, customStartDate[0], customEndDate[0],
+                        selectedTime[0], notificationCheckbox.isChecked(), reminderTimeSpinner, weeklyTasks, dialog);
             }
         });
 
         dialog.show();
     }
+// Add these methods to DayDetailsActivity.java
+
+    // Save To-Do with tasks
+    private void saveTodoScheduleWithTasks(FirebaseUser user, String title, String description,
+                                           Calendar scheduleDate, String time, boolean hasReminder,
+                                           Spinner reminderSpinner, List<String> tasks, AlertDialog dialog) {
+
+        Map<String, Object> todoListData = new HashMap<>();
+        todoListData.put("title", title);
+        todoListData.put("description", description);
+        todoListData.put("createdAt", Timestamp.now());
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("todoLists")
+                .add(todoListData)
+                .addOnSuccessListener(todoListRef -> {
+                    String todoListId = todoListRef.getId();
+
+                    // Add tasks
+                    AtomicInteger tasksAdded = new AtomicInteger(0);
+                    if (tasks.isEmpty()) {
+                        createTodoSchedule(user, title, description, scheduleDate, time, hasReminder, reminderSpinner, todoListId, dialog);
+                    } else {
+                        for (int i = 0; i < tasks.size(); i++) {
+                            String taskText = tasks.get(i);
+                            Map<String, Object> taskData = new HashMap<>();
+                            taskData.put("taskText", taskText);
+                            taskData.put("isCompleted", false);
+                            taskData.put("position", i);
+
+                            db.collection("users")
+                                    .document(user.getUid())
+                                    .collection("todoLists")
+                                    .document(todoListId)
+                                    .collection("tasks")
+                                    .add(taskData)
+                                    .addOnSuccessListener(taskRef -> {
+                                        if (tasksAdded.incrementAndGet() == tasks.size()) {
+                                            createTodoSchedule(user, title, description, scheduleDate, time, hasReminder, reminderSpinner, todoListId, dialog);
+                                        }
+                                    });
+                        }
+                    }
+                });
+    }
+    private void createTodoSchedule(FirebaseUser user, String title, String description,
+                                    Calendar scheduleDate, String time, boolean hasReminder,
+                                    Spinner reminderSpinner, String todoListId, AlertDialog dialog) {
+        Map<String, Object> scheduleData = new HashMap<>();
+        scheduleData.put("title", title);
+        scheduleData.put("description", description);
+        scheduleData.put("date", new Timestamp(scheduleDate.getTime()));
+        scheduleData.put("time", time != null ? time : "");
+        scheduleData.put("category", "todo");
+        scheduleData.put("sourceId", todoListId);
+        scheduleData.put("isCompleted", false);
+        scheduleData.put("createdAt", Timestamp.now());
+        scheduleData.put("hasReminder", hasReminder);
+        scheduleData.put("addedFromDayDetails", true);
+
+        if (hasReminder) {
+            String selectedReminderText = reminderSpinner.getSelectedItem().toString();
+            int reminderMinutes = parseReminderMinutes(selectedReminderText);
+            scheduleData.put("reminderMinutes", reminderMinutes);
+        } else {
+            scheduleData.put("reminderMinutes", 0);
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .add(scheduleData)
+                .addOnSuccessListener(scheduleRef -> {
+                    Toast.makeText(this, "To-Do schedule added", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                });
+    }
+
+    private void saveWeeklyScheduleWithTasks(FirebaseUser user, String title,
+                                             Calendar weekStart, Calendar weekEnd, String time,
+                                             boolean hasReminder, Spinner reminderSpinner,
+                                             Map<String, List<String>> weeklyTasks, AlertDialog dialog) {
+
+        // ✅ Show loading immediately
+        Toast.makeText(this, "💾 Saving weekly plan...", Toast.LENGTH_SHORT).show();
+
+        Map<String, Object> weeklyPlanData = new HashMap<>();
+        weeklyPlanData.put("title", title);
+        weeklyPlanData.put("description", "");
+        weeklyPlanData.put("startDate", new Timestamp(weekStart.getTime()));
+        weeklyPlanData.put("endDate", new Timestamp(weekEnd.getTime()));
+        weeklyPlanData.put("time", time != null ? time : "");
+        weeklyPlanData.put("createdAt", Timestamp.now());
+        weeklyPlanData.put("hasReminder", hasReminder);
+
+        if (hasReminder) {
+            String selectedReminderText = reminderSpinner.getSelectedItem().toString();
+            int reminderMinutes = parseReminderMinutes(selectedReminderText);
+            weeklyPlanData.put("reminderMinutes", reminderMinutes);
+        } else {
+            weeklyPlanData.put("reminderMinutes", 0);
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .add(weeklyPlanData)
+                .addOnSuccessListener(weeklyPlanRef -> {
+                    String planId = weeklyPlanRef.getId();
+
+                    // ✅ Count total tasks
+                    int totalTasks = 0;
+                    for (Map.Entry<String, List<String>> entry : weeklyTasks.entrySet()) {
+                        totalTasks += entry.getValue().size();
+                    }
+
+                    final int finalTotalTasks = totalTasks;
+
+                    // ✅ If no tasks, create schedule immediately
+                    if (finalTotalTasks == 0) {
+                        createWeeklySchedule(user, title, weekStart, time, hasReminder, reminderSpinner, planId, dialog);
+                        return;
+                    }
+
+                    // ✅ DISMISS DIALOG IMMEDIATELY - don't wait for tasks to save
+                    dialog.dismiss();
+                    Toast.makeText(this, "✅ Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
+
+                    // ✅ Save tasks in background
+                    AtomicInteger tasksAdded = new AtomicInteger(0);
+                    int position = 0;
+
+                    for (Map.Entry<String, List<String>> entry : weeklyTasks.entrySet()) {
+                        String day = entry.getKey();
+                        List<String> tasks = entry.getValue();
+
+                        for (String taskText : tasks) {
+                            Map<String, Object> taskData = new HashMap<>();
+                            taskData.put("taskText", taskText);
+                            taskData.put("day", day);
+                            taskData.put("isCompleted", false);
+                            taskData.put("position", position++);
+
+                            db.collection("users")
+                                    .document(user.getUid())
+                                    .collection("weeklyPlans")
+                                    .document(planId)
+                                    .collection("tasks")
+                                    .add(taskData)
+                                    .addOnSuccessListener(taskRef -> {
+                                        int completed = tasksAdded.incrementAndGet();
+                                        if (completed == finalTotalTasks) {
+                                            // ✅ All tasks saved - now create schedule reference
+                                            createWeeklyScheduleInBackground(user, title, weekStart, time, hasReminder, reminderSpinner, planId);
+                                        }
+                                    })
+                                    .addOnFailureListener(e -> {
+                                        Log.e(TAG, "Failed to save task", e);
+                                    });
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "❌ Failed to create weekly plan", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "Error creating weekly plan", e);
+                });
+    }
+    private void createWeeklySchedule(FirebaseUser user, String title, Calendar weekStart,
+                                      String time, boolean hasReminder, Spinner reminderSpinner,
+                                      String planId, AlertDialog dialog) {
+        Map<String, Object> scheduleData = new HashMap<>();
+        scheduleData.put("title", title);
+        scheduleData.put("description", "");
+        scheduleData.put("date", new Timestamp(weekStart.getTime()));
+        scheduleData.put("time", time != null ? time : "");
+        scheduleData.put("category", "weekly");
+        scheduleData.put("sourceId", planId);
+        scheduleData.put("isCompleted", false);
+        scheduleData.put("createdAt", Timestamp.now());
+        scheduleData.put("hasReminder", hasReminder);
+        scheduleData.put("addedFromDayDetails", true);
+
+        if (hasReminder) {
+            String selectedReminderText = reminderSpinner.getSelectedItem().toString();
+            int reminderMinutes = parseReminderMinutes(selectedReminderText);
+            scheduleData.put("reminderMinutes", reminderMinutes);
+        } else {
+            scheduleData.put("reminderMinutes", 0);
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .add(scheduleData)
+                .addOnSuccessListener(scheduleRef -> {
+                    Toast.makeText(this, "Weekly schedule added", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                });
+    }
+    // ✅ New method - creates schedule in background (no dialog to dismiss)
+    private void createWeeklyScheduleInBackground(FirebaseUser user, String title, Calendar weekStart,
+                                                  String time, boolean hasReminder, Spinner reminderSpinner,
+                                                  String planId) {
+        Map<String, Object> scheduleData = new HashMap<>();
+        scheduleData.put("title", title);
+        scheduleData.put("description", "");
+        scheduleData.put("date", new Timestamp(weekStart.getTime()));
+        scheduleData.put("time", time != null ? time : "");
+        scheduleData.put("category", "weekly");
+        scheduleData.put("sourceId", planId);
+        scheduleData.put("isCompleted", false);
+        scheduleData.put("createdAt", Timestamp.now());
+        scheduleData.put("hasReminder", hasReminder);
+        scheduleData.put("addedFromDayDetails", true);
+
+        if (hasReminder) {
+            String selectedReminderText = reminderSpinner.getSelectedItem().toString();
+            int reminderMinutes = parseReminderMinutes(selectedReminderText);
+            scheduleData.put("reminderMinutes", reminderMinutes);
+        } else {
+            scheduleData.put("reminderMinutes", 0);
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .add(scheduleData)
+                .addOnSuccessListener(scheduleRef -> {
+                    Toast.makeText(this, "✅ All tasks saved!", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to create schedule reference", e);
+                });
+    }
+    private void addTaskInputField(LinearLayout container, List<String> tasksList, String existingText) {
+        View taskView = LayoutInflater.from(this).inflate(R.layout.item_task_input, container, false);
+        EditText taskInput = taskView.findViewById(R.id.taskInput);
+        ImageView deleteButton = taskView.findViewById(R.id.deleteTaskButton);
+
+        if (existingText != null) {
+            taskInput.setText(existingText);
+        }
+
+        deleteButton.setOnClickListener(v -> {
+            container.removeView(taskView);
+        });
+
+        // ✅ Removed TextWatcher - tasks will be collected when Save button is clicked
+
+        container.addView(taskView);
+        taskInput.requestFocus();
+    }
+    private void buildWeeklyDaysUI(LinearLayout container, Map<String, List<String>> weeklyTasks) {
+        container.removeAllViews();
+        String[] days = {"Mon", "Tues", "Wed", "Thur", "Fri", "Sat", "Sun"};
+
+        for (String day : days) {
+            View daySection = LayoutInflater.from(this).inflate(R.layout.item_weekly_day_section, container, false);
+
+            TextView dayLabel = daySection.findViewById(R.id.dayLabel);
+            LinearLayout tasksContainer = daySection.findViewById(R.id.dayTasksContainer);
+            ImageView addTaskButton = daySection.findViewById(R.id.addDayTaskButton);
+
+            dayLabel.setText(day);
+
+            addTaskButton.setOnClickListener(v -> {
+                addTaskInputField(tasksContainer, weeklyTasks.get(day), null);
+            });
+
+            container.addView(daySection);
+        }
+    }
+
 
     private void showCustomRangePicker(Calendar[] startDate, Calendar[] endDate, TextView dateText) {
         if (startDate[0] == null) {
@@ -1047,7 +1425,7 @@ public class DayDetailsActivity extends AppCompatActivity {
         datePickerDialog.show();
     }
 
-    // Week range picker for Weekly
+    // pwededlt
     private void showWeekRangePicker(Calendar[] weekStart, Calendar[] weekEnd, TextView dateText) {
         Calendar cal = Calendar.getInstance();
         int year = cal.get(Calendar.YEAR);
@@ -1087,42 +1465,64 @@ public class DayDetailsActivity extends AppCompatActivity {
     private void saveTodoSchedule(FirebaseUser user, String title, String description,
                                   Calendar scheduleDate, String time, boolean hasReminder,
                                   Spinner reminderSpinner, AlertDialog dialog) {
-        Map<String, Object> scheduleData = new HashMap<>();
-        scheduleData.put("title", title);
-        scheduleData.put("description", description);
-        scheduleData.put("date", new Timestamp(scheduleDate.getTime()));
-        scheduleData.put("time", time != null ? time : "");
-        scheduleData.put("category", "todo");
-        scheduleData.put("isCompleted", false);
-        scheduleData.put("createdAt", Timestamp.now());
-        scheduleData.put("hasReminder", hasReminder);
-        scheduleData.put("addedFromDayDetails", true); // ✅ NEW FLAG
 
-        if (hasReminder) {
-            String selectedReminderText = reminderSpinner.getSelectedItem().toString();
-            int reminderMinutes = parseReminderMinutes(selectedReminderText);
-            scheduleData.put("reminderMinutes", reminderMinutes);
-        } else {
-            scheduleData.put("reminderMinutes", 0);
-        }
+        Map<String, Object> todoListData = new HashMap<>();
+        todoListData.put("title", title);
+        todoListData.put("description", description);
+        todoListData.put("createdAt", Timestamp.now());
 
         db.collection("users")
                 .document(user.getUid())
-                .collection("schedules")
-                .add(scheduleData)
-                .addOnSuccessListener(documentReference -> {
-                    Toast.makeText(this, "✅ To-Do schedule added", Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
+                .collection("todoLists")
+                .add(todoListData)
+                .addOnSuccessListener(todoListRef -> {
+                    String todoListId = todoListRef.getId();
+
+                    // Step 2: Create the schedule with sourceId reference
+                    Map<String, Object> scheduleData = new HashMap<>();
+                    scheduleData.put("title", title);
+                    scheduleData.put("description", description);
+                    scheduleData.put("date", new Timestamp(scheduleDate.getTime()));
+                    scheduleData.put("time", time != null ? time : "");
+                    scheduleData.put("category", "todo");
+                    scheduleData.put("sourceId", todoListId); // Critical: Link to todoList
+                    scheduleData.put("isCompleted", false);
+                    scheduleData.put("createdAt", Timestamp.now());
+                    scheduleData.put("hasReminder", hasReminder);
+                    scheduleData.put("addedFromDayDetails", true);
+
+                    if (hasReminder) {
+                        String selectedReminderText = reminderSpinner.getSelectedItem().toString();
+                        int reminderMinutes = parseReminderMinutes(selectedReminderText);
+                        scheduleData.put("reminderMinutes", reminderMinutes);
+                    } else {
+                        scheduleData.put("reminderMinutes", 0);
+                    }
+
+                    db.collection("users")
+                            .document(user.getUid())
+                            .collection("schedules")
+                            .add(scheduleData)
+                            .addOnSuccessListener(scheduleRef -> {
+                                Toast.makeText(this, "To-Do schedule added", Toast.LENGTH_SHORT).show();
+                                dialog.dismiss();
+                            })
+                            .addOnFailureListener(e -> {
+                                Toast.makeText(this, "Failed to add schedule", Toast.LENGTH_SHORT).show();
+                                Log.e(TAG, "Error adding schedule", e);
+                            });
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed to add schedule", Toast.LENGTH_SHORT).show();
-                    Log.e(TAG, "Error adding schedule", e);
+                    Toast.makeText(this, "Failed to create todo list", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "Error creating todo list", e);
                 });
     }
 
     private void saveWeeklySchedule(FirebaseUser user, String title, String description,
                                     Calendar weekStart, Calendar weekEnd, String time,
                                     boolean hasReminder, Spinner reminderSpinner, AlertDialog dialog) {
+
+        // Step 1: Create the weekly plan document first
         Map<String, Object> weeklyPlanData = new HashMap<>();
         weeklyPlanData.put("title", title);
         weeklyPlanData.put("description", description);
@@ -1131,7 +1531,6 @@ public class DayDetailsActivity extends AppCompatActivity {
         weeklyPlanData.put("time", time != null ? time : "");
         weeklyPlanData.put("createdAt", Timestamp.now());
         weeklyPlanData.put("hasReminder", hasReminder);
-        weeklyPlanData.put("addedFromDayDetails", true); // ✅ NEW FLAG
 
         if (hasReminder) {
             String selectedReminderText = reminderSpinner.getSelectedItem().toString();
@@ -1145,11 +1544,10 @@ public class DayDetailsActivity extends AppCompatActivity {
                 .document(user.getUid())
                 .collection("weeklyPlans")
                 .add(weeklyPlanData)
-                .addOnSuccessListener(documentReference -> {
-                    String planId = documentReference.getId();
+                .addOnSuccessListener(weeklyPlanRef -> {
+                    String planId = weeklyPlanRef.getId();
 
-                    // ✅ FIX: Get UNIQUE days of week (not all calendar dates)
-                    // This prevents duplicate tasks when the distribution logic runs
+                    // Step 2: Create tasks for the weekly plan
                     List<String> uniqueDays = new ArrayList<>();
                     Calendar current = (Calendar) weekStart.clone();
 
@@ -1161,7 +1559,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                         current.add(Calendar.DAY_OF_MONTH, 1);
                     }
 
-                    Log.d(TAG, "📋 Creating tasks for unique days: " + uniqueDays);
+                    Log.d(TAG, "Creating tasks for unique days: " + uniqueDays);
 
                     AtomicInteger tasksCreated = new AtomicInteger(0);
                     for (int i = 0; i < uniqueDays.size(); i++) {
@@ -1181,11 +1579,42 @@ public class DayDetailsActivity extends AppCompatActivity {
                                 .add(taskData)
                                 .addOnSuccessListener(taskRef -> {
                                     int count = tasksCreated.incrementAndGet();
-                                    Log.d(TAG, "✅ Created task for " + dayName + " (" + count + "/" + uniqueDays.size() + ")");
+                                    Log.d(TAG, "Created task for " + dayName + " (" + count + "/" + uniqueDays.size() + ")");
 
                                     if (count == uniqueDays.size()) {
-                                        Toast.makeText(this, "✅ Weekly schedule added for " + uniqueDays.size() + " day(s)", Toast.LENGTH_SHORT).show();
-                                        dialog.dismiss();
+                                        // Step 3: Create schedule reference with sourceId
+                                        Map<String, Object> scheduleData = new HashMap<>();
+                                        scheduleData.put("title", title);
+                                        scheduleData.put("description", description);
+                                        scheduleData.put("date", new Timestamp(weekStart.getTime()));
+                                        scheduleData.put("time", time != null ? time : "");
+                                        scheduleData.put("category", "weekly");
+                                        scheduleData.put("sourceId", planId); // Critical: Link to weeklyPlan
+                                        scheduleData.put("isCompleted", false);
+                                        scheduleData.put("createdAt", Timestamp.now());
+                                        scheduleData.put("hasReminder", hasReminder);
+                                        scheduleData.put("addedFromDayDetails", true);
+
+                                        if (hasReminder) {
+                                            String selectedReminderText = reminderSpinner.getSelectedItem().toString();
+                                            int reminderMinutes = parseReminderMinutes(selectedReminderText);
+                                            scheduleData.put("reminderMinutes", reminderMinutes);
+                                        } else {
+                                            scheduleData.put("reminderMinutes", 0);
+                                        }
+
+                                        db.collection("users")
+                                                .document(user.getUid())
+                                                .collection("schedules")
+                                                .add(scheduleData)
+                                                .addOnSuccessListener(scheduleRef -> {
+                                                    Toast.makeText(this, "Weekly schedule added for " + uniqueDays.size() + " day(s)", Toast.LENGTH_SHORT).show();
+                                                    dialog.dismiss();
+                                                })
+                                                .addOnFailureListener(e -> {
+                                                    Toast.makeText(this, "Failed to add schedule reference", Toast.LENGTH_SHORT).show();
+                                                    Log.e(TAG, "Error adding schedule reference", e);
+                                                });
                                     }
                                 })
                                 .addOnFailureListener(e -> {
@@ -1198,6 +1627,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     Log.e(TAG, "Error adding weekly schedule", e);
                 });
     }
+
     private int parseReminderMinutes(String reminderText) {
         if (reminderText.contains("5 minutes")) return 5;
         if (reminderText.contains("10 minutes")) return 10;

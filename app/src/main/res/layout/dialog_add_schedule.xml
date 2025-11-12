@@ -1,56 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="24dp">
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:background="#FFFFFF">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Add Schedule"
-            android:textSize="22sp"
+            android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="#000000"
-            android:layout_marginBottom="16dp"/>
+            android:layout_marginBottom="16dp" />
 
         <!-- Title Input -->
-        <com.google.android.material.textfield.TextInputLayout
+        <EditText
+            android:id="@+id/scheduleTitleInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Task"
-            android:layout_marginBottom="16dp"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/scheduleTitleInput"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:inputType="text"/>
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Description Input -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Description (Optional)"
-            android:layout_marginBottom="16dp"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/scheduleDescriptionInput"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxLines="3"
-                android:inputType="textMultiLine"
-                android:gravity="top"/>
-        </com.google.android.material.textfield.TextInputLayout>
+            android:hint="Title"
+            android:textSize="16sp"
+            android:padding="12dp"
+            android:background="@drawable/input_background"
+            android:layout_marginBottom="16dp" />
 
         <!-- Category Selection -->
         <TextView
@@ -58,8 +37,8 @@
             android:layout_height="wrap_content"
             android:text="Category"
             android:textSize="14sp"
-            android:textColor="#757575"
-            android:layout_marginBottom="8dp"/>
+            android:textColor="#808080"
+            android:layout_marginBottom="8dp" />
 
         <RadioGroup
             android:id="@+id/categoryRadioGroup"
@@ -73,42 +52,118 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="To-Do"/>
+                android:text="To-Do"
+                android:checked="true" />
 
             <RadioButton
                 android:id="@+id/weeklyRadio"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Weekly"/>
+                android:text="Weekly" />
         </RadioGroup>
-        <!-- Date Picker -->
+
+        <!-- Tasks Container (for To-Do) -->
+        <LinearLayout
+            android:id="@+id/todoTasksSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tasks"
+                android:textSize="14sp"
+                android:textColor="#808080"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/todoTasksContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/addTodoTaskButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="8dp"
+                android:background="?attr/selectableItemBackground"
+                android:layout_marginBottom="16dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/ic_input_add"
+                    android:contentDescription="Add task" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Add task"
+                    android:textSize="14sp"
+                    android:textColor="#808080"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Weekly Days Container (for Weekly) -->
+        <LinearLayout
+            android:id="@+id/weeklyTasksSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Weekly Tasks"
+                android:textSize="14sp"
+                android:textColor="#808080"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/weeklyDaysContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <!-- Days will be added here (Mon-Sun) -->
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Date Selection -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Date"
             android:textSize="14sp"
-            android:textColor="#757575"
-            android:layout_marginBottom="8dp"/>
+            android:textColor="#808080"
+            android:layout_marginBottom="8dp" />
 
         <LinearLayout
             android:id="@+id/datePickerButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:background="@drawable/input_background"
-            android:padding="16dp"
             android:gravity="center_vertical"
-            android:layout_marginBottom="16dp"
+            android:padding="12dp"
+            android:background="@drawable/input_background"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:layout_marginBottom="16dp">
 
             <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_my_calendar"
-                android:layout_marginEnd="12dp"
-                app:tint="#2196F3"/>
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_calendar"
+                android:layout_marginEnd="8dp" />
 
             <TextView
                 android:id="@+id/selectedDateText"
@@ -116,37 +171,36 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Select Date"
-                android:textSize="16sp"
-                android:textColor="#000000"/>
+                android:textSize="14sp"
+                android:textColor="#000000" />
         </LinearLayout>
 
-        <!-- Time Picker -->
+        <!-- Time Selection -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Time (Optional)"
             android:textSize="14sp"
-            android:textColor="#757575"
-            android:layout_marginBottom="8dp"/>
+            android:textColor="#808080"
+            android:layout_marginBottom="8dp" />
 
         <LinearLayout
             android:id="@+id/timePickerButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:background="@drawable/input_background"
-            android:padding="16dp"
             android:gravity="center_vertical"
-            android:layout_marginBottom="16dp"
+            android:padding="12dp"
+            android:background="@drawable/input_background"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:layout_marginBottom="16dp">
 
             <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_recent_history"
-                android:layout_marginEnd="12dp"
-                app:tint="#2196F3"/>
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_lock_idle_alarm"
+                android:layout_marginEnd="8dp" />
 
             <TextView
                 android:id="@+id/selectedTimeText"
@@ -154,82 +208,63 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Select Time"
-                android:textSize="16sp"
-                android:textColor="#000000"/>
+                android:textSize="14sp"
+                android:textColor="#808080" />
 
             <ImageView
                 android:id="@+id/clearTimeButton"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:contentDescription="Clear time"
                 android:visibility="gone"
                 android:clickable="true"
-                android:padding="4dp"
-                app:tint="#757575"
-                android:background="?attr/selectableItemBackgroundBorderless"/>
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
         </LinearLayout>
 
-
-
-        <!-- Notification Section -->
-        <LinearLayout
-            android:layout_width="match_parent"
+        <!-- Notification Checkbox -->
+        <CheckBox
+            android:id="@+id/notificationCheckbox"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
+            android:text="Set notification"
+            android:layout_marginBottom="8dp" />
 
-            <CheckBox
-                android:id="@+id/notificationCheckbox"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:buttonTint="#000000" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Set notification"
-                android:textSize="16sp"
-                android:textColor="#000000"
-                android:layout_marginStart="8dp" />
-
-        </LinearLayout>
-
-        <!-- Reminder Time Selection -->
         <Spinner
             android:id="@+id/reminderTimeSpinner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:visibility="gone"
             android:padding="12dp"
-            android:background="@drawable/input_background"/>
+            android:background="@drawable/input_background"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
 
         <!-- Action Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="end">
+            android:gravity="end"
+            android:layout_marginTop="8dp">
 
             <Button
                 android:id="@+id/cancelButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Cancel"
-                android:textColor="#757575"
-                style="@style/Widget.MaterialComponents.Button.TextButton"/>
+                android:text="CANCEL"
+                android:textColor="#808080"
+                android:background="?attr/selectableItemBackground"
+                android:layout_marginEnd="8dp" />
 
             <Button
                 android:id="@+id/saveButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Save"
-                android:layout_marginStart="8dp"
-                android:backgroundTint="#2196F3"/>
+                android:textColor="#FFFFFF"
+                android:background="@drawable/button_primary" />
         </LinearLayout>
 
     </LinearLayout>
-
 </ScrollView>

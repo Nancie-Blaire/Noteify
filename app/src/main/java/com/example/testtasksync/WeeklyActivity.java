@@ -127,7 +127,45 @@ public class WeeklyActivity extends AppCompatActivity {
 
         String userId = user.getUid();
 
-        // Query 1: Plan details
+        // ✅ FIRST: Load schedule data (has the date/time info from DayDetails)
+        db.collection("users")
+                .document(userId)
+                .collection("schedules")
+                .whereEqualTo("sourceId", planId)
+                .whereEqualTo("category", "weekly")
+                .get()
+                .addOnSuccessListener(scheduleSnapshots -> {
+                    if (!scheduleSnapshots.isEmpty()) {
+                        // ✅ Load date/time/range from schedule document
+                        DocumentSnapshot scheduleDoc = scheduleSnapshots.getDocuments().get(0);
+
+                        // Load time
+                        String savedTime = scheduleDoc.getString("time");
+                        if (savedTime != null && !savedTime.isEmpty()) {
+                            selectedTime = savedTime;
+                        }
+
+                        // Try to get date range from schedule
+                        Timestamp dateTimestamp = scheduleDoc.getTimestamp("date");
+                        if (dateTimestamp != null && startDate == null) {
+                            // If no range set, use the date as start of week
+                            startDate = Calendar.getInstance();
+                            startDate.setTime(dateTimestamp.toDate());
+                        }
+                    }
+
+                    // ✅ THEN: Load plan details
+                    loadWeeklyPlanDetails(userId);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to load schedule", e);
+                    // Still try to load plan details even if schedule fails
+                    loadWeeklyPlanDetails(userId);
+                });
+    }
+
+    // ✅ NEW: Separate method to load plan details
+    private void loadWeeklyPlanDetails(String userId) {
         db.collection("users")
                 .document(userId)
                 .collection("weeklyPlans")
@@ -140,35 +178,49 @@ public class WeeklyActivity extends AppCompatActivity {
                             weeklyTitle.setText(title);
                         }
 
-                        // âœ… Load time if exists
-                        String savedTime = documentSnapshot.getString("time");
-                        if (savedTime != null && !savedTime.isEmpty()) {
-                            selectedTime = savedTime;
+                        // ✅ Only use these if schedule didn't have them
+                        if (selectedTime == null || selectedTime.isEmpty()) {
+                            String savedTime = documentSnapshot.getString("time");
+                            if (savedTime != null && !savedTime.isEmpty()) {
+                                selectedTime = savedTime;
+                            }
                         }
 
-                        // Load week range if exists
+                        // Load week range
                         Timestamp startDateTimestamp = documentSnapshot.getTimestamp("startDate");
                         Timestamp endDateTimestamp = documentSnapshot.getTimestamp("endDate");
 
                         if (startDateTimestamp != null && endDateTimestamp != null) {
-                            startDate = Calendar.getInstance();
-                            startDate.setTime(startDateTimestamp.toDate());
+                            if (startDate == null) {
+                                startDate = Calendar.getInstance();
+                                startDate.setTime(startDateTimestamp.toDate());
+                            }
 
                             endDate = Calendar.getInstance();
                             endDate.setTime(endDateTimestamp.toDate());
                         } else {
                             // If no saved dates, use current week
-                            setCurrentWeek();
+                            if (startDate == null) {
+                                setCurrentWeek();
+                            } else {
+                                // We have startDate from schedule, calculate endDate
+                                endDate = (Calendar) startDate.clone();
+                                endDate.add(Calendar.DAY_OF_MONTH, 6);
+                            }
                         }
                     }
+
+                    // ✅ Load tasks after plan details
+                    loadWeeklyPlanTasks(userId);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load weekly plan", e);
                     Toast.makeText(this, "Failed to load plan", Toast.LENGTH_SHORT).show();
                 });
+    }
 
-        // Rest of loadWeeklyPlan() remains the same...
-        // Query 2: Tasks (running in parallel with Query 1)
+    // ✅ NEW: Separate method to load tasks
+    private void loadWeeklyPlanTasks(String userId) {
         db.collection("users")
                 .document(userId)
                 .collection("weeklyPlans")
@@ -227,7 +279,6 @@ public class WeeklyActivity extends AppCompatActivity {
                     }
                 });
     }
-
     private void addTask(String day) {
         WeeklyTask task = new WeeklyTask();
         task.setId(""); // Will be generated on save
@@ -250,10 +301,21 @@ public class WeeklyActivity extends AppCompatActivity {
         EditText taskText = taskView.findViewById(R.id.taskEditText);
         ImageView deleteButton = taskView.findViewById(R.id.deleteTaskButton);
 
-        // Set initial values
-        checkbox.setChecked(task.isCompleted());
+        // ✅ Set task text FIRST
         if (task.getTaskText() != null && !task.getTaskText().isEmpty()) {
             taskText.setText(task.getTaskText());
+        }
+
+        // ✅ Set checkbox state
+        checkbox.setChecked(task.isCompleted());
+
+        // ✅ Apply strikethrough based on completion status (AFTER setText!)
+        if (task.isCompleted()) {
+            taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
+            taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        } else {
+            taskText.setTextColor(getResources().getColor(android.R.color.black));
+            taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
         }
 
         // Checkbox listener
@@ -287,6 +349,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 }
             }
         });
+
         // Text change listener
         taskText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -320,7 +383,6 @@ public class WeeklyActivity extends AppCompatActivity {
 
         container.addView(taskView);
     }
-
     private void updateTaskPositions(String day) {
         List<WeeklyTask> tasks = dayTasks.get(day);
         if (tasks != null) {

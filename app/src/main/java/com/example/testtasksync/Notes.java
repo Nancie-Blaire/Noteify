@@ -43,7 +43,7 @@ public class Notes extends Fragment {
     private NoteAdapter starredAdapter;
     private RecyclerView prioNotesRecyclerView;
     private RecyclerView notesRecyclerView;
-    private SearchView searchView;
+    private EditText editText;
 
     private NoteAdapter.ItemTypeDetector typeDetector;
 
@@ -80,13 +80,13 @@ public class Notes extends Fragment {
         FirebaseUser user = auth.getCurrentUser();
 
         // Initialize search bar
-        searchView = view.findViewById(R.id.searchBar);
-        searchView.clearFocus();
+        editText = view.findViewById(R.id.editText);
+        editText.clearFocus();
 
-        searchView.setOnClickListener(v -> {
-            searchView.setFocusable(true);
-            searchView.setFocusableInTouchMode(true);
-            searchView.requestFocus();
+        editText.setOnClickListener(v -> {
+            editText.setFocusable(true);
+            editText.setFocusableInTouchMode(true);
+            editText.requestFocus();
         });
 
         // Check if user is logged in
@@ -226,9 +226,10 @@ public class Notes extends Fragment {
                 });
     }
 
-    // ✅ Load BOTH todo and weekly from schedules collection in ONE query
+// In Notes.java, update the loadSchedules method:
+
     private void loadSchedules(FirebaseUser user) {
-        Log.d(TAG, "📋 Loading schedules (todo & weekly)...");
+        Log.d(TAG, "Loading schedules (todo & weekly)...");
 
         db.collection("users")
                 .document(user.getUid())
@@ -236,7 +237,7 @@ public class Notes extends Fragment {
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) {
-                        Log.e(TAG, "❌ Schedules listen failed: " + e.getMessage());
+                        Log.e(TAG, "Schedules listen failed: " + e.getMessage());
                         schedulesLoaded = true;
                         updateUI();
                         return;
@@ -247,44 +248,36 @@ public class Notes extends Fragment {
                     weeklyList.clear();
 
                     if (snapshots != null && !snapshots.isEmpty()) {
-                        Log.d(TAG, "📦 Found " + snapshots.size() + " schedule items");
+                        Log.d(TAG, "Found " + snapshots.size() + " schedule items");
 
                         for (QueryDocumentSnapshot doc : snapshots) {
                             String category = doc.getString("category");
 
-                            // ✅ Check if item was added from DayDetails
-                            Boolean addedFromDayDetails = doc.getBoolean("addedFromDayDetails");
+                            // REMOVED: Filter that skips DayDetails items
+                            // Now ALL items will show in Notes, regardless of where they were created
 
-                            // ✅ Skip items that were added from DayDetails
-                            if (addedFromDayDetails != null && addedFromDayDetails) {
-                                Log.d(TAG, "  ⭐️ Skipping DayDetails item: " + doc.getString("title"));
-                                continue;
-                            }
-
-                            // ✅ Filter by category and add to appropriate list
+                            // Filter by category and add to appropriate list
                             if ("todo".equals(category)) {
                                 Note todoNote = createNoteFromSchedule(doc, "To-Do List");
                                 todoList.add(todoNote);
-                                Log.d(TAG, "  ✅ Added todo: " + todoNote.getTitle());
+                                Log.d(TAG, "  Added todo: " + todoNote.getTitle());
 
                             } else if ("weekly".equals(category)) {
                                 Note weeklyNote = createNoteFromSchedule(doc, "Weekly Plan");
                                 weeklyList.add(weeklyNote);
-                                Log.d(TAG, "  ✅ Added weekly: " + weeklyNote.getTitle());
+                                Log.d(TAG, "  Added weekly: " + weeklyNote.getTitle());
                             }
-                            // Ignore other categories (event, holiday, etc.)
+                            // Ignore other categories (event, holiday, todo_task, etc.)
                         }
                     } else {
-                        Log.d(TAG, "🔭 No schedules found");
+                        Log.d(TAG, "No schedules found");
                     }
 
-                    Log.d(TAG, "✅ Schedules loaded - Todos: " + todoList.size() + ", Weeklies: " + weeklyList.size());
+                    Log.d(TAG, "Schedules loaded - Todos: " + todoList.size() + ", Weeklies: " + weeklyList.size());
                     schedulesLoaded = true;
                     updateUI();
                 });
     }
-
-    // ✅ Helper method to create Note from schedule document
     private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");

@@ -214,6 +214,7 @@ public class TodoActivity extends AppCompatActivity {
         cancelButton.setOnClickListener(v -> dialog.dismiss());
 
         // Save button
+        // Save button
         saveScheduleButton.setOnClickListener(v -> {
             if (selectedDateText.getText().equals("Select date")) {
                 Toast.makeText(this, "Please select a date", Toast.LENGTH_SHORT).show();
@@ -228,7 +229,7 @@ public class TodoActivity extends AppCompatActivity {
                 dueTime = null;
             }
 
-            // ✅ NEW: Save notification settings
+            // ✅ Save notification settings
             hasReminder = notificationCheckbox.isChecked();
             if (hasReminder) {
                 int selectedPos = notificationTimeSpinner.getSelectedItemPosition();
@@ -237,17 +238,207 @@ public class TodoActivity extends AppCompatActivity {
 
             updateDueDateDisplay();
 
-            // Auto-save if not new list
+            // ✅ CHANGED: Only auto-save if not new list, but DON'T finish!
             if (!isNewList) {
-                saveTodoList();
+                saveTodoListWithoutFinish(); // ✅ New method that doesn't call finish()
             }
 
             dialog.dismiss();
         });
-
         dialog.show();
     }
 
+    // ========================================
+// SAVE TODO LIST WITHOUT FINISHING ACTIVITY
+// ========================================
+    private void saveTodoListWithoutFinish() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            Toast.makeText(this, "Please log in first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String title = todoTitle.getText().toString().trim();
+        if (title.isEmpty()) {
+            title = "To-Do List";
+        }
+
+        int totalTasks = 0;
+        int completedTasks = 0;
+        for (TodoTask task : taskList) {
+            if (!task.getTaskText().trim().isEmpty()) {
+                totalTasks++;
+                if (task.isCompleted()) {
+                    completedTasks++;
+                }
+            }
+        }
+
+        final String finalTitle = title;
+        final int finalTotalTasks = totalTasks;
+        final int finalCompletedTasks = completedTasks;
+
+        final Map<String, Object> scheduleData = new HashMap<>();
+        scheduleData.put("title", finalTitle);
+        scheduleData.put("description", finalTotalTasks + " tasks (" + finalCompletedTasks + " completed)");
+        scheduleData.put("category", "todo");
+        scheduleData.put("isCompleted", finalCompletedTasks == finalTotalTasks && finalTotalTasks > 0);
+        scheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+        if (dueDate != null) {
+            scheduleData.put("date", new Timestamp(dueDate.getTime()));
+            scheduleData.put("hasReminder", hasReminder);
+            scheduleData.put("reminderMinutes", reminderMinutes);
+        } else {
+            scheduleData.put("date", null);
+            scheduleData.put("hasReminder", false);
+        }
+
+        scheduleData.put("time", dueTime != null ? dueTime : "");
+
+        Map<String, Object> listData = new HashMap<>();
+        listData.put("title", finalTitle);
+        listData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        listData.put("taskCount", finalTotalTasks);
+        listData.put("completedCount", finalCompletedTasks);
+
+        if (dueDate != null) {
+            listData.put("dueDate", new Timestamp(dueDate.getTime()));
+        } else {
+            listData.put("dueDate", null);
+        }
+
+        listData.put("dueTime", dueTime);
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("todoLists")
+                .document(listId)
+                .set(listData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Todo list saved successfully");
+                    saveTasksWithoutFinish(user.getUid(), listId, finalTitle, finalTotalTasks,
+                            finalCompletedTasks, scheduleData);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to save todo list", e);
+                    Toast.makeText(this, "Failed to save list", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    // ========================================
+// SAVE TASKS WITHOUT FINISHING
+// ========================================
+    private void saveTasksWithoutFinish(String userId, String listId, String listTitle, int totalTasks,
+                                        int completedTasks, Map<String, Object> scheduleData) {
+        db.collection("users")
+                .document(userId)
+                .collection("todoLists")
+                .document(listId)
+                .collection("tasks")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                        doc.getReference().delete();
+                    }
+
+                    int tasksToSave = 0;
+                    for (TodoTask task : taskList) {
+                        if (!task.getTaskText().trim().isEmpty()) {
+                            tasksToSave++;
+                        }
+                    }
+
+                    if (tasksToSave == 0) {
+                        createOrUpdateScheduleWithoutFinish(userId, listId, scheduleData);
+                        return;
+                    }
+
+                    final int[] savedCount = {0};
+                    for (TodoTask task : taskList) {
+                        if (!task.getTaskText().trim().isEmpty()) {
+                            Map<String, Object> taskData = new HashMap<>();
+                            taskData.put("taskText", task.getTaskText());
+                            taskData.put("isCompleted", task.isCompleted());
+                            taskData.put("position", task.getPosition());
+
+                            if (task.getScheduleDate() != null) {
+                                taskData.put("scheduleDate", new Timestamp(task.getScheduleDate()));
+                            }
+                            taskData.put("scheduleTime", task.getScheduleTime());
+                            taskData.put("hasNotification", task.hasNotification());
+                            taskData.put("notificationMinutes", task.getNotificationMinutes());
+
+                            int finalTasksToSave = tasksToSave;
+                            db.collection("users")
+                                    .document(userId)
+                                    .collection("todoLists")
+                                    .document(listId)
+                                    .collection("tasks")
+                                    .add(taskData)
+                                    .addOnSuccessListener(documentReference -> {
+                                        savedCount[0]++;
+                                        if (savedCount[0] == finalTasksToSave) {
+                                            createOrUpdateScheduleWithoutFinish(userId, listId, scheduleData);
+                                        }
+                                    })
+                                    .addOnFailureListener(e -> {
+                                        Log.e(TAG, "Failed to save task", e);
+                                    });
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to delete old tasks", e);
+                    Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    // ========================================
+// CREATE OR UPDATE SCHEDULE WITHOUT FINISHING
+// ========================================
+    private void createOrUpdateScheduleWithoutFinish(String userId, String listId, Map<String, Object> scheduleData) {
+        scheduleData.put("sourceId", listId);
+
+        db.collection("users")
+                .document(userId)
+                .collection("schedules")
+                .whereEqualTo("sourceId", listId)
+                .whereEqualTo("category", "todo")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                        db.collection("users")
+                                .document(userId)
+                                .collection("schedules")
+                                .document(scheduleId)
+                                .update(scheduleData)
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "Schedule updated - staying in activity");
+                                    // ✅ DON'T call finish() here!
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to update schedule", e);
+                                });
+                    } else {
+                        db.collection("users")
+                                .document(userId)
+                                .collection("schedules")
+                                .add(scheduleData)
+                                .addOnSuccessListener(documentReference -> {
+                                    Log.d(TAG, "Schedule created - staying in activity");
+                                    // ✅ DON'T call finish() here!
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to create schedule", e);
+                                });
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to check existing schedule", e);
+                });
+    }
     // ========================================
     // UPDATE DUE DATE DISPLAY
     // ========================================
@@ -273,16 +464,15 @@ public class TodoActivity extends AppCompatActivity {
     private void clearDueDate() {
         dueDate = null;
         dueTime = null;
+        hasReminder = false; // ✅ Also reset reminder
         updateDueDateDisplay();
 
+        // ✅ CHANGED: Use the new method that doesn't finish
         if (!isNewList) {
-            saveTodoList();
+            saveTodoListWithoutFinish(); // ✅ Save but stay in activity
         }
     }
 
-    // ========================================
-    // LOAD TODO LIST FROM FIREBASE
-    // ========================================
     private void loadTodoList() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
@@ -293,7 +483,50 @@ public class TodoActivity extends AppCompatActivity {
 
         String userId = user.getUid();
 
-        // Load list details
+        // ✅ FIRST: Load schedule data (has the date/time info)
+        db.collection("users")
+                .document(userId)
+                .collection("schedules")
+                .whereEqualTo("sourceId", listId)
+                .whereEqualTo("category", "todo")
+                .get()
+                .addOnSuccessListener(scheduleSnapshots -> {
+                    if (!scheduleSnapshots.isEmpty()) {
+                        // ✅ Load date/time from schedule document
+                        DocumentSnapshot scheduleDoc = scheduleSnapshots.getDocuments().get(0);
+
+                        Timestamp dateTimestamp = scheduleDoc.getTimestamp("date");
+                        if (dateTimestamp != null) {
+                            dueDate = Calendar.getInstance();
+                            dueDate.setTime(dateTimestamp.toDate());
+                        }
+
+                        dueTime = scheduleDoc.getString("time");
+
+                        // ✅ Load reminder settings from schedule
+                        Boolean hasReminderFromSchedule = scheduleDoc.getBoolean("hasReminder");
+                        if (hasReminderFromSchedule != null) {
+                            hasReminder = hasReminderFromSchedule;
+                        }
+
+                        Long reminderMinutesFromSchedule = scheduleDoc.getLong("reminderMinutes");
+                        if (reminderMinutesFromSchedule != null) {
+                            reminderMinutes = reminderMinutesFromSchedule.intValue();
+                        }
+
+                        updateDueDateDisplay();
+                    }
+
+                    // ✅ THEN: Load list details
+                    loadTodoListDetails(userId);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to load schedule", e);
+                    // Still try to load list details even if schedule fails
+                    loadTodoListDetails(userId);
+                });
+    }
+    private void loadTodoListDetails(String userId) {
         db.collection("users")
                 .document(userId)
                 .collection("todoLists")
@@ -306,25 +539,33 @@ public class TodoActivity extends AppCompatActivity {
                             todoTitle.setText(title);
                         }
 
-                        // ✅ Load due date
-                        Timestamp dueDateTimestamp = documentSnapshot.getTimestamp("dueDate");
-                        if (dueDateTimestamp != null) {
-                            dueDate = Calendar.getInstance();
-                            dueDate.setTime(dueDateTimestamp.toDate());
+                        // ✅ Only use these if schedule didn't have them
+                        if (dueDate == null) {
+                            Timestamp dueDateTimestamp = documentSnapshot.getTimestamp("dueDate");
+                            if (dueDateTimestamp != null) {
+                                dueDate = Calendar.getInstance();
+                                dueDate.setTime(dueDateTimestamp.toDate());
+                            }
                         }
 
-                        // ✅ NEW: Load due time
-                        dueTime = documentSnapshot.getString("dueTime");
+                        if (dueTime == null) {
+                            dueTime = documentSnapshot.getString("dueTime");
+                        }
 
                         updateDueDateDisplay();
                     }
+
+                    // ✅ Load tasks after list details
+                    loadTodoTasks(userId);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load todo list", e);
                     Toast.makeText(this, "Failed to load list", Toast.LENGTH_SHORT).show();
                 });
+    }
 
-        // Load tasks
+    // ✅ NEW: Separate method to load tasks
+    private void loadTodoTasks(String userId) {
         db.collection("users")
                 .document(userId)
                 .collection("todoLists")
@@ -399,15 +640,15 @@ public class TodoActivity extends AppCompatActivity {
         TextView scheduleText = taskView.findViewById(R.id.scheduleText);
         ImageView notificationIcon = taskView.findViewById(R.id.notificationIcon);
         ImageView clearScheduleButton = taskView.findViewById(R.id.clearScheduleButton);
-
-        checkbox.setChecked(task.isCompleted());
+// Set task text
         if (task.getTaskText() != null && !task.getTaskText().isEmpty()) {
             taskText.setText(task.getTaskText());
         }
 
-        updateTaskScheduleDisplay(task, scheduleDisplay, scheduleText, notificationIcon);
+// Set checkbox state
+        checkbox.setChecked(task.isCompleted());
 
-        // In addTaskView(), after setting checkbox state, add this:
+// ✅ Apply strikethrough based on completion status (MUST be AFTER setText!)
         if (task.isCompleted()) {
             taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
             taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
@@ -415,6 +656,9 @@ public class TodoActivity extends AppCompatActivity {
             taskText.setTextColor(getResources().getColor(android.R.color.black));
             taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
         }
+
+        updateTaskScheduleDisplay(task, scheduleDisplay, scheduleText, notificationIcon);
+
 // Replace the existing checkbox listener with this:
         checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             task.setCompleted(isChecked);

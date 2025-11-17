@@ -1,5 +1,6 @@
 package com.example.testtasksync;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -72,7 +73,9 @@ public class NoteActivity extends AppCompatActivity {
     private boolean isNumberedListMode = false;
     private boolean isBulletListMode = false;
     private int currentListNumber = 1;
-
+    private boolean isToggleListMode = false;
+    private Map<Integer, Boolean> toggleStates = new HashMap<>(); // position -> isExpanded
+    private Map<Integer, String> toggleContents = new HashMap<>(); // position -> content
 
 
     @Override
@@ -104,6 +107,8 @@ public class NoteActivity extends AppCompatActivity {
         setupTextWatcher();
         setupNumberedListWatcher();
         setupBulletListWatcher();
+        setupToggleListWatcher();
+        setupToggleClickListener();
 
         // Create Firestore note if new
         if (noteId == null) {
@@ -1102,16 +1107,22 @@ public class NoteActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) return;
 
-        // ✅ Convert Integer keys to String keys for Firestore
         Map<String, String> dividerStylesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
             dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        // Add toggle states
+        Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
+            toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("content", content);
         updates.put("timestamp", System.currentTimeMillis());
         updates.put("dividerStyles", dividerStylesForFirestore);
+        updates.put("toggleStates", toggleStatesForFirestore);
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
@@ -1777,6 +1788,43 @@ public class NoteActivity extends AppCompatActivity {
 
         lastSavedContent = content;
         isUpdatingText = false;
+
+        // Apply toggle arrow colors based on content
+        String[] lines = content.split("\n");
+        int currentPos = 0;
+
+        for (String line : lines) {
+            if (line.matches("^\\s*[▶▼]\\s.*")) {
+                int arrowPos = currentPos + line.indexOf("▶") >= 0 ?
+                        line.indexOf("▶") : line.indexOf("▼");
+
+                // Check if toggle has content
+                boolean hasContent = false;
+                int nextLinePos = currentPos + line.length() + 1;
+
+                if (nextLinePos < content.length()) {
+                    int nextLineEnd = content.indexOf('\n', nextLinePos);
+                    if (nextLineEnd == -1) nextLineEnd = content.length();
+
+                    if (nextLineEnd > nextLinePos) {
+                        String nextLine = content.substring(nextLinePos, nextLineEnd);
+                        hasContent = nextLine.startsWith("    ") &&
+                                !nextLine.trim().equals("Empty toggle");
+                    }
+                }
+
+                // Set arrow color: grey if empty, black if has content
+                int arrowColor = hasContent ? 0xFF000000 : 0xFF999999;
+                span.setSpan(
+                        new android.text.style.ForegroundColorSpan(arrowColor),
+                        currentPos + arrowPos,
+                        currentPos + arrowPos + 1,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+
+            currentPos += line.length() + 1;
+        }
     }
 
     private void openBookmarks() {
@@ -1961,6 +2009,89 @@ public class NoteActivity extends AppCompatActivity {
         noteLayout.setBackgroundColor(Color.parseColor(currentColor));
     }
 
+    // UNIVERSAL INDENT - Works for bullets, numbers, and regular text
+    private void indentLine() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+
+        // Find the start of the current line
+        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
+        int lineEnd = currentText.indexOf('\n', cursorPosition);
+        if (lineEnd == -1) lineEnd = currentText.length();
+
+        String currentLine = currentText.substring(lineStart, lineEnd);
+        String newLine;
+
+        // Check if it's a bullet line
+        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
+            newLine = indentBulletLine(currentLine);
+        }
+        // Check if it's a numbered line
+        else if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
+                currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
+                currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
+            newLine = indentNumberedLine(currentLine);
+        }
+        // Regular text - just add 4 spaces
+        else {
+            newLine = "    " + currentLine;
+        }
+
+        String newText = currentText.substring(0, lineStart) +
+                newLine +
+                currentText.substring(lineEnd);
+
+        noteContent.setText(newText);
+        int addedChars = newLine.length() - currentLine.length();
+        noteContent.setSelection(cursorPosition + addedChars);
+    }
+
+    // UNIVERSAL OUTDENT - Works for bullets, numbers, and regular text
+    private void outdentLine() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+
+        // Find the start of the current line
+        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
+        int lineEnd = currentText.indexOf('\n', cursorPosition);
+        if (lineEnd == -1) lineEnd = currentText.length();
+
+        String currentLine = currentText.substring(lineStart, lineEnd);
+        String newLine;
+
+        // Check if it's a bullet line
+        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
+            newLine = outdentBulletLine(currentLine);
+        }
+        // Check if it's a numbered line
+        else if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
+                currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
+                currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
+            newLine = outdentNumberedLine(currentLine);
+        }
+        // Regular text - remove 4 spaces if possible
+        else {
+            if (currentLine.startsWith("    ")) {
+                newLine = currentLine.substring(4);
+            } else if (currentLine.startsWith("  ")) {
+                newLine = currentLine.substring(2);
+            } else if (currentLine.startsWith(" ")) {
+                newLine = currentLine.substring(1);
+            } else {
+                newLine = currentLine;
+            }
+        }
+
+        String newText = currentText.substring(0, lineStart) +
+                newLine +
+                currentText.substring(lineEnd);
+
+        noteContent.setText(newText);
+        int removedChars = currentLine.length() - newLine.length();
+        noteContent.setSelection(Math.max(lineStart, cursorPosition - removedChars));
+    }
+
+    //                   NUMBERED LIST
     private void insertNumberedList() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2104,7 +2235,91 @@ public class NoteActivity extends AppCompatActivity {
         }
         return "i";
     }
+    // Helper method to indent numbered lines - RESETS TO 1/a/i based on level
+    private String indentNumberedLine(String currentLine) {
+        String contentAfterNumber;
 
+        // Level 0: Regular numbers -> Level 1: Letters
+        if (currentLine.matches("^\\d+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\d+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "    a. " + contentAfterNumber;
+            }
+        }
+
+        // Level 1: Letters -> Level 2: Roman numerals
+        if (currentLine.matches("^\\s{4}[a-z]\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{4}[a-z]\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "        i. " + contentAfterNumber;
+            }
+        }
+
+        // Level 2: Roman numerals -> Level 3: Numbers again
+        if (currentLine.matches("^\\s{8}[ivx]+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{8}[ivx]+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "            1. " + contentAfterNumber;
+            }
+        }
+
+        // Level 3+: Just add more indentation
+        if (currentLine.matches("^\\s{12,}\\d+\\.\\s.*")) {
+            return "    " + currentLine;
+        }
+
+        return "    " + currentLine;
+    }
+
+    // Helper method to outdent numbered lines - RESETS TO LAST NUMBER OF PREVIOUS LEVEL
+    private String outdentNumberedLine(String currentLine) {
+        String contentAfterNumber;
+
+        // Level 3+: Deep indentation -> Roman numerals
+        if (currentLine.matches("^\\s{12,}\\d+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s+\\d+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "        i. " + contentAfterNumber;
+            }
+        }
+
+        // Level 2: Roman numerals -> Letters
+        if (currentLine.matches("^\\s{8}[ivx]+\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{8}[ivx]+\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "    a. " + contentAfterNumber;
+            }
+        }
+
+        // Level 1: Letters -> Regular numbers
+        if (currentLine.matches("^\\s{4}[a-z]\\.\\s.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{4}[a-z]\\.\\s(.*)");
+            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
+            if (matcher.find()) {
+                contentAfterNumber = matcher.group(1);
+                return "1. " + contentAfterNumber;
+            }
+        }
+
+        // Level 0: Can't outdent further, just remove spaces if any
+        if (currentLine.startsWith("    ")) {
+            return currentLine.substring(4);
+        }
+
+        return currentLine;
+    }
+
+    //                   BULLET LIST
     private void insertBulletList() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2193,87 +2408,6 @@ public class NoteActivity extends AppCompatActivity {
         return "● ";
     }
 
-    // UNIVERSAL INDENT - Works for bullets, numbers, and regular text
-    private void indentLine() {
-        int cursorPosition = noteContent.getSelectionStart();
-        String currentText = noteContent.getText().toString();
-
-        // Find the start of the current line
-        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
-        int lineEnd = currentText.indexOf('\n', cursorPosition);
-        if (lineEnd == -1) lineEnd = currentText.length();
-
-        String currentLine = currentText.substring(lineStart, lineEnd);
-        String newLine;
-
-        // Check if it's a bullet line
-        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
-            newLine = indentBulletLine(currentLine);
-        }
-        // Check if it's a numbered line
-        else if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
-                currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
-                currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
-            newLine = indentNumberedLine(currentLine);
-        }
-        // Regular text - just add 4 spaces
-        else {
-            newLine = "    " + currentLine;
-        }
-
-        String newText = currentText.substring(0, lineStart) +
-                newLine +
-                currentText.substring(lineEnd);
-
-        noteContent.setText(newText);
-        int addedChars = newLine.length() - currentLine.length();
-        noteContent.setSelection(cursorPosition + addedChars);
-    }
-
-    // UNIVERSAL OUTDENT - Works for bullets, numbers, and regular text
-    private void outdentLine() {
-        int cursorPosition = noteContent.getSelectionStart();
-        String currentText = noteContent.getText().toString();
-
-        // Find the start of the current line
-        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
-        int lineEnd = currentText.indexOf('\n', cursorPosition);
-        if (lineEnd == -1) lineEnd = currentText.length();
-
-        String currentLine = currentText.substring(lineStart, lineEnd);
-        String newLine;
-
-        // Check if it's a bullet line
-        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
-            newLine = outdentBulletLine(currentLine);
-        }
-        // Check if it's a numbered line
-        else if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
-                currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
-                currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
-            newLine = outdentNumberedLine(currentLine);
-        }
-        // Regular text - remove 4 spaces if possible
-        else {
-            if (currentLine.startsWith("    ")) {
-                newLine = currentLine.substring(4);
-            } else if (currentLine.startsWith("  ")) {
-                newLine = currentLine.substring(2);
-            } else if (currentLine.startsWith(" ")) {
-                newLine = currentLine.substring(1);
-            } else {
-                newLine = currentLine;
-            }
-        }
-
-        String newText = currentText.substring(0, lineStart) +
-                newLine +
-                currentText.substring(lineEnd);
-
-        noteContent.setText(newText);
-        int removedChars = currentLine.length() - newLine.length();
-        noteContent.setSelection(Math.max(lineStart, cursorPosition - removedChars));
-    }
 
     // Helper method to indent bullet lines
     private String indentBulletLine(String currentLine) {
@@ -2313,91 +2447,325 @@ public class NoteActivity extends AppCompatActivity {
             return currentLine;
         }
     }
+    //          TOGGLE LIST
+    private static final String CONTENT_PLACEHOLDER = "    Empty toggle";
 
-    // Helper method to indent numbered lines - RESETS TO 1/a/i based on level
-    private String indentNumberedLine(String currentLine) {
-        String contentAfterNumber;
+    private void setupToggleListWatcher() {
+        noteContent.addTextChangedListener(new TextWatcher() {
+            private boolean isProcessing = false;
 
-        // Level 0: Regular numbers -> Level 1: Letters
-        if (currentLine.matches("^\\d+\\.\\s.*")) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\d+\\.\\s(.*)");
-            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
-            if (matcher.find()) {
-                contentAfterNumber = matcher.group(1);
-                return "    a. " + contentAfterNumber;
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (isProcessing) return;
+
+                // Check if user pressed Enter (added newline)
+                if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
+                    isProcessing = true;
+
+                    // Get the line before the newline
+                    String textBeforeNewline = s.toString().substring(0, start);
+                    int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
+                    String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
+
+                    // Check if cursor is on toggle title (▶ or ▼ present)
+                    if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
+                        isToggleListMode = true;
+
+                        // Check if the toggle title is empty (no content after arrow)
+                        if (currentLine.matches("^\\s*[▶▼]\\s*$")) {
+                            // Double enter detected - exit toggle list mode
+                            isToggleListMode = false;
+
+                            // Remove the empty toggle line
+                            String newText = s.toString().substring(0, lastNewlineIndex + 1) +
+                                    s.toString().substring(start + 1);
+                            noteContent.setText(newText);
+                            noteContent.setSelection(lastNewlineIndex + 1);
+                        } else {
+                            // Create new toggle list
+                            String newToggle = "▶ ";
+
+                            String newText = s.toString().substring(0, start + 1) +
+                                    newToggle +
+                                    s.toString().substring(start + 1);
+
+                            noteContent.setText(newText);
+                            noteContent.setSelection(start + 1 + newToggle.length());
+                        }
+                    }
+                    // Check if cursor is on toggle content (indented lines)
+                    else if (currentLine.matches("^    .*")) {
+                        String trimmedLine = currentLine.trim();
+
+                        // Check if this is an empty content line (just placeholder or empty)
+                        boolean isCurrentEmpty = trimmedLine.isEmpty() || trimmedLine.equals("Empty toggle");
+
+                        if (isCurrentEmpty) {
+                            // This is an empty line - check if it's a double enter
+                            // Look back to see if the previous content line was also empty
+                            int prevContentLineStart = textBeforeNewline.lastIndexOf('\n', lastNewlineIndex - 1) + 1;
+                            if (prevContentLineStart > 0) {
+                                String prevContentLine = textBeforeNewline.substring(prevContentLineStart, lastNewlineIndex);
+                                String trimmedPrev = prevContentLine.trim();
+                                boolean isPrevEmpty = trimmedPrev.isEmpty() || trimmedPrev.equals("Empty toggle");
+
+                                if (isPrevEmpty && prevContentLine.matches("^    .*")) {
+                                    // Double enter detected - create new toggle list
+                                    // Remove the current empty line and add new toggle
+                                    String newToggle = "▶ ";
+                                    String newText = s.toString().substring(0, lastNewlineIndex + 1) +
+                                            newToggle +
+                                            s.toString().substring(start + 1);
+                                    noteContent.setText(newText);
+                                    noteContent.setSelection(lastNewlineIndex + 1 + newToggle.length());
+                                    isProcessing = false;
+                                    return;
+                                }
+                            }
+                        }
+
+                        // Add new content line (single enter or first empty line)
+                        String newContent = CONTENT_PLACEHOLDER;
+                        String newText = s.toString().substring(0, start + 1) +
+                                newContent +
+                                s.toString().substring(start + 1);
+
+                        noteContent.setText(newText);
+                        noteContent.setSelection(start + 1 + newContent.length());
+                    }
+
+                    isProcessing = false;
+                }
             }
-        }
 
-        // Level 1: Letters -> Level 2: Roman numerals
-        if (currentLine.matches("^\\s{4}[a-z]\\.\\s.*")) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{4}[a-z]\\.\\s(.*)");
-            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
-            if (matcher.find()) {
-                contentAfterNumber = matcher.group(1);
-                return "        i. " + contentAfterNumber;
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Remove placeholder text when user starts typing
+                String text = s.toString();
+                int cursorPos = noteContent.getSelectionStart();
+
+                // Find current line
+                int lineStart = text.lastIndexOf('\n', cursorPos - 1) + 1;
+                int lineEnd = text.indexOf('\n', cursorPos);
+                if (lineEnd == -1) lineEnd = text.length();
+
+                if (lineStart < lineEnd && lineStart < text.length()) {
+                    String currentLine = text.substring(lineStart, lineEnd);
+
+                    // If line starts with placeholder and has additional content after it
+                    if (currentLine.startsWith(CONTENT_PLACEHOLDER)) {
+                        String afterPlaceholder = currentLine.substring(CONTENT_PLACEHOLDER.length());
+
+                        // If user typed something after the placeholder
+                        if (!afterPlaceholder.isEmpty() && !afterPlaceholder.trim().isEmpty()) {
+                            // Remove the placeholder, keep the user's text
+                            String newText = text.substring(0, lineStart) +
+                                    "    " + afterPlaceholder.trim() +
+                                    text.substring(lineEnd);
+
+                            // Calculate new cursor position
+                            int newCursorPos = lineStart + 4 + afterPlaceholder.trim().length();
+
+                            noteContent.removeTextChangedListener(this);
+                            noteContent.setText(newText);
+                            noteContent.setSelection(Math.min(newCursorPos, newText.length()));
+                            noteContent.addTextChangedListener(this);
+                        }
+                    }
+                }
             }
-        }
-
-        // Level 2: Roman numerals -> Level 3: Numbers again
-        if (currentLine.matches("^\\s{8}[ivx]+\\.\\s.*")) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{8}[ivx]+\\.\\s(.*)");
-            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
-            if (matcher.find()) {
-                contentAfterNumber = matcher.group(1);
-                return "            1. " + contentAfterNumber;
-            }
-        }
-
-        // Level 3+: Just add more indentation
-        if (currentLine.matches("^\\s{12,}\\d+\\.\\s.*")) {
-            return "    " + currentLine;
-        }
-
-        return "    " + currentLine;
+        });
     }
 
-    // Helper method to outdent numbered lines - RESETS TO LAST NUMBER OF PREVIOUS LEVEL
-    private String outdentNumberedLine(String currentLine) {
-        String contentAfterNumber;
+    private void setupToggleClickListener() {
+        noteContent.setOnClickListener(v -> {
+            int cursorPos = noteContent.getSelectionStart();
+            String content = noteContent.getText().toString();
 
-        // Level 3+: Deep indentation -> Roman numerals
-        if (currentLine.matches("^\\s{12,}\\d+\\.\\s.*")) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s+\\d+\\.\\s(.*)");
-            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
-            if (matcher.find()) {
-                contentAfterNumber = matcher.group(1);
-                return "        i. " + contentAfterNumber;
+            // Find current line boundaries
+            int lineStart = content.lastIndexOf('\n', cursorPos - 1) + 1;
+            int lineEnd = content.indexOf('\n', cursorPos);
+            if (lineEnd == -1) lineEnd = content.length();
+
+            String currentLine = content.substring(lineStart, lineEnd);
+
+            // Check if line contains toggle arrow
+            if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
+                // Find the position of the arrow in the line
+                int arrowPos = -1;
+                for (int i = 0; i < currentLine.length(); i++) {
+                    char c = currentLine.charAt(i);
+                    if (c == '▶' || c == '▼') {
+                        arrowPos = lineStart + i;
+                        break;
+                    }
+                }
+
+                // Only toggle if cursor is within 3 characters of the arrow
+                if (arrowPos != -1 && Math.abs(cursorPos - arrowPos) <= 3) {
+                    toggleToggleState(lineStart, content);
+                }
             }
-        }
-
-        // Level 2: Roman numerals -> Letters
-        if (currentLine.matches("^\\s{8}[ivx]+\\.\\s.*")) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{8}[ivx]+\\.\\s(.*)");
-            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
-            if (matcher.find()) {
-                contentAfterNumber = matcher.group(1);
-                return "    a. " + contentAfterNumber;
-            }
-        }
-
-        // Level 1: Letters -> Regular numbers
-        if (currentLine.matches("^\\s{4}[a-z]\\.\\s.*")) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^\\s{4}[a-z]\\.\\s(.*)");
-            java.util.regex.Matcher matcher = pattern.matcher(currentLine);
-            if (matcher.find()) {
-                contentAfterNumber = matcher.group(1);
-                return "1. " + contentAfterNumber;
-            }
-        }
-
-        // Level 0: Can't outdent further, just remove spaces if any
-        if (currentLine.startsWith("    ")) {
-            return currentLine.substring(4);
-        }
-
-        return currentLine;
+        });
     }
 
+    private void toggleToggleState(int togglePosition, String fullContent) {
+        isUpdatingText = true;
+
+        int lineEnd = fullContent.indexOf('\n', togglePosition);
+        if (lineEnd == -1) lineEnd = fullContent.length();
+
+        String toggleLine = fullContent.substring(togglePosition, lineEnd);
+        boolean isExpanded = toggleLine.contains("▼");
+
+        StringBuilder newContent = new StringBuilder();
+
+        if (isExpanded) {
+            // COLLAPSE: Change ▼ to ▶ and hide content
+            String newToggleLine = toggleLine.replace("▼", "▶");
+
+            newContent.append(fullContent.substring(0, togglePosition));
+            newContent.append(newToggleLine);
+
+            // Find and save content lines (indented lines after toggle)
+            int contentStart = lineEnd + 1;
+            int contentEnd = contentStart;
+            StringBuilder savedContent = new StringBuilder();
+
+            // Get toggle indentation
+            int toggleIndent = 0;
+            for (char c : toggleLine.toCharArray()) {
+                if (c == ' ') toggleIndent++;
+                else break;
+            }
+
+            // Find where content ends and save all content
+            while (contentEnd < fullContent.length()) {
+                int nextLineEnd = fullContent.indexOf('\n', contentEnd);
+                if (nextLineEnd == -1) {
+                    // Last line of document
+                    String lastLine = fullContent.substring(contentEnd);
+
+                    int lineIndent = 0;
+                    for (char c : lastLine.toCharArray()) {
+                        if (c == ' ') lineIndent++;
+                        else break;
+                    }
+
+                    if (lineIndent > toggleIndent) {
+                        if (savedContent.length() > 0) savedContent.append("\n");
+                        savedContent.append(lastLine);
+                        contentEnd = fullContent.length();
+                    }
+                    break;
+                }
+
+                String nextLine = fullContent.substring(contentEnd, nextLineEnd);
+
+                // Check if line is indented more than the toggle (content or nested toggle)
+                int lineIndent = 0;
+                for (char c : nextLine.toCharArray()) {
+                    if (c == ' ') lineIndent++;
+                    else break;
+                }
+
+                // Content must be indented more than the parent toggle
+                if (lineIndent > toggleIndent) {
+                    // This is content (including nested toggles)
+                    if (savedContent.length() > 0) savedContent.append("\n");
+                    savedContent.append(nextLine);
+                    contentEnd = nextLineEnd + 1;
+                } else {
+                    // This line is at same or less indentation - stop here
+                    break;
+                }
+            }
+
+            // Save all content for this toggle
+            if (savedContent.length() > 0) {
+                toggleContents.put(togglePosition, savedContent.toString());
+            } else {
+                // If no content found, preserve any previously saved content
+                if (!toggleContents.containsKey(togglePosition)) {
+                    toggleContents.put(togglePosition, CONTENT_PLACEHOLDER);
+                }
+            }
+
+            // Append everything after the content (NO EXTRA NEWLINE)
+            if (contentEnd < fullContent.length()) {
+                newContent.append(fullContent.substring(contentEnd));
+            }
+
+            toggleStates.put(togglePosition, false);
+
+        } else {
+            // EXPAND: Change ▶ to ▼ and show content
+            String newToggleLine = toggleLine.replace("▶", "▼");
+            boolean hasContent = toggleContents.containsKey(togglePosition);
+
+            newContent.append(fullContent.substring(0, togglePosition));
+            newContent.append(newToggleLine);
+
+            // Get toggle indentation for proper content formatting
+            int toggleIndent = 0;
+            for (char c : toggleLine.toCharArray()) {
+                if (c == ' ') toggleIndent++;
+                else break;
+            }
+            String indent = "";
+            for (int i = 0; i < toggleIndent + 4; i++) indent += " ";
+
+            // Add content or placeholder (with proper indentation)
+            if (hasContent) {
+                String savedContentStr = toggleContents.get(togglePosition);
+                newContent.append("\n");
+                newContent.append(savedContentStr);
+            } else {
+                newContent.append("\n");
+                newContent.append(indent).append("Empty toggle");
+            }
+
+            // Append rest of content (NO EXTRA NEWLINE)
+            if (lineEnd < fullContent.length()) {
+                newContent.append(fullContent.substring(lineEnd));
+            }
+
+            toggleStates.put(togglePosition, true);
+        }
+
+        String resultContent = newContent.toString();
+        noteContent.setText(resultContent);
+
+        // Set cursor safely
+        int cursorPos = Math.min(togglePosition + 2, resultContent.length());
+        if (cursorPos < 0) cursorPos = 0;
+        if (cursorPos > resultContent.length()) cursorPos = resultContent.length();
+        noteContent.setSelection(cursorPos);
+
+        // Reapply bookmarks and formatting
+        noteContent.postDelayed(() -> {
+            applyBookmarksToText();
+            isUpdatingText = false;
+        }, 100);
+    }
+
+    private void insertToggleList() {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+        String toggleItem = "\n▶ ";
+
+        String newText = currentText.substring(0, cursorPosition) +
+                toggleItem +
+                currentText.substring(cursorPosition);
+
+        noteContent.setText(newText);
+        noteContent.setSelection(cursorPosition + toggleItem.length());
+
+        isToggleListMode = true;
+    }
     // + BUTTON MENU
     private void setupAddMenuOptions() {
         // Subpage
@@ -2476,10 +2844,6 @@ public class NoteActivity extends AppCompatActivity {
     // Placeholder methods - implement these based on your needs
     private void insertLink() {
         Toast.makeText(this, "Insert Link - Coming soon", Toast.LENGTH_SHORT).show();
-    }
-
-    private void insertToggleList() {
-        Toast.makeText(this, "Insert Toggle List - Coming soon", Toast.LENGTH_SHORT).show();
     }
 
     private void insertCheckbox() {

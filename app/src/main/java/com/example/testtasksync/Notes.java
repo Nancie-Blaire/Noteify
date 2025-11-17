@@ -2,11 +2,15 @@ package com.example.testtasksync;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -28,6 +32,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import static android.content.Context.INPUT_METHOD_SERVICE;
+
 public class Notes extends Fragment {
 
     private static final String TAG = "NotesFragment";
@@ -38,19 +44,23 @@ public class Notes extends Fragment {
     private List<Note> weeklyList;
     private List<Note> starredList;
     private List<Note> combinedList;
+    private List<Note> searchResults;
 
     private NoteAdapter starredAdapter;
+    private NoteAdapter searchAdapter;
     private RecyclerView prioNotesRecyclerView;
     private RecyclerView notesRecyclerView;
+    private RecyclerView searchRecyclerView;
     private EditText searchBar;
+    private ImageView searchIcon;
+    private View blurOverlay;
+    private View searchContainer;
+    private View mainContent;
 
     private NoteAdapter.ItemTypeDetector typeDetector;
 
-    // Track which data sources have loaded
     private boolean notesLoaded = false;
-    private boolean schedulesLoaded = false; // ✅ One listener for both todo & weekly
-
-
+    private boolean schedulesLoaded = false;
 
     @Nullable
     @Override
@@ -64,29 +74,26 @@ public class Notes extends Fragment {
 
         Log.d(TAG, "onViewCreated started");
 
-        // Initialize RecyclerViews
+        // Initialize views
         prioNotesRecyclerView = view.findViewById(R.id.prioNotesRecyclerView);
         notesRecyclerView = view.findViewById(R.id.notesRecyclerView);
+        searchRecyclerView = view.findViewById(R.id.searchRecyclerView);
+        searchBar = view.findViewById(R.id.searchBar);
+        searchIcon = view.findViewById(R.id.searchIcon);
+        blurOverlay = view.findViewById(R.id.blurOverlay);
+        searchContainer = view.findViewById(R.id.searchContainer);
+        mainContent = view.findViewById(R.id.mainContent);
 
         // Set layout managers
         prioNotesRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
         notesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        searchRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
         // Initialize Firebase
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
         FirebaseUser user = auth.getCurrentUser();
-
-        // Initialize search bar
-        searchBar = view.findViewById(R.id.searchBar);
-        searchBar.clearFocus();
-
-        searchBar.setOnClickListener(v -> {
-            searchBar.setFocusable(true);
-            searchBar.setFocusableInTouchMode(true);
-            searchBar.requestFocus();
-        });
 
         // Check if user is logged in
         if (user == null) {
@@ -95,12 +102,66 @@ public class Notes extends Fragment {
             return;
         }
 
+        // Setup search bar - NOT focused by default
+        searchBar.setFocusable(false);
+        searchBar.setFocusableInTouchMode(false);
+        searchBar.post(() -> {
+            searchBar.clearFocus();
+            hideKeyboard();
+        });
+
+        // Click on search icon or search bar to activate search
+        View.OnClickListener activateSearch = v -> {
+            searchBar.setFocusable(true);
+            searchBar.setFocusableInTouchMode(true);
+            searchBar.requestFocus();
+            showKeyboard();
+        };
+
+        searchIcon.setOnClickListener(activateSearch);
+        searchBar.setOnClickListener(activateSearch);
+
+        // Setup search text watcher
+        searchBar.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.length() > 0) {
+                    searchIcon.setVisibility(View.GONE);
+                    showSearchOverlay();
+                    performSearch(s.toString());
+                } else {
+                    searchIcon.setVisibility(View.VISIBLE);
+                    hideSearchOverlay();
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        // Setup search bar focus listener
+        searchBar.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus && searchBar.getText().toString().isEmpty()) {
+                searchIcon.setVisibility(View.VISIBLE);
+                hideSearchOverlay();
+                searchBar.setFocusable(false);
+                searchBar.setFocusableInTouchMode(false);
+            }
+        });
+
+        // Click on blur overlay to close search
+        blurOverlay.setOnClickListener(v -> clearSearch());
+
         // Initialize lists
         noteList = new ArrayList<>();
         todoList = new ArrayList<>();
         weeklyList = new ArrayList<>();
         starredList = new ArrayList<>();
         combinedList = new ArrayList<>();
+        searchResults = new ArrayList<>();
 
         // Create type detector
         typeDetector = note -> {
@@ -114,19 +175,102 @@ public class Notes extends Fragment {
             openItem(note);
         }, true, typeDetector);
 
+        // Adapter for search results
+        searchAdapter = new NoteAdapter(searchResults, note -> {
+            openItem(note);
+            clearSearch();
+        }, false, typeDetector);
+        searchRecyclerView.setAdapter(searchAdapter);
+
         // Load data from Firebase
         loadNotes(user);
-        loadSchedules(user); // ✅ Load both todo & weekly from schedules collection
+        loadSchedules(user);
+    }
+
+    private void showSearchOverlay() {
+        blurOverlay.setVisibility(View.VISIBLE);
+        searchContainer.setVisibility(View.VISIBLE);
+        mainContent.setAlpha(0.3f);
+        Log.d(TAG, "Search overlay shown");
+    }
+
+    private void hideSearchOverlay() {
+        blurOverlay.setVisibility(View.GONE);
+        searchContainer.setVisibility(View.GONE);
+        mainContent.setAlpha(1.0f);
+        Log.d(TAG, "Search overlay hidden");
+    }
+
+    private void clearSearch() {
+        searchBar.setText("");
+        searchBar.clearFocus();
+        hideKeyboard();
+        hideSearchOverlay();
+        searchIcon.setVisibility(View.VISIBLE);
+        searchBar.setFocusable(false);
+        searchBar.setFocusableInTouchMode(false);
+    }
+
+    private void performSearch(String query) {
+        searchResults.clear();
+        String lowerQuery = query.toLowerCase();
+
+        // Search in notes
+        for (Note note : noteList) {
+            if (matchesQuery(note, lowerQuery)) {
+                searchResults.add(note);
+            }
+        }
+
+        // Search in todos
+        for (Note todo : todoList) {
+            if (matchesQuery(todo, lowerQuery)) {
+                searchResults.add(todo);
+            }
+        }
+
+        // Search in weeklies
+        for (Note weekly : weeklyList) {
+            if (matchesQuery(weekly, lowerQuery)) {
+                searchResults.add(weekly);
+            }
+        }
+
+        // Sort by timestamp (newest first)
+        Collections.sort(searchResults, (n1, n2) ->
+                Long.compare(n2.getTimestamp(), n1.getTimestamp()));
+
+        searchAdapter.notifyDataSetChanged();
+        Log.d(TAG, "Search results: " + searchResults.size() + " items for query: " + query);
+    }
+
+    private boolean matchesQuery(Note note, String query) {
+        String title = note.getTitle() != null ? note.getTitle().toLowerCase() : "";
+        String content = note.getContent() != null ? note.getContent().toLowerCase() : "";
+        return title.contains(query) || content.contains(query);
+    }
+
+    private void showKeyboard() {
+        if (getContext() == null) return;
+        InputMethodManager imm = (InputMethodManager) requireContext().getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(searchBar, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void hideKeyboard() {
+        if (getContext() == null) return;
+        InputMethodManager imm = (InputMethodManager) requireContext().getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null && getView() != null) {
+            imm.hideSoftInputFromWindow(getView().getWindowToken(), 0);
+        }
     }
 
     private void openItem(Note item) {
-        // For todo and weekly items, we need to get the sourceId from Firestore
-        // because the Note object contains the schedule ID, not the actual list/plan ID
         if (todoList.contains(item) || weeklyList.contains(item)) {
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) return;
 
-            // Get the schedule document to find the sourceId
             db.collection("users")
                     .document(user.getUid())
                     .collection("schedules")
@@ -140,11 +284,11 @@ public class Notes extends Fragment {
                             if (sourceId != null && category != null) {
                                 if ("todo".equals(category)) {
                                     Intent intent = new Intent(getContext(), TodoActivity.class);
-                                    intent.putExtra("listId", sourceId);  // Use sourceId, not schedule ID
+                                    intent.putExtra("listId", sourceId);
                                     startActivity(intent);
                                 } else if ("weekly".equals(category)) {
                                     Intent intent = new Intent(getContext(), WeeklyActivity.class);
-                                    intent.putExtra("planId", sourceId);  // Use sourceId, not schedule ID
+                                    intent.putExtra("planId", sourceId);
                                     startActivity(intent);
                                 }
                             } else {
@@ -159,7 +303,6 @@ public class Notes extends Fragment {
                         Toast.makeText(getContext(), "Error opening item", Toast.LENGTH_SHORT).show();
                     });
         } else {
-            // Regular note - just open normally
             Intent intent = new Intent(getContext(), NoteActivity.class);
             intent.putExtra("noteId", item.getId());
             startActivity(intent);
@@ -189,7 +332,6 @@ public class Notes extends Fragment {
                                     doc.getString("content")
                             );
 
-                            // SAFE timestamp handling
                             try {
                                 Timestamp timestamp = doc.getTimestamp("timestamp");
                                 if (timestamp != null) {
@@ -225,8 +367,6 @@ public class Notes extends Fragment {
                 });
     }
 
-// In Notes.java, update the loadSchedules method:
-
     private void loadSchedules(FirebaseUser user) {
         Log.d(TAG, "Loading schedules (todo & weekly)...");
 
@@ -242,7 +382,6 @@ public class Notes extends Fragment {
                         return;
                     }
 
-                    // Clear both lists
                     todoList.clear();
                     weeklyList.clear();
 
@@ -252,10 +391,6 @@ public class Notes extends Fragment {
                         for (QueryDocumentSnapshot doc : snapshots) {
                             String category = doc.getString("category");
 
-                            // REMOVED: Filter that skips DayDetails items
-                            // Now ALL items will show in Notes, regardless of where they were created
-
-                            // Filter by category and add to appropriate list
                             if ("todo".equals(category)) {
                                 Note todoNote = createNoteFromSchedule(doc, "To-Do List");
                                 todoList.add(todoNote);
@@ -266,7 +401,6 @@ public class Notes extends Fragment {
                                 weeklyList.add(weeklyNote);
                                 Log.d(TAG, "  Added weekly: " + weeklyNote.getTitle());
                             }
-                            // Ignore other categories (event, holiday, todo_task, etc.)
                         }
                     } else {
                         Log.d(TAG, "No schedules found");
@@ -277,6 +411,7 @@ public class Notes extends Fragment {
                     updateUI();
                 });
     }
+
     private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");
@@ -285,7 +420,6 @@ public class Notes extends Fragment {
 
         Note note = new Note(id, title != null ? title : defaultTitle, content);
 
-        // Get timestamp
         try {
             Timestamp createdAt = doc.getTimestamp("createdAt");
             if (createdAt != null) {
@@ -302,13 +436,11 @@ public class Notes extends Fragment {
             }
         }
 
-        // Get starred state
         Boolean isStarred = doc.getBoolean("isStarred");
         if (isStarred != null && isStarred) {
             note.setStarred(true);
         }
 
-        // Get locked state
         Boolean isLocked = doc.getBoolean("isLocked");
         if (isLocked != null && isLocked) {
             note.setLocked(true);
@@ -318,7 +450,6 @@ public class Notes extends Fragment {
     }
 
     private void updateUI() {
-        // ✅ Only update UI when ALL data is loaded
         if (!notesLoaded || !schedulesLoaded) {
             Log.d(TAG, "⏳ Waiting for all data... (notes:" + notesLoaded +
                     ", schedules:" + schedulesLoaded + ")");
@@ -330,7 +461,6 @@ public class Notes extends Fragment {
         Log.d(TAG, "   Todos: " + todoList.size());
         Log.d(TAG, "   Weeklies: " + weeklyList.size());
 
-        // Collect all starred items
         starredList.clear();
         for (Note note : noteList) {
             if (note.isStarred()) {
@@ -348,7 +478,6 @@ public class Notes extends Fragment {
             }
         }
 
-        // Handle Starred/Prios Section
         if (starredList.isEmpty()) {
             Log.d(TAG, "No starred items - showing welcome card");
             defaultCardAdapter prioWelcomeAdapter = new defaultCardAdapter(true);
@@ -360,7 +489,6 @@ public class Notes extends Fragment {
             starredAdapter.notifyDataSetChanged();
         }
 
-        // Combine all items and sort by timestamp (newest first)
         combinedList.clear();
         combinedList.addAll(noteList);
         combinedList.addAll(todoList);
@@ -368,7 +496,6 @@ public class Notes extends Fragment {
 
         Log.d(TAG, "Combined list size: " + combinedList.size());
 
-        // Sort by timestamp (descending - newest first)
         Collections.sort(combinedList, new Comparator<Note>() {
             @Override
             public int compare(Note n1, Note n2) {
@@ -376,7 +503,6 @@ public class Notes extends Fragment {
             }
         });
 
-        // Handle Combined Recent Section
         if (combinedList.isEmpty()) {
             Log.d(TAG, "No items - showing welcome card");
             defaultCardAdapter recentWelcomeAdapter = new defaultCardAdapter(false);
@@ -384,7 +510,6 @@ public class Notes extends Fragment {
         } else {
             Log.d(TAG, "Combined items found: " + combinedList.size());
 
-            // Create unified adapter WITH typeDetector
             NoteAdapter unifiedAdapter = new NoteAdapter(combinedList, note -> {
                 openItem(note);
             }, false, typeDetector);

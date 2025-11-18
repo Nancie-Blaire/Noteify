@@ -215,6 +215,11 @@ public class DayDetailsActivity extends AppCompatActivity {
 
                     if (snapshots != null) {
                         for (QueryDocumentSnapshot doc : snapshots) {
+                            // ✅ SKIP DELETED ITEMS
+                            if (doc.get("deletedAt") != null) {
+                                continue;
+                            }
+
                             Schedule schedule = doc.toObject(Schedule.class);
                             schedule.setId(doc.getId());
 
@@ -288,6 +293,16 @@ public class DayDetailsActivity extends AppCompatActivity {
                     int totalLists = listSnapshots.size();
 
                     for (QueryDocumentSnapshot listDoc : listSnapshots) {
+                        // ✅ SKIP DELETED TODO LISTS
+                        if (listDoc.get("deletedAt") != null) {
+                            Log.d(TAG, "⭕️ Skipping deleted todo list: " + listDoc.getId());
+                            int completed = completedQueries.incrementAndGet();
+                            if (completed == totalLists) {
+                                updateScheduleDisplay();
+                            }
+                            continue;
+                        }
+
                         String listId = listDoc.getId();
                         String listTitle = listDoc.getString("title");
 
@@ -309,7 +324,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                                         if (taskText != null && !taskText.trim().isEmpty()) {
                                             // ✅ Skip completed tasks
                                             if (isCompleted != null && isCompleted) {
-                                                Log.d(TAG, "⏭️ Skipping completed task: " + taskText);
+                                                Log.d(TAG, "⭐️ Skipping completed task: " + taskText);
                                                 continue;
                                             }
 
@@ -319,7 +334,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                                             taskSchedule.setDescription("From: " + listTitle);
                                             taskSchedule.setCategory("todo_task");
                                             taskSchedule.setSourceId(listId);
-                                            taskSchedule.setCompleted(false); // Always false since we filtered completed ones
+                                            taskSchedule.setCompleted(false);
                                             taskSchedule.setDate(scheduleDate);
 
                                             if (scheduleTime != null && !scheduleTime.isEmpty()) {
@@ -390,6 +405,12 @@ public class DayDetailsActivity extends AppCompatActivity {
                     List<String> plansInRange = new ArrayList<>();
 
                     for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        // ✅ SKIP DELETED WEEKLY PLANS
+                        if (doc.get("deletedAt") != null) {
+                            Log.d(TAG, "⭕️ Skipping deleted weekly plan: " + doc.getId());
+                            continue;
+                        }
+
                         Timestamp startDateTimestamp = doc.getTimestamp("startDate");
                         Timestamp endDateTimestamp = doc.getTimestamp("endDate");
 

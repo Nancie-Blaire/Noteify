@@ -138,7 +138,7 @@ public class CalendarFragment extends Fragment {
             weeklyPlansListener.remove();
             weeklyPlansListener = null;
         }
-        if (todoTasksListener != null) { // ✅ NEW
+        if (todoTasksListener != null) {
             todoTasksListener.remove();
             todoTasksListener = null;
         }
@@ -189,6 +189,11 @@ public class CalendarFragment extends Fragment {
 
                     if (snapshots != null) {
                         for (com.google.firebase.firestore.QueryDocumentSnapshot doc : snapshots) {
+                            // ✅ SKIP DELETED ITEMS
+                            if (doc.get("deletedAt") != null) {
+                                continue;
+                            }
+
                             Schedule schedule = doc.toObject(Schedule.class);
                             schedule.setId(doc.getId());
 
@@ -209,7 +214,7 @@ public class CalendarFragment extends Fragment {
                     }
 
                     loadWeeklyPlansForMonth();
-                    loadScheduledTodoTasks(); // ✅ NEW
+                    loadScheduledTodoTasks();
                 });
     }
 
@@ -268,6 +273,17 @@ public class CalendarFragment extends Fragment {
                     int totalLists = listSnapshots.size();
 
                     for (com.google.firebase.firestore.QueryDocumentSnapshot listDoc : listSnapshots) {
+                        // ✅ SKIP DELETED TODO LISTS
+                        if (listDoc.get("deletedAt") != null) {
+                            Log.d(TAG, "⭕️ Skipping deleted todo list: " + listDoc.getId());
+                            int completed = completedQueries.incrementAndGet();
+                            if (completed == totalLists) {
+                                Log.d(TAG, "✅ All todo lists processed");
+                                calendarAdapter.notifyDataSetChanged();
+                            }
+                            continue;
+                        }
+
                         String listId = listDoc.getId();
                         String listTitle = listDoc.getString("title");
 
@@ -281,6 +297,7 @@ public class CalendarFragment extends Fragment {
                     }
                 });
     }
+
 
     // ========================================
     // ✅ NEW: LOAD TASKS FROM SPECIFIC TODO LIST
@@ -369,6 +386,7 @@ public class CalendarFragment extends Fragment {
                     }
                 });
     }
+
     private void loadWeeklyPlansForMonth() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -404,6 +422,12 @@ public class CalendarFragment extends Fragment {
                     Log.d(TAG, "📋 Found " + queryDocumentSnapshots.size() + " weekly plan(s)");
 
                     for (com.google.firebase.firestore.QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        // ✅ SKIP DELETED WEEKLY PLANS
+                        if (doc.get("deletedAt") != null) {
+                            Log.d(TAG, "⭕️ Skipping deleted weekly plan: " + doc.getId());
+                            continue;
+                        }
+
                         Timestamp startDateTimestamp = doc.getTimestamp("startDate");
                         Timestamp endDateTimestamp = doc.getTimestamp("endDate");
 

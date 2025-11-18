@@ -14,6 +14,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TESTtaskSync">
         <activity
+            android:name=".Bin"
+            android:exported="false" />
+        <activity
             android:name=".DayDetailsActivity"
             android:exported="false" />
 
@@ -79,7 +82,8 @@
         <activity
             android:name=".BookmarksActivity"
             android:exported="false" />
-        <activity android:name=".ChangePasswordActivity"
+        <activity
+            android:name=".ChangePasswordActivity"
             android:exported="false" />
         <activity
             android:name=".BookmarkAdapter"

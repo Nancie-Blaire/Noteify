@@ -12,8 +12,11 @@ public class Note {
     private boolean isLocked;  // Add this field for lock feature
     private List<String> subpageIds;// Optional: to track subpage IDs
     private String sourceId;  // For schedules: links back to the original todoList or weeklyPlan
-
+    private long deletedAt;  // ✅ NEW: For soft delete
+    private String category;
     private long timestamp;
+
+
     // Empty constructor for Firestore
     public Note() {
         this.subpageIds = new ArrayList<>();
@@ -82,4 +85,28 @@ public class Note {
     public void setSourceId(String sourceId) {
         this.sourceId = sourceId;
     }
+
+    public void setDeletedAt(long deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    // Helper method
+    public boolean isDeleted() {
+        return deletedAt > 0;
+    }
+    public long getDeletedAt() {
+        return deletedAt;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+
+
 }
+

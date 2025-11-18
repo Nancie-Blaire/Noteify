@@ -34,7 +34,8 @@ public class Settings extends Fragment {
         // Bin action (example)
         if (btnBin != null) {
             btnBin.setOnClickListener(v -> {
-                // do bin action
+                Intent intent = new Intent(requireContext(), Bin.class);
+                startActivity(intent);
             });
         }
 

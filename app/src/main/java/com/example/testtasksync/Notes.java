@@ -33,6 +33,8 @@ import java.util.Comparator;
 import java.util.List;
 
 import static android.content.Context.INPUT_METHOD_SERVICE;
+import java.util.Collections;
+import java.util.Comparator;
 
 public class Notes extends Fragment {
 
@@ -313,7 +315,6 @@ public class Notes extends Fragment {
         db.collection("users")
                 .document(user.getUid())
                 .collection("notes")
-                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) {
                         Log.w(TAG, "Notes listen failed.", e);
@@ -326,6 +327,11 @@ public class Notes extends Fragment {
 
                     if (snapshots != null) {
                         for (QueryDocumentSnapshot doc : snapshots) {
+                            // ✅ Filter out deleted items in code
+                            if (doc.get("deletedAt") != null) {
+                                continue;  // Skip deleted items
+                            }
+
                             Note note = new Note(
                                     doc.getId(),
                                     doc.getString("title"),
@@ -359,6 +365,14 @@ public class Notes extends Fragment {
 
                             noteList.add(note);
                         }
+
+                        // ✅ Sort in code instead of Firestore (API 23 compatible)
+                        Collections.sort(noteList, new Comparator<Note>() {
+                            @Override
+                            public int compare(Note n1, Note n2) {
+                                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
+                            }
+                        });
                     }
 
                     Log.d(TAG, "✅ Notes loaded: " + noteList.size());
@@ -366,14 +380,12 @@ public class Notes extends Fragment {
                     updateUI();
                 });
     }
-
     private void loadSchedules(FirebaseUser user) {
         Log.d(TAG, "Loading schedules (todo & weekly)...");
 
         db.collection("users")
                 .document(user.getUid())
                 .collection("schedules")
-                .orderBy("createdAt", Query.Direction.DESCENDING)
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) {
                         Log.e(TAG, "Schedules listen failed: " + e.getMessage());
@@ -389,6 +401,11 @@ public class Notes extends Fragment {
                         Log.d(TAG, "Found " + snapshots.size() + " schedule items");
 
                         for (QueryDocumentSnapshot doc : snapshots) {
+                            // ✅ Filter out deleted items in code
+                            if (doc.get("deletedAt") != null) {
+                                continue;  // Skip deleted items
+                            }
+
                             String category = doc.getString("category");
 
                             if ("todo".equals(category)) {
@@ -402,6 +419,21 @@ public class Notes extends Fragment {
                                 Log.d(TAG, "  Added weekly: " + weeklyNote.getTitle());
                             }
                         }
+
+                        // ✅ Sort in code (API 23 compatible)
+                        Collections.sort(todoList, new Comparator<Note>() {
+                            @Override
+                            public int compare(Note n1, Note n2) {
+                                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
+                            }
+                        });
+
+                        Collections.sort(weeklyList, new Comparator<Note>() {
+                            @Override
+                            public int compare(Note n1, Note n2) {
+                                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
+                            }
+                        });
                     } else {
                         Log.d(TAG, "No schedules found");
                     }
@@ -411,7 +443,6 @@ public class Notes extends Fragment {
                     updateUI();
                 });
     }
-
     private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");
@@ -520,4 +551,6 @@ public class Notes extends Fragment {
             Log.d(TAG, "✅ UI Updated successfully!");
         }
     }
+
+
 }

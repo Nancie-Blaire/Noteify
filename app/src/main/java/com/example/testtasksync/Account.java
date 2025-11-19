@@ -54,11 +54,14 @@ public class Account extends AppCompatActivity {
         // Logout Button
         btnLogout.setOnClickListener(v -> {
             FirebaseAuth.getInstance().signOut();
+
+            // ✅ Clear the activity stack and start fresh
             Intent intent = new Intent(Account.this, Login.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
             finish();
         });
-
+        
         // Edit Profile Button
         btnEditProfile.setOnClickListener(v -> {
             Intent intent = new Intent(Account.this, EditProfileActivity.class);

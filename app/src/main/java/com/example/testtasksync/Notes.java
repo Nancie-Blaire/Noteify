@@ -126,7 +126,8 @@ public class Notes extends Fragment {
         // Setup search text watcher
         searchBar.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -141,7 +142,8 @@ public class Notes extends Fragment {
             }
 
             @Override
-            public void afterTextChanged(Editable s) {}
+            public void afterTextChanged(Editable s) {
+            }
         });
 
         // Setup search bar focus listener
@@ -380,6 +382,7 @@ public class Notes extends Fragment {
                     updateUI();
                 });
     }
+
     private void loadSchedules(FirebaseUser user) {
         Log.d(TAG, "Loading schedules (todo & weekly)...");
 
@@ -443,6 +446,7 @@ public class Notes extends Fragment {
                     updateUI();
                 });
     }
+
     private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");
@@ -551,6 +555,5 @@ public class Notes extends Fragment {
             Log.d(TAG, "✅ UI Updated successfully!");
         }
     }
-
 
 }

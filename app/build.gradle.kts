@@ -65,4 +65,6 @@ dependencies {
     implementation(libs.material.calendar)
     implementation(libs.joda.time)
 
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+
 }

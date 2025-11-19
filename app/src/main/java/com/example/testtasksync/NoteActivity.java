@@ -10,6 +10,7 @@ import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.TextWatcher;
 import android.text.style.BackgroundColorSpan;
+import android.util.Log;
 import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -243,182 +244,7 @@ public class NoteActivity extends AppCompatActivity {
         });
     }
 
-    private void updateBookmarkIndices(int changePosition, int lengthDiff) {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
 
-        if (isUpdatingText) return;
-        String currentText = noteContent.getText().toString();
-
-        if (currentText.equals(lastSavedContent)) return;
-
-        String dividerPlaceholder = "〔DIVIDER〕";
-
-        // ✅ Check if a divider was just inserted
-        boolean dividerInserted = false;
-        int dividerLength = 0;
-        if (lengthDiff > 0 && changePosition + lengthDiff <= currentText.length()) {
-            String inserted = currentText.substring(changePosition, changePosition + lengthDiff);
-            if (inserted.contains(dividerPlaceholder)) {
-                dividerInserted = true;
-                dividerLength = inserted.length();
-            }
-        }
-
-        boolean anyBookmarkUpdated = false;
-        List<Bookmark> bookmarksCopy = new ArrayList<>(currentBookmarks);
-
-        for (Bookmark bookmark : bookmarksCopy) {
-            int start = bookmark.getStartIndex();
-            int end = bookmark.getEndIndex();
-            boolean needsUpdate = false;
-            boolean shouldDelete = false;
-
-            // ✅ If divider inserted, just shift bookmarks - DON'T modify their range
-            if (dividerInserted) {
-                // Divider inserted before bookmark - shift both start and end
-                if (changePosition <= start) {
-                    start += dividerLength;
-                    end += dividerLength;
-                    needsUpdate = true;
-                }
-                // Divider inserted after bookmark - no change needed
-                else if (changePosition >= end) {
-                    // No change
-                }
-                // Divider inserted WITHIN bookmark - this shouldn't happen due to our preventions
-                // But if it does, just shift the end
-                else if (changePosition > start && changePosition < end) {
-                    end += dividerLength;
-                    needsUpdate = true;
-                }
-            }
-            // Case 1: edit before the bookmark → shift entire range
-            else if (changePosition < start) {
-                start += lengthDiff;
-                end += lengthDiff;
-                needsUpdate = true;
-            }
-            // Case 2: edit inside the highlight → expand/contract based on content
-            else if (changePosition >= start && changePosition < end) {
-                if (lengthDiff > 0) {
-                    // ✅ ALWAYS expand when typing inside bookmark
-                    // This preserves the highlight even when adding spaces in the middle
-                    end += lengthDiff;
-                    needsUpdate = true;
-                } else if (lengthDiff < 0) {
-                    // Deletion inside bookmark
-                    end += lengthDiff;
-                    needsUpdate = true;
-                }
-            }
-            // Case 3: edit RIGHT AT the end boundary
-            else if (changePosition == end && lengthDiff > 0) {
-                int insStart = changePosition;
-                int insEnd = Math.min(currentText.length(), changePosition + lengthDiff);
-
-                if (insStart >= 0 && insEnd > insStart) {
-                    String inserted = currentText.substring(insStart, insEnd);
-
-                    // ✅ Only expand if inserting actual content (not whitespace/newlines)
-                    boolean isValid = true;
-                    for (int i = 0; i < inserted.length(); i++) {
-                        char c = inserted.charAt(i);
-                        if (Character.isWhitespace(c) || c == '\n' || c == '\r' || c == '\t') {
-                            isValid = false;
-                            break;
-                        }
-                    }
-
-                    if (isValid) {
-                        end += lengthDiff;
-                        needsUpdate = true;
-                    }
-                }
-            }
-
-            // Safety: validate bounds
-            if (start < 0 || end > currentText.length() || start >= end) {
-                shouldDelete = true;
-            }
-
-            if (shouldDelete) {
-                deleteBookmarkFromFirestore(bookmark.getId());
-                anyBookmarkUpdated = true;
-            } else if (needsUpdate) {
-                // ✅ Only trim trailing/leading spaces, NOT internal spaces
-                String updatedText;
-                try {
-                    updatedText = currentText.substring(start, end);
-                } catch (Exception e) {
-                    updatedText = bookmark.getText();
-                }
-
-                // Trim only leading spaces
-                int trimStart = start;
-                while (trimStart < end && trimStart < currentText.length() && currentText.charAt(trimStart) == ' ') {
-                    trimStart++;
-                }
-
-                // Trim only trailing spaces
-                int trimEnd = end;
-                while (trimEnd > trimStart && trimEnd > 0 && currentText.charAt(trimEnd - 1) == ' ') {
-                    trimEnd--;
-                }
-
-                // Double-check bounds after trimming
-                if (trimStart >= trimEnd || trimStart < 0 || trimEnd > currentText.length()) {
-                    deleteBookmarkFromFirestore(bookmark.getId());
-                    anyBookmarkUpdated = true;
-                    continue;
-                }
-
-                try {
-                    updatedText = currentText.substring(trimStart, trimEnd);
-                    if (updatedText.trim().isEmpty() || updatedText.contains(dividerPlaceholder)) {
-                        deleteBookmarkFromFirestore(bookmark.getId());
-                        anyBookmarkUpdated = true;
-                        continue;
-                    }
-                } catch (Exception e) {
-                    deleteBookmarkFromFirestore(bookmark.getId());
-                    anyBookmarkUpdated = true;
-                    continue;
-                }
-
-                updateBookmarkInFirestore(bookmark.getId(), trimStart, trimEnd, updatedText);
-                anyBookmarkUpdated = true;
-            }
-        }
-
-        if (anyBookmarkUpdated) {
-            saveNoteContentDebounced(currentText);
-        }
-    }
-
-    private void updateBookmarkInFirestore(String bookmarkId, int newStart, int newEnd, String newText) {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("startIndex", newStart);
-        updates.put("endIndex", newEnd);
-        updates.put("text", newText);
-
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .collection("bookmarks").document(bookmarkId)
-                .update(updates);
-    }
-    private void deleteBookmarkFromFirestore(String bookmarkId) {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .collection("bookmarks").document(bookmarkId)
-                .delete();
-    }
 
     private void showDividerBottomSheet() {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
@@ -963,7 +789,6 @@ public class NoteActivity extends AppCompatActivity {
         int lineStart = bounds[0];
         int lineEnd = bounds[1];
 
-        // ✅ Merge bookmarks first, then delete
         mergeSplitBookmarks(lineStart, lineEnd, () -> {
 
             String currentContent = noteContent.getText().toString();
@@ -1003,96 +828,7 @@ public class NoteActivity extends AppCompatActivity {
             Toast.makeText(this, "Divider deleted", Toast.LENGTH_SHORT).show();
         });
     }
-    private void mergeSplitBookmarks(int dividerLineStart, int dividerLineEnd, Runnable onComplete) {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) {
-            if (onComplete != null) onComplete.run();
-            return;
-        }
 
-        String content = noteContent.getText().toString();
-
-        // Find bookmarks immediately before and after the divider
-        Bookmark bookmarkBefore = null;
-        Bookmark bookmarkAfter = null;
-
-        for (Bookmark bookmark : currentBookmarks) {
-            // Bookmark ends right before divider line
-            if (bookmark.getEndIndex() <= dividerLineStart && bookmark.getEndIndex() >= dividerLineStart - 50) {
-                if (bookmarkBefore == null || bookmark.getEndIndex() > bookmarkBefore.getEndIndex()) {
-                    bookmarkBefore = bookmark;
-                }
-            }
-            // Bookmark starts right after divider line
-            if (bookmark.getStartIndex() >= dividerLineEnd && bookmark.getStartIndex() <= dividerLineEnd + 50) {
-                if (bookmarkAfter == null || bookmark.getStartIndex() < bookmarkAfter.getStartIndex()) {
-                    bookmarkAfter = bookmark;
-                }
-            }
-        }
-
-        // If we found matching bookmarks with same color and style, merge them
-        if (bookmarkBefore != null && bookmarkAfter != null &&
-                bookmarkBefore.getColor().equals(bookmarkAfter.getColor()) &&
-                bookmarkBefore.getStyle().equals(bookmarkAfter.getStyle())) {
-
-            // Calculate new positions BEFORE divider removal
-            int dividerLength = dividerLineEnd - dividerLineStart + 1;
-
-            int mergedStart = bookmarkBefore.getStartIndex();
-            int mergedEnd = bookmarkAfter.getEndIndex() - dividerLength;
-
-            String beforeText = content.substring(bookmarkBefore.getStartIndex(), bookmarkBefore.getEndIndex());
-            String afterText = content.substring(bookmarkAfter.getStartIndex(), bookmarkAfter.getEndIndex());
-            String mergedText = beforeText + afterText;
-
-            final Bookmark finalBookmarkBefore = bookmarkBefore;
-            final Bookmark finalBookmarkAfter = bookmarkAfter;
-            final int finalMergedStart = mergedStart;
-            final int finalMergedEnd = mergedEnd;
-            final String finalMergedText = mergedText;
-
-            Map<String, Object> updates = new HashMap<>();
-            updates.put("startIndex", finalMergedStart);
-            updates.put("endIndex", finalMergedEnd);
-            updates.put("text", finalMergedText);
-
-            db.collection("users").document(user.getUid())
-                    .collection("notes").document(noteId)
-                    .collection("bookmarks").document(finalBookmarkBefore.getId())
-                    .update(updates)
-                    .addOnSuccessListener(aVoid -> {
-                        // Update local bookmark immediately
-                        finalBookmarkBefore.setStartIndex(finalMergedStart);
-                        finalBookmarkBefore.setEndIndex(finalMergedEnd);
-                        finalBookmarkBefore.setText(finalMergedText);
-
-                        // Delete the second bookmark
-                        db.collection("users").document(user.getUid())
-                                .collection("notes").document(noteId)
-                                .collection("bookmarks").document(finalBookmarkAfter.getId())
-                                .delete()
-                                .addOnSuccessListener(aVoid2 -> {
-                                    // Remove from local list
-                                    currentBookmarks.remove(finalBookmarkAfter);
-
-                                    // ✅ Run callback after both operations complete
-                                    if (onComplete != null) {
-                                        onComplete.run();
-                                    }
-                                })
-                                .addOnFailureListener(e -> {
-                                    if (onComplete != null) onComplete.run();
-                                });
-                    })
-                    .addOnFailureListener(e -> {
-                        if (onComplete != null) onComplete.run();
-                    });
-        } else {
-            // No merge needed, run callback immediately
-            if (onComplete != null) onComplete.run();
-        }
-    }
     private void saveNoteContentDebounced(String content) {
         // cancel previous pending save
         if (bookmarkSaveRunnable != null) {
@@ -1153,6 +889,49 @@ public class NoteActivity extends AppCompatActivity {
                 noteContent.postDelayed(() -> scrollToBookmark(positionToScroll), 800);
             }
         }
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        autoSaveNote();
+    }
+    private void autoSaveNote() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        String title = noteTitle.getText().toString();
+        String content = noteContent.getText().toString();
+
+        // Convert divider styles for Firestore
+        Map<String, String> dividerStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        // Convert toggle states for Firestore
+        Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
+            toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        Map<String, Object> noteData = new HashMap<>();
+        noteData.put("title", title);
+        noteData.put("content", content);
+        noteData.put("color", currentNoteColor);
+        noteData.put("timestamp", System.currentTimeMillis());
+        noteData.put("dividerStyles", dividerStylesForFirestore);
+        noteData.put("toggleStates", toggleStatesForFirestore);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes")
+                .document(noteId)
+                .set(noteData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d("NoteActivity", "✅ Auto-saved note");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("NoteActivity", "❌ Auto-save failed", e);
+                });
     }
 
     @Override
@@ -1265,8 +1044,293 @@ public class NoteActivity extends AppCompatActivity {
             }
         });
     }
+    private void loadNote() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
 
-    // Check if the selection overlaps with any bookmark
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        String title = doc.getString("title");
+                        String content = doc.getString("content");
+
+                        // ✅ Load divider styles
+                        Map<String, Object> savedStyles = (Map<String, Object>) doc.get("dividerStyles");
+                        if (savedStyles != null) {
+                            dividerStyles.clear();
+                            for (Map.Entry<String, Object> entry : savedStyles.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    String style = (String) entry.getValue();
+                                    dividerStyles.put(position, style);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        // ✅ Set flag to prevent text watcher from running
+                        isUpdatingText = true;
+
+                        if (title != null) noteTitle.setText(title);
+                        if (content != null) noteContent.setText(content);
+
+                        lastSavedContent = content != null ? content : "";
+
+                        // ✅ Reset flag after a short delay
+                        noteContent.postDelayed(() -> {
+                            isUpdatingText = false;
+                            applyBookmarksToText();
+                        }, 100);
+                    }
+                });
+    }
+    private void loadSubpages() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages")
+                .orderBy("timestamp")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Toast.makeText(this, "Error loading subpages", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    if (value != null) {
+                        List<Subpage> subpages = new ArrayList<>();
+                        for (QueryDocumentSnapshot doc : value) {
+                            Subpage subpage = doc.toObject(Subpage.class);
+                            subpage.setId(doc.getId());
+                            subpages.add(subpage);
+                        }
+
+                        subpageAdapter.setSubpages(subpages);
+                        hasSubpages = !subpages.isEmpty();
+                        // ✅ FIX: Show/hide the RecyclerView instead of the add button
+                        subpagesRecyclerView.setVisibility(hasSubpages ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+    private void openSubpage() {
+        Intent intent = new Intent(this, SubpageActivity.class);
+        intent.putExtra("noteId", noteId);
+        startActivity(intent);
+    }
+    private void saveAndExit() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            finish();
+            return;
+        }
+
+        String title = noteTitle.getText().toString();
+        String content = noteContent.getText().toString();
+
+        // ✅ Convert Integer keys to String keys for Firestore
+        Map<String, String> dividerStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        Map<String, Object> noteData = new HashMap<>();
+        noteData.put("title", title);
+        noteData.put("content", content);
+        noteData.put("color", currentNoteColor);
+        noteData.put("timestamp", System.currentTimeMillis());
+        noteData.put("dividerStyles", dividerStylesForFirestore);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes")
+                .document(noteId)
+                .set(noteData)
+                .addOnSuccessListener(aVoid -> finish())
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error saving note", Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+    }
+
+//BOOKMARK FUNCTION
+    private void updateBookmarkIndices(int changePosition, int lengthDiff) {
+    FirebaseUser user = auth.getCurrentUser();
+    if (user == null) return;
+
+    if (isUpdatingText) return;
+    String currentText = noteContent.getText().toString();
+
+    if (currentText.equals(lastSavedContent)) return;
+
+    String dividerPlaceholder = "〔DIVIDER〕";
+
+    // ✅ Check if a divider was just inserted
+    boolean dividerInserted = false;
+    int dividerLength = 0;
+    if (lengthDiff > 0 && changePosition + lengthDiff <= currentText.length()) {
+        String inserted = currentText.substring(changePosition, changePosition + lengthDiff);
+        if (inserted.contains(dividerPlaceholder)) {
+            dividerInserted = true;
+            dividerLength = inserted.length();
+        }
+    }
+
+    boolean anyBookmarkUpdated = false;
+    List<Bookmark> bookmarksCopy = new ArrayList<>(currentBookmarks);
+
+    for (Bookmark bookmark : bookmarksCopy) {
+        int start = bookmark.getStartIndex();
+        int end = bookmark.getEndIndex();
+        boolean needsUpdate = false;
+        boolean shouldDelete = false;
+
+        // ✅ If divider inserted, just shift bookmarks - DON'T modify their range
+        if (dividerInserted) {
+            // Divider inserted before bookmark - shift both start and end
+            if (changePosition <= start) {
+                start += dividerLength;
+                end += dividerLength;
+                needsUpdate = true;
+            }
+            // Divider inserted after bookmark - no change needed
+            else if (changePosition >= end) {
+                // No change
+            }
+            // Divider inserted WITHIN bookmark - this shouldn't happen due to our preventions
+            // But if it does, just shift the end
+            else if (changePosition > start && changePosition < end) {
+                end += dividerLength;
+                needsUpdate = true;
+            }
+        }
+        // Case 1: edit before the bookmark → shift entire range
+        else if (changePosition < start) {
+            start += lengthDiff;
+            end += lengthDiff;
+            needsUpdate = true;
+        }
+        // Case 2: edit inside the highlight → expand/contract based on content
+        else if (changePosition >= start && changePosition < end) {
+            if (lengthDiff > 0) {
+                // ✅ ALWAYS expand when typing inside bookmark
+                // This preserves the highlight even when adding spaces in the middle
+                end += lengthDiff;
+                needsUpdate = true;
+            } else if (lengthDiff < 0) {
+                // Deletion inside bookmark
+                end += lengthDiff;
+                needsUpdate = true;
+            }
+        }
+        // Case 3: edit RIGHT AT the end boundary
+        else if (changePosition == end && lengthDiff > 0) {
+            int insStart = changePosition;
+            int insEnd = Math.min(currentText.length(), changePosition + lengthDiff);
+
+            if (insStart >= 0 && insEnd > insStart) {
+                String inserted = currentText.substring(insStart, insEnd);
+
+                // ✅ Only expand if inserting actual content (not whitespace/newlines)
+                boolean isValid = true;
+                for (int i = 0; i < inserted.length(); i++) {
+                    char c = inserted.charAt(i);
+                    if (Character.isWhitespace(c) || c == '\n' || c == '\r' || c == '\t') {
+                        isValid = false;
+                        break;
+                    }
+                }
+
+                if (isValid) {
+                    end += lengthDiff;
+                    needsUpdate = true;
+                }
+            }
+        }
+
+        // Safety: validate bounds
+        if (start < 0 || end > currentText.length() || start >= end) {
+            shouldDelete = true;
+        }
+
+        if (shouldDelete) {
+            deleteBookmarkFromFirestore(bookmark.getId());
+            anyBookmarkUpdated = true;
+        } else if (needsUpdate) {
+            // ✅ Only trim trailing/leading spaces, NOT internal spaces
+            String updatedText;
+            try {
+                updatedText = currentText.substring(start, end);
+            } catch (Exception e) {
+                updatedText = bookmark.getText();
+            }
+
+            // Trim only leading spaces
+            int trimStart = start;
+            while (trimStart < end && trimStart < currentText.length() && currentText.charAt(trimStart) == ' ') {
+                trimStart++;
+            }
+
+            // Trim only trailing spaces
+            int trimEnd = end;
+            while (trimEnd > trimStart && trimEnd > 0 && currentText.charAt(trimEnd - 1) == ' ') {
+                trimEnd--;
+            }
+
+            // Double-check bounds after trimming
+            if (trimStart >= trimEnd || trimStart < 0 || trimEnd > currentText.length()) {
+                deleteBookmarkFromFirestore(bookmark.getId());
+                anyBookmarkUpdated = true;
+                continue;
+            }
+
+            try {
+                updatedText = currentText.substring(trimStart, trimEnd);
+                if (updatedText.trim().isEmpty() || updatedText.contains(dividerPlaceholder)) {
+                    deleteBookmarkFromFirestore(bookmark.getId());
+                    anyBookmarkUpdated = true;
+                    continue;
+                }
+            } catch (Exception e) {
+                deleteBookmarkFromFirestore(bookmark.getId());
+                anyBookmarkUpdated = true;
+                continue;
+            }
+
+            updateBookmarkInFirestore(bookmark.getId(), trimStart, trimEnd, updatedText);
+            anyBookmarkUpdated = true;
+        }
+    }
+
+    if (anyBookmarkUpdated) {
+        saveNoteContentDebounced(currentText);
+    }
+}
+    private void updateBookmarkInFirestore(String bookmarkId, int newStart, int newEnd, String newText) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("startIndex", newStart);
+        updates.put("endIndex", newEnd);
+        updates.put("text", newText);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks").document(bookmarkId)
+                .update(updates);
+    }
+    private void deleteBookmarkFromFirestore(String bookmarkId) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks").document(bookmarkId)
+                .delete();
+    }
     private Bookmark getBookmarkAtSelection(int start, int end) {
         for (Bookmark bookmark : currentBookmarks) {
             // Check if selection is within or overlaps the bookmark
@@ -1283,8 +1347,6 @@ public class NoteActivity extends AppCompatActivity {
         }
         return null;
     }
-
-    // Expand the bookmark to include the new selection
     private void expandBookmark(Bookmark bookmark, int newStart, int newEnd) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -1356,8 +1418,6 @@ public class NoteActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error expanding bookmark", Toast.LENGTH_SHORT).show();
                 });
     }
-
-    // Show update bottom sheet (same as before, but now callable from selection)
     private void showUpdateBookmarkBottomSheet(Bookmark bookmark) {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet_update, null);
@@ -1483,7 +1543,6 @@ public class NoteActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
-
     private void setColorScale(View violet, View yellow, View pink, View green, View blue, View orange, View red, View cyan, String currentColor) {
         resetColorSelection(violet, yellow, pink, green, blue, orange, red, cyan);
 
@@ -1504,9 +1563,6 @@ public class NoteActivity extends AppCompatActivity {
             selectedView.setScaleY(1.2f);
         }
     }
-
-
-    // Delete bookmark confirmation
     private void showDeleteBookmarkConfirmation(Bookmark bookmark) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Bookmark")
@@ -1517,7 +1573,6 @@ public class NoteActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .show();
     }
-
     private boolean isTextAlreadyBookmarked(int start, int end) {
         for (Bookmark bookmark : currentBookmarks) {
             if ((start >= bookmark.getStartIndex() && start < bookmark.getEndIndex()) ||
@@ -1526,7 +1581,6 @@ public class NoteActivity extends AppCompatActivity {
         }
         return false;
     }
-
     private void showBookmarkBottomSheet(String selectedText, int startIndex, int endIndex) {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet, null);
@@ -1606,11 +1660,9 @@ public class NoteActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
-
     private void resetColorSelection(View... views) {
         for (View v : views) { v.setScaleX(1f); v.setScaleY(1f); }
     }
-
     private void createBookmark(String text, String note, String color, String style, int startIndex, int endIndex) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -1664,7 +1716,6 @@ public class NoteActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> Toast.makeText(this, "Error creating bookmark", Toast.LENGTH_SHORT).show());
     }
-
     private void setupBookmarkListener() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -1697,7 +1748,6 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 });
     }
-
     private void applyBookmarksToText() {
         isUpdatingText = true;
         String content = noteContent.getText().toString();
@@ -1826,63 +1876,16 @@ public class NoteActivity extends AppCompatActivity {
             currentPos += line.length() + 1;
         }
     }
-
     private void openBookmarks() {
         Intent i = new Intent(this, BookmarksActivity.class);
         i.putExtra("noteId", noteId);
         startActivity(i);
     }
-
     private void setupRecyclerView() {
         subpageAdapter = new SubpageAdapter(this, noteId);
         subpagesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         subpagesRecyclerView.setAdapter(subpageAdapter);
     }
-
-    private void loadNote() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null || noteId == null) return;
-
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .get()
-                .addOnSuccessListener(doc -> {
-                    if (doc.exists()) {
-                        String title = doc.getString("title");
-                        String content = doc.getString("content");
-
-                        // ✅ Load divider styles
-                        Map<String, Object> savedStyles = (Map<String, Object>) doc.get("dividerStyles");
-                        if (savedStyles != null) {
-                            dividerStyles.clear();
-                            for (Map.Entry<String, Object> entry : savedStyles.entrySet()) {
-                                try {
-                                    int position = Integer.parseInt(entry.getKey());
-                                    String style = (String) entry.getValue();
-                                    dividerStyles.put(position, style);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-
-                        // ✅ Set flag to prevent text watcher from running
-                        isUpdatingText = true;
-
-                        if (title != null) noteTitle.setText(title);
-                        if (content != null) noteContent.setText(content);
-
-                        lastSavedContent = content != null ? content : "";
-
-                        // ✅ Reset flag after a short delay
-                        noteContent.postDelayed(() -> {
-                            isUpdatingText = false;
-                            applyBookmarksToText();
-                        }, 100);
-                    }
-                });
-    }
-
     private void scrollToBookmark(int position) {
         noteContent.postDelayed(() -> {
             try {
@@ -1898,77 +1901,99 @@ public class NoteActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
         }, 300);
     }
-
-
-    private void loadSubpages() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .collection("subpages")
-                .orderBy("timestamp")
-                .addSnapshotListener((value, error) -> {
-                    if (error != null) {
-                        Toast.makeText(this, "Error loading subpages", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    if (value != null) {
-                        List<Subpage> subpages = new ArrayList<>();
-                        for (QueryDocumentSnapshot doc : value) {
-                            Subpage subpage = doc.toObject(Subpage.class);
-                            subpage.setId(doc.getId());
-                            subpages.add(subpage);
-                        }
-
-                        subpageAdapter.setSubpages(subpages);
-                        hasSubpages = !subpages.isEmpty();
-                        // ✅ FIX: Show/hide the RecyclerView instead of the add button
-                        subpagesRecyclerView.setVisibility(hasSubpages ? View.VISIBLE : View.GONE);
-                    }
-                });
-    }
-
-    private void openSubpage() {
-        Intent intent = new Intent(this, SubpageActivity.class);
-        intent.putExtra("noteId", noteId);
-        startActivity(intent);
-    }
-
-    private void saveAndExit() {
+    private void mergeSplitBookmarks(int dividerLineStart, int dividerLineEnd, Runnable onComplete) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
-            finish();
+            if (onComplete != null) onComplete.run();
             return;
         }
 
-        String title = noteTitle.getText().toString();
         String content = noteContent.getText().toString();
 
-        // ✅ Convert Integer keys to String keys for Firestore
-        Map<String, String> dividerStylesForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
-            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        // Find bookmarks immediately before and after the divider
+        Bookmark bookmarkBefore = null;
+        Bookmark bookmarkAfter = null;
+
+        for (Bookmark bookmark : currentBookmarks) {
+            // Bookmark ends right before divider line
+            if (bookmark.getEndIndex() <= dividerLineStart && bookmark.getEndIndex() >= dividerLineStart - 50) {
+                if (bookmarkBefore == null || bookmark.getEndIndex() > bookmarkBefore.getEndIndex()) {
+                    bookmarkBefore = bookmark;
+                }
+            }
+            // Bookmark starts right after divider line
+            if (bookmark.getStartIndex() >= dividerLineEnd && bookmark.getStartIndex() <= dividerLineEnd + 50) {
+                if (bookmarkAfter == null || bookmark.getStartIndex() < bookmarkAfter.getStartIndex()) {
+                    bookmarkAfter = bookmark;
+                }
+            }
         }
 
-        Map<String, Object> noteData = new HashMap<>();
-        noteData.put("title", title);
-        noteData.put("content", content);
-        noteData.put("color", currentNoteColor);
-        noteData.put("timestamp", System.currentTimeMillis());
-        noteData.put("dividerStyles", dividerStylesForFirestore);
+        // If we found matching bookmarks with same color and style, merge them
+        if (bookmarkBefore != null && bookmarkAfter != null &&
+                bookmarkBefore.getColor().equals(bookmarkAfter.getColor()) &&
+                bookmarkBefore.getStyle().equals(bookmarkAfter.getStyle())) {
 
-        db.collection("users").document(user.getUid())
-                .collection("notes")
-                .document(noteId)
-                .set(noteData)
-                .addOnSuccessListener(aVoid -> finish())
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Error saving note", Toast.LENGTH_SHORT).show();
-                    finish();
-                });
+            // Calculate new positions BEFORE divider removal
+            int dividerLength = dividerLineEnd - dividerLineStart + 1;
+
+            int mergedStart = bookmarkBefore.getStartIndex();
+            int mergedEnd = bookmarkAfter.getEndIndex() - dividerLength;
+
+            String beforeText = content.substring(bookmarkBefore.getStartIndex(), bookmarkBefore.getEndIndex());
+            String afterText = content.substring(bookmarkAfter.getStartIndex(), bookmarkAfter.getEndIndex());
+            String mergedText = beforeText + afterText;
+
+            final Bookmark finalBookmarkBefore = bookmarkBefore;
+            final Bookmark finalBookmarkAfter = bookmarkAfter;
+            final int finalMergedStart = mergedStart;
+            final int finalMergedEnd = mergedEnd;
+            final String finalMergedText = mergedText;
+
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("startIndex", finalMergedStart);
+            updates.put("endIndex", finalMergedEnd);
+            updates.put("text", finalMergedText);
+
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("bookmarks").document(finalBookmarkBefore.getId())
+                    .update(updates)
+                    .addOnSuccessListener(aVoid -> {
+                        // Update local bookmark immediately
+                        finalBookmarkBefore.setStartIndex(finalMergedStart);
+                        finalBookmarkBefore.setEndIndex(finalMergedEnd);
+                        finalBookmarkBefore.setText(finalMergedText);
+
+                        // Delete the second bookmark
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("bookmarks").document(finalBookmarkAfter.getId())
+                                .delete()
+                                .addOnSuccessListener(aVoid2 -> {
+                                    // Remove from local list
+                                    currentBookmarks.remove(finalBookmarkAfter);
+
+                                    // ✅ Run callback after both operations complete
+                                    if (onComplete != null) {
+                                        onComplete.run();
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    if (onComplete != null) onComplete.run();
+                                });
+                    })
+                    .addOnFailureListener(e -> {
+                        if (onComplete != null) onComplete.run();
+                    });
+        } else {
+            // No merge needed, run callback immediately
+            if (onComplete != null) onComplete.run();
+        }
     }
+
+
+//COLORS
     private void toggleColorPicker() {
         if (colorPickerPanel.getVisibility() == View.VISIBLE) {
             colorPickerPanel.setVisibility(View.GONE);
@@ -1976,7 +2001,6 @@ public class NoteActivity extends AppCompatActivity {
             colorPickerPanel.setVisibility(View.VISIBLE);
         }
     }
-
     private void setupColorPicker() {
         findViewById(R.id.colorDefault).setOnClickListener(v -> changeNoteColor("#FAFAFA"));
         findViewById(R.id.colorRed).setOnClickListener(v -> changeNoteColor("#FFCDD2"));
@@ -1990,26 +2014,23 @@ public class NoteActivity extends AppCompatActivity {
         findViewById(R.id.colorBrown).setOnClickListener(v -> changeNoteColor("#D7CCC8"));
         findViewById(R.id.colorGrey).setOnClickListener(v -> changeNoteColor("#E0E0E0"));
     }
-
     private void changeNoteColor(String color) {
         noteLayout.setBackgroundColor(Color.parseColor(color));
         currentNoteColor = color;
         colorPickerPanel.setVisibility(View.GONE);
         saveNoteColor(color);
     }
-
     private void saveNoteColor(String color) {
         SharedPreferences prefs = getSharedPreferences("NotePrefs", MODE_PRIVATE);
         prefs.edit().putString("noteColor_" + noteId, color).apply();
     }
-
     private void loadNoteColor() {
         SharedPreferences prefs = getSharedPreferences("NotePrefs", MODE_PRIVATE);
         currentColor = prefs.getString("noteColor_" + noteId, "#FAFAFA");
         noteLayout.setBackgroundColor(Color.parseColor(currentColor));
     }
 
-    // UNIVERSAL INDENT - Works for bullets, numbers, and regular text
+// UNIVERSAL INDENT - Works for bullets, numbers, and regular text
     private void indentLine() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2045,8 +2066,7 @@ public class NoteActivity extends AppCompatActivity {
         int addedChars = newLine.length() - currentLine.length();
         noteContent.setSelection(cursorPosition + addedChars);
     }
-
-    // UNIVERSAL OUTDENT - Works for bullets, numbers, and regular text
+// UNIVERSAL OUTDENT - Works for bullets, numbers, and regular text
     private void outdentLine() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2091,7 +2111,7 @@ public class NoteActivity extends AppCompatActivity {
         noteContent.setSelection(Math.max(lineStart, cursorPosition - removedChars));
     }
 
-    //                   NUMBERED LIST
+//NUMBERED LIST
     private void insertNumberedList() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2107,7 +2127,6 @@ public class NoteActivity extends AppCompatActivity {
         // Enable numbered list mode
         isNumberedListMode = true;
     }
-
     private void setupNumberedListWatcher() {
         noteContent.addTextChangedListener(new TextWatcher() {
             private boolean isProcessing = false;
@@ -2172,7 +2191,7 @@ public class NoteActivity extends AppCompatActivity {
         });
     }
 
-    // Helper method to get the next number format based on current line
+// Helper method to get the next number format based on current line
     private String getNextNumberFormat(String currentLine) {
         // Level 0: Regular numbers (1. 2. 3.)
         if (currentLine.matches("^\\d+\\.\\s.*")) {
@@ -2225,7 +2244,7 @@ public class NoteActivity extends AppCompatActivity {
         return "1. ";
     }
 
-    // Helper method for roman numeral increment
+// Helper method for roman numeral increment
     private String getNextRoman(String current) {
         String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
         for (int i = 0; i < romans.length - 1; i++) {
@@ -2235,7 +2254,7 @@ public class NoteActivity extends AppCompatActivity {
         }
         return "i";
     }
-    // Helper method to indent numbered lines - RESETS TO 1/a/i based on level
+// Helper method to indent numbered lines - RESETS TO 1/a/i based on level
     private String indentNumberedLine(String currentLine) {
         String contentAfterNumber;
 
@@ -2276,8 +2295,7 @@ public class NoteActivity extends AppCompatActivity {
 
         return "    " + currentLine;
     }
-
-    // Helper method to outdent numbered lines - RESETS TO LAST NUMBER OF PREVIOUS LEVEL
+// Helper method to outdent numbered lines - RESETS TO LAST NUMBER OF PREVIOUS LEVEL
     private String outdentNumberedLine(String currentLine) {
         String contentAfterNumber;
 
@@ -2319,7 +2337,7 @@ public class NoteActivity extends AppCompatActivity {
         return currentLine;
     }
 
-    //                   BULLET LIST
+//BULLET LIST
     private void insertBulletList() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2335,7 +2353,6 @@ public class NoteActivity extends AppCompatActivity {
         // Enable bullet list mode
         isBulletListMode = true;
     }
-
     private void setupBulletListWatcher() {
         noteContent.addTextChangedListener(new TextWatcher() {
             private boolean isProcessing = false;
@@ -2393,8 +2410,6 @@ public class NoteActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {}
         });
     }
-
-    // Helper method to extract bullet type and indentation from current line
     private String getBulletWithIndentation(String line) {
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\s*)([●○■])\\s");
         java.util.regex.Matcher matcher = pattern.matcher(line);
@@ -2407,9 +2422,6 @@ public class NoteActivity extends AppCompatActivity {
 
         return "● ";
     }
-
-
-    // Helper method to indent bullet lines
     private String indentBulletLine(String currentLine) {
         String contentAfterBullet;
 
@@ -2427,8 +2439,6 @@ public class NoteActivity extends AppCompatActivity {
             return "    " + currentLine;
         }
     }
-
-    // Helper method to outdent bullet lines
     private String outdentBulletLine(String currentLine) {
         String contentAfterBullet;
 
@@ -2447,8 +2457,9 @@ public class NoteActivity extends AppCompatActivity {
             return currentLine;
         }
     }
-    //          TOGGLE LIST
-    private static final String CONTENT_PLACEHOLDER = "    Empty toggle";
+
+//TOGGLE LIST
+    private static final String CONTENT_PLACEHOLDER = "Empty toggle";
 
     private void setupToggleListWatcher() {
         noteContent.addTextChangedListener(new TextWatcher() {
@@ -2579,7 +2590,6 @@ public class NoteActivity extends AppCompatActivity {
             }
         });
     }
-
     private void setupToggleClickListener() {
         noteContent.setOnClickListener(v -> {
             int cursorPos = noteContent.getSelectionStart();
@@ -2611,7 +2621,6 @@ public class NoteActivity extends AppCompatActivity {
             }
         });
     }
-
     private void toggleToggleState(int togglePosition, String fullContent) {
         isUpdatingText = true;
 
@@ -2751,7 +2760,6 @@ public class NoteActivity extends AppCompatActivity {
             isUpdatingText = false;
         }, 100);
     }
-
     private void insertToggleList() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2766,7 +2774,8 @@ public class NoteActivity extends AppCompatActivity {
 
         isToggleListMode = true;
     }
-    // + BUTTON MENU
+
+// + BUTTON MENU
     private void setupAddMenuOptions() {
         // Subpage
         findViewById(R.id.addSubpageOption).setOnClickListener(v -> {
@@ -2816,7 +2825,6 @@ public class NoteActivity extends AppCompatActivity {
             closeAddMenu();
         });
     }
-
     private void toggleAddMenu() {
         if (isMenuOpen) {
             closeAddMenu();
@@ -2824,7 +2832,6 @@ public class NoteActivity extends AppCompatActivity {
             openAddMenu();
         }
     }
-
     private void openAddMenu() {
         addOptionsMenu.setVisibility(View.VISIBLE);
         isMenuOpen = true;
@@ -2832,7 +2839,6 @@ public class NoteActivity extends AppCompatActivity {
         // Rotate the + icon
         addMenuBtn.animate().rotation(45f).setDuration(200).start();
     }
-
     private void closeAddMenu() {
         addOptionsMenu.setVisibility(View.GONE);
         isMenuOpen = false;
@@ -2840,12 +2846,10 @@ public class NoteActivity extends AppCompatActivity {
         // Reset the + icon rotation
         addMenuBtn.animate().rotation(0f).setDuration(200).start();
     }
-
-    // Placeholder methods - implement these based on your needs
+// Placeholder methods - implement these based on your needs
     private void insertLink() {
         Toast.makeText(this, "Insert Link - Coming soon", Toast.LENGTH_SHORT).show();
     }
-
     private void insertCheckbox() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();

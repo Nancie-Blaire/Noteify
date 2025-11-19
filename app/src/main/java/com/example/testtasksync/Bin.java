@@ -22,6 +22,8 @@ import com.google.firebase.firestore.WriteBatch;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
@@ -192,9 +194,13 @@ public class Bin extends AppCompatActivity {
         allDeletedItems.addAll(deletedNotes);
         allDeletedItems.addAll(deletedSchedules);
 
-        // Sort by deletion date (newest first)
-        allDeletedItems.sort((n1, n2) ->
-                Long.compare(n2.getDeletedAt(), n1.getDeletedAt()));
+        // ✅ Sort by deletion date (newest first) - API 23 compatible
+        Collections.sort(allDeletedItems, new Comparator<Note>() {
+            @Override
+            public int compare(Note n1, Note n2) {
+                return Long.compare(n2.getDeletedAt(), n1.getDeletedAt());
+            }
+        });
 
         binAdapter.notifyDataSetChanged();
 
@@ -206,42 +212,6 @@ public class Bin extends AppCompatActivity {
             emptyStateText.setVisibility(View.GONE);
             binRecyclerView.setVisibility(View.VISIBLE);
         }
-    }
-
-    private void restoreSelected() {
-        List<Note> selectedItems = binAdapter.getSelectedItems();
-        if (selectedItems.isEmpty()) return;
-
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-
-        WriteBatch batch = db.batch();
-
-        for (Note note : selectedItems) {
-            // Determine collection
-            String collection = (note.getCategory() != null) ? "schedules" : "notes";
-
-            // Remove deletedAt field to restore
-            batch.update(
-                    db.collection("users")
-                            .document(user.getUid())
-                            .collection(collection)
-                            .document(note.getId()),
-                    "deletedAt", null
-            );
-        }
-
-        batch.commit()
-                .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this,
-                            selectedItems.size() + " item(s) restored",
-                            Toast.LENGTH_SHORT).show();
-                    binAdapter.clearSelection();
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to restore items", e);
-                    Toast.makeText(this, "Failed to restore items", Toast.LENGTH_SHORT).show();
-                });
     }
 
     private void confirmPermanentDelete() {
@@ -256,6 +226,129 @@ public class Bin extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .show();
     }
+    private void restoreSelected() {
+        List<Note> selectedItems = binAdapter.getSelectedItems();
+        if (selectedItems.isEmpty()) return;
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        String userId = user.getUid();
+
+        // Separate notes and schedules
+        List<String> noteIds = new ArrayList<>();
+        List<String> scheduleIds = new ArrayList<>();
+
+        for (Note note : selectedItems) {
+            if (note.getCategory() != null) {
+                scheduleIds.add(note.getId());
+            } else {
+                noteIds.add(note.getId());
+            }
+        }
+
+        // Restore notes directly
+        if (!noteIds.isEmpty()) {
+            WriteBatch noteBatch = db.batch();
+            for (String noteId : noteIds) {
+                noteBatch.update(
+                        db.collection("users")
+                                .document(userId)
+                                .collection("notes")
+                                .document(noteId),
+                        "deletedAt", null
+                );
+            }
+            noteBatch.commit()
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "Restored " + noteIds.size() + " notes");
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Failed to restore notes", e);
+                    });
+        }
+
+        // Restore schedules and their sources
+        if (!scheduleIds.isEmpty()) {
+            restoreSchedulesWithSource(userId, scheduleIds, selectedItems.size());
+        } else if (noteIds.isEmpty()) {
+            Toast.makeText(this,
+                    selectedItems.size() + " item(s) restored",
+                    Toast.LENGTH_SHORT).show();
+            binAdapter.clearSelection();
+        }
+    }
+
+    private void restoreSchedulesWithSource(String userId, List<String> scheduleIds, int totalCount) {
+        List<ScheduleSourcePair> pairs = new ArrayList<>();
+
+        for (String scheduleId : scheduleIds) {
+            db.collection("users")
+                    .document(userId)
+                    .collection("schedules")
+                    .document(scheduleId)
+                    .get()
+                    .addOnSuccessListener(scheduleDoc -> {
+                        if (scheduleDoc.exists()) {
+                            String sourceId = scheduleDoc.getString("sourceId");
+                            String category = scheduleDoc.getString("category");
+
+                            pairs.add(new ScheduleSourcePair(scheduleId, sourceId, category));
+
+                            if (pairs.size() == scheduleIds.size()) {
+                                performBatchRestoreWithSource(userId, pairs, totalCount);
+                            }
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Failed to get schedule", e);
+                    });
+        }
+    }
+
+    // ✅ NEW METHOD: Perform the actual batch restore
+    private void performBatchRestoreWithSource(String userId, List<ScheduleSourcePair> pairs, int totalCount) {
+        WriteBatch batch = db.batch();
+
+        for (ScheduleSourcePair pair : pairs) {
+            // Restore the schedule reference
+            batch.update(
+                    db.collection("users")
+                            .document(userId)
+                            .collection("schedules")
+                            .document(pair.scheduleId),
+                    "deletedAt", null
+            );
+
+            // Restore the source document if it exists
+            if (pair.sourceId != null && !pair.sourceId.isEmpty()) {
+                String sourceCollection = "todo".equals(pair.category) ? "todoLists" : "weeklyPlans";
+
+                batch.update(
+                        db.collection("users")
+                                .document(userId)
+                                .collection(sourceCollection)
+                                .document(pair.sourceId),
+                        "deletedAt", null
+                );
+
+                Log.d(TAG, "Will restore " + sourceCollection + "/" + pair.sourceId);
+            }
+        }
+
+        batch.commit()
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this,
+                            totalCount + " item(s) restored",
+                            Toast.LENGTH_SHORT).show();
+                    binAdapter.clearSelection();
+                    Log.d(TAG, "Successfully restored schedules and sources");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to restore items", e);
+                    Toast.makeText(this, "Failed to restore items", Toast.LENGTH_SHORT).show();
+                });
+    }
 
     private void permanentlyDeleteSelected() {
         List<Note> selectedItems = binAdapter.getSelectedItems();
@@ -264,30 +357,218 @@ public class Bin extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
-        WriteBatch batch = db.batch();
+        String userId = user.getUid();
+
+        // Separate items by type
+        List<String> scheduleIds = new ArrayList<>();
+        List<String> noteIds = new ArrayList<>();
 
         for (Note note : selectedItems) {
-            String collection = (note.getCategory() != null) ? "schedules" : "notes";
+            if (note.getCategory() != null) {
+                scheduleIds.add(note.getId());
+            } else {
+                noteIds.add(note.getId());
+            }
+        }
 
+        int totalItems = selectedItems.size();
+        final int[] completedOperations = {0};
+
+        // Delete notes with subpages
+        if (!noteIds.isEmpty()) {
+            for (String noteId : noteIds) {
+                deleteNoteWithSubpages(userId, noteId, () -> {
+                    completedOperations[0]++;
+                    if (completedOperations[0] == totalItems) {
+                        Toast.makeText(this,
+                                totalItems + " item(s) permanently deleted",
+                                Toast.LENGTH_SHORT).show();
+                        binAdapter.clearSelection();
+                    }
+                });
+            }
+        }
+
+        // Delete schedules with source
+        if (!scheduleIds.isEmpty()) {
+            for (String scheduleId : scheduleIds) {
+                deleteScheduleWithSource(userId, scheduleId, () -> {
+                    completedOperations[0]++;
+                    if (completedOperations[0] == totalItems) {
+                        Toast.makeText(this,
+                                totalItems + " item(s) permanently deleted",
+                                Toast.LENGTH_SHORT).show();
+                        binAdapter.clearSelection();
+                    }
+                });
+            }
+        }
+    }
+
+    // ✅ Delete a single note with all its subpages
+    private void deleteNoteWithSubpages(String userId, String noteId, Runnable onComplete) {
+        Log.d(TAG, "🗑️ Deleting note: " + noteId);
+
+        // Step 1: Get all subpages - CHANGE "pages" to "subpages"
+        db.collection("users")
+                .document(userId)
+                .collection("notes")
+                .document(noteId)
+                .collection("subpages")  // ✅ CHANGED FROM "pages"
+                .get()
+                .addOnSuccessListener(pageSnapshots -> {
+                    Log.d(TAG, "📄 Found " + pageSnapshots.size() + " subpages for note: " + noteId);
+
+                    WriteBatch batch = db.batch();
+
+                    // Delete all subpages
+                    for (QueryDocumentSnapshot pageDoc : pageSnapshots) {
+                        batch.delete(pageDoc.getReference());
+                        Log.d(TAG, "🗑️ Queued subpage for deletion: " + pageDoc.getId());
+                    }
+
+                    // Delete the note itself
+                    batch.delete(
+                            db.collection("users")
+                                    .document(userId)
+                                    .collection("notes")
+                                    .document(noteId)
+                    );
+
+                    // Commit the batch
+                    batch.commit()
+                            .addOnSuccessListener(aVoid -> {
+                                Log.d(TAG, "✅ Deleted note " + noteId + " with " + pageSnapshots.size() + " subpages");
+                                if (onComplete != null) onComplete.run();
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "❌ Failed to delete note with subpages: " + noteId, e);
+                                if (onComplete != null) onComplete.run();
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to get subpages for note: " + noteId, e);
+                    // Still try to delete the note itself
+                    db.collection("users")
+                            .document(userId)
+                            .collection("notes")
+                            .document(noteId)
+                            .delete()
+                            .addOnSuccessListener(aVoid -> {
+                                Log.d(TAG, "⚠️ Deleted note " + noteId + " (couldn't access subpages)");
+                                if (onComplete != null) onComplete.run();
+                            })
+                            .addOnFailureListener(e2 -> {
+                                Log.e(TAG, "❌ Failed to delete note: " + noteId, e2);
+                                if (onComplete != null) onComplete.run();
+                            });
+                });
+    }
+    // ✅ Delete a single schedule with its source document
+    private void deleteScheduleWithSource(String userId, String scheduleId, Runnable onComplete) {
+        Log.d(TAG, "🗑️ Deleting schedule: " + scheduleId);
+
+        // Step 1: Get the schedule to find sourceId
+        db.collection("users")
+                .document(userId)
+                .collection("schedules")
+                .document(scheduleId)
+                .get()
+                .addOnSuccessListener(scheduleDoc -> {
+                    if (scheduleDoc.exists()) {
+                        String sourceId = scheduleDoc.getString("sourceId");
+                        String category = scheduleDoc.getString("category");
+
+                        WriteBatch batch = db.batch();
+
+                        // Delete the schedule
+                        batch.delete(scheduleDoc.getReference());
+
+                        // Delete the source document if it exists
+                        if (sourceId != null && !sourceId.isEmpty() && category != null) {
+                            String sourceCollection = "todo".equals(category) ? "todoLists" : "weeklyPlans";
+
+                            batch.delete(
+                                    db.collection("users")
+                                            .document(userId)
+                                            .collection(sourceCollection)
+                                            .document(sourceId)
+                            );
+
+                            Log.d(TAG, "🗑️ Queued source for deletion: " + sourceCollection + "/" + sourceId);
+                        }
+
+                        batch.commit()
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "✅ Deleted schedule " + scheduleId + " with source");
+                                    if (onComplete != null) onComplete.run();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "❌ Failed to delete schedule with source: " + scheduleId, e);
+                                    if (onComplete != null) onComplete.run();
+                                });
+                    } else {
+                        Log.e(TAG, "❌ Schedule not found: " + scheduleId);
+                        if (onComplete != null) onComplete.run();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to get schedule: " + scheduleId, e);
+                    if (onComplete != null) onComplete.run();
+                });
+    }
+private void performBatchDeleteWithSource(String userId, List<ScheduleSourcePair> pairs, int totalCount) {
+        WriteBatch batch = db.batch();
+
+        for (ScheduleSourcePair pair : pairs) {
+            // Delete the schedule reference
             batch.delete(
                     db.collection("users")
-                            .document(user.getUid())
-                            .collection(collection)
-                            .document(note.getId())
+                            .document(userId)
+                            .collection("schedules")
+                            .document(pair.scheduleId)
             );
+
+            // Delete the source document if it exists
+            if (pair.sourceId != null && !pair.sourceId.isEmpty()) {
+                String sourceCollection = "todo".equals(pair.category) ? "todoLists" : "weeklyPlans";
+
+                batch.delete(
+                        db.collection("users")
+                                .document(userId)
+                                .collection(sourceCollection)
+                                .document(pair.sourceId)
+                );
+
+                Log.d(TAG, "Will delete " + sourceCollection + "/" + pair.sourceId);
+            }
         }
 
         batch.commit()
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this,
-                            selectedItems.size() + " item(s) permanently deleted",
+                            totalCount + " item(s) permanently deleted",
                             Toast.LENGTH_SHORT).show();
                     binAdapter.clearSelection();
+                    Log.d(TAG, "Successfully deleted schedules and sources");
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to delete items", e);
                     Toast.makeText(this, "Failed to delete items", Toast.LENGTH_SHORT).show();
                 });
+    }
+
+    // ✅ NEW HELPER CLASS
+    private static class ScheduleSourcePair {
+        String scheduleId;
+        String sourceId;
+        String category;
+
+        ScheduleSourcePair(String scheduleId, String sourceId, String category) {
+            this.scheduleId = scheduleId;
+            this.sourceId = sourceId;
+            this.category = category;
+        }
     }
 
     private void autoCleanupOldItems() {
@@ -298,38 +579,44 @@ public class Bin extends AppCompatActivity {
         cal.add(Calendar.DAY_OF_MONTH, -30);
         Date thirtyDaysAgo = cal.getTime();
 
-        // Cleanup old deleted notes
+        // ✅ Cleanup old deleted notes WITH subpages
         db.collection("users")
                 .document(user.getUid())
                 .collection("notes")
                 .whereLessThan("deletedAt", new Timestamp(thirtyDaysAgo))
                 .get()
                 .addOnSuccessListener(snapshots -> {
-                    WriteBatch batch = db.batch();
-                    for (QueryDocumentSnapshot doc : snapshots) {
-                        batch.delete(doc.getReference());
-                    }
-                    if (!snapshots.isEmpty()) {
-                        batch.commit();
-                        Log.d(TAG, "Auto-cleaned " + snapshots.size() + " old notes");
-                    }
-                });
+                    if (snapshots.isEmpty()) return;
 
-        // Cleanup old deleted schedules
-        db.collection("users")
-                .document(user.getUid())
-                .collection("schedules")
-                .whereLessThan("deletedAt", new Timestamp(thirtyDaysAgo))
-                .get()
-                .addOnSuccessListener(snapshots -> {
-                    WriteBatch batch = db.batch();
-                    for (QueryDocumentSnapshot doc : snapshots) {
-                        batch.delete(doc.getReference());
+                    for (QueryDocumentSnapshot noteDoc : snapshots) {
+                        String noteId = noteDoc.getId();
+
+                        // Delete subpages first - CHANGE "pages" to "subpages"
+                        db.collection("users")
+                                .document(user.getUid())
+                                .collection("notes")
+                                .document(noteId)
+                                .collection("subpages")  // ✅ CHANGED FROM "pages"
+                                .get()
+                                .addOnSuccessListener(pageSnapshots -> {
+                                    WriteBatch batch = db.batch();
+
+                                    // Delete all subpages
+                                    for (QueryDocumentSnapshot pageDoc : pageSnapshots) {
+                                        batch.delete(pageDoc.getReference());
+                                    }
+
+                                    // Delete the note itself
+                                    batch.delete(noteDoc.getReference());
+
+                                    batch.commit()
+                                            .addOnSuccessListener(aVoid -> {
+                                                Log.d(TAG, "Auto-cleaned note " + noteId + " with " + pageSnapshots.size() + " subpages");
+                                            });
+                                });
                     }
-                    if (!snapshots.isEmpty()) {
-                        batch.commit();
-                        Log.d(TAG, "Auto-cleaned " + snapshots.size() + " old schedules");
-                    }
+
+                    Log.d(TAG, "Auto-cleaning " + snapshots.size() + " old notes");
                 });
     }
 }

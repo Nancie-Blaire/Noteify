@@ -219,16 +219,21 @@ public class SignUp extends AppCompatActivity {
                         Log.d(TAG, "Unverified account deleted before Google sign-in");
                     }
                     auth.signOut();
-                    // Proceed with Google sign-in
-                    Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-                    startActivityForResult(signInIntent, RC_SIGN_IN);
+                    // ✅ Sign out from Google and show account picker
+                    mGoogleSignInClient.signOut().addOnCompleteListener(this, signOutTask -> {
+                        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+                        startActivityForResult(signInIntent, RC_SIGN_IN);
+                    });
                 });
                 return;
             }
         }
 
-        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-        startActivityForResult(signInIntent, RC_SIGN_IN);
+        // ✅ Always sign out from Google first to show account picker
+        mGoogleSignInClient.signOut().addOnCompleteListener(this, task -> {
+            Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+            startActivityForResult(signInIntent, RC_SIGN_IN);
+        });
     }
 
     @Override

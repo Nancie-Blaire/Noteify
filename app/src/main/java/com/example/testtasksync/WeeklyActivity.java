@@ -23,6 +23,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.text.SimpleDateFormat;
@@ -53,6 +54,7 @@ public class WeeklyActivity extends AppCompatActivity {
     private Map<String, LinearLayout> dayContainers = new HashMap<>();
     private Map<String, List<WeeklyTask>> dayTasks = new HashMap<>();
     private String selectedTime = "";
+    private ListenerRegistration tasksListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -278,6 +280,7 @@ public class WeeklyActivity extends AppCompatActivity {
                         }
                     }
                 });
+        setupTasksRealtimeListener(userId);
     }
     private void addTask(String day) {
         WeeklyTask task = new WeeklyTask();
@@ -895,6 +898,120 @@ public class WeeklyActivity extends AppCompatActivity {
         } else {
             weekRangeText.setText("Select week");
             clearWeekButton.setVisibility(View.GONE);
+        }
+    }
+
+    private void setupTasksRealtimeListener(String userId) {
+        if (tasksListener != null) {
+            tasksListener.remove();
+        }
+
+        tasksListener = db.collection("users")
+                .document(userId)
+                .collection("weeklyPlans")
+                .document(planId)
+                .collection("tasks")
+                .orderBy("position")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) {
+                        Log.e(TAG, "Tasks listener error", e);
+                        return;
+                    }
+
+                    if (snapshots == null || snapshots.isEmpty()) return;
+
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        String taskId = doc.getId();
+                        String day = doc.getString("day");
+                        String taskText = doc.getString("taskText");
+                        Boolean isCompleted = doc.getBoolean("isCompleted");
+
+                        Log.d(TAG, "🔄 Real-time update: " + taskText + " (" + day + ") -> " + isCompleted);
+
+                        // Find and update matching task
+                        List<WeeklyTask> tasks = dayTasks.get(day);
+                        if (tasks != null) {
+                            for (int i = 0; i < tasks.size(); i++) {
+                                WeeklyTask task = tasks.get(i);
+
+                                // ✅ Match by ID if available, otherwise by text
+                                boolean matches = false;
+                                if (!task.getId().isEmpty() && task.getId().equals(taskId)) {
+                                    matches = true;
+                                } else if (task.getTaskText().equals(taskText)) {
+                                    matches = true;
+                                    task.setId(taskId); // ✅ Update task ID
+                                }
+
+                                if (matches) {
+                                    boolean newStatus = isCompleted != null && isCompleted;
+                                    if (task.isCompleted() != newStatus) {
+                                        Log.d(TAG, "✅ Updating UI for task: " + taskText);
+                                        task.setCompleted(newStatus);
+
+                                        // Update UI
+                                        LinearLayout container = dayContainers.get(day);
+                                        if (container != null && i < container.getChildCount()) {
+                                            View taskView = container.getChildAt(i);
+                                            if (taskView != null) {
+                                                CheckBox checkbox = taskView.findViewById(R.id.taskCheckbox);
+                                                EditText taskTextView = taskView.findViewById(R.id.taskEditText);
+
+                                                // Remove listener temporarily
+                                                checkbox.setOnCheckedChangeListener(null);
+                                                checkbox.setChecked(newStatus);
+
+                                                // Apply strikethrough
+                                                if (newStatus) {
+                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+                                                } else {
+                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.black));
+                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+                                                }
+
+                                                // Re-attach listener
+                                                checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                                                    task.setCompleted(isChecked);
+                                                    if (isChecked) {
+                                                        taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                                                        taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+                                                    } else {
+                                                        taskTextView.setTextColor(getResources().getColor(android.R.color.black));
+                                                        taskTextView.setPaintFlags(taskTextView.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+                                                    }
+
+                                                    if (!isNewPlan && task.getId() != null && !task.getId().isEmpty()) {
+                                                        FirebaseUser user = auth.getCurrentUser();
+                                                        if (user != null) {
+                                                            db.collection("users")
+                                                                    .document(user.getUid())
+                                                                    .collection("weeklyPlans")
+                                                                    .document(planId)
+                                                                    .collection("tasks")
+                                                                    .document(task.getId())
+                                                                    .update("isCompleted", isChecked)
+                                                                    .addOnSuccessListener(aVoid -> {
+                                                                        Log.d(TAG, "✅ Task completion updated");
+                                                                    });
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+    }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (tasksListener != null) {
+            tasksListener.remove();
         }
     }
 }

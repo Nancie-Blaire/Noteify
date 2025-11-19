@@ -29,6 +29,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.text.SimpleDateFormat;
@@ -64,6 +65,7 @@ public class TodoActivity extends AppCompatActivity {
     // Auto-save handler
     private Handler autoSaveHandler = new Handler();
     private Runnable autoSaveRunnable;
+    private ListenerRegistration tasksListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -610,6 +612,7 @@ public class TodoActivity extends AppCompatActivity {
                     addTask();
                     addTask();
                 });
+        setupTasksRealtimeListener(userId);
     }
 
     // ========================================
@@ -742,34 +745,47 @@ public class TodoActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
+        // ✅ FIXED: Find task by ID instead of text/position
         db.collection("users")
                 .document(user.getUid())
                 .collection("todoLists")
                 .document(listId)
                 .collection("tasks")
-                .whereEqualTo("taskText", task.getTaskText())
-                .whereEqualTo("position", task.getPosition())
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        String taskDocId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        String docTaskText = doc.getString("taskText");
+                        Long docPosition = doc.getLong("position");
 
-                        db.collection("users")
-                                .document(user.getUid())
-                                .collection("todoLists")
-                                .document(listId)
-                                .collection("tasks")
-                                .document(taskDocId)
-                                .update("isCompleted", task.isCompleted())
-                                .addOnSuccessListener(aVoid -> {
-                                    Log.d(TAG, "Task completion status updated");
-                                })
-                                .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Failed to update task completion", e);
-                                });
+                        // Match by text AND position
+                        if (task.getTaskText().equals(docTaskText) &&
+                                task.getPosition() == (docPosition != null ? docPosition.intValue() : -1)) {
+
+                            String taskDocId = doc.getId();
+                            task.setId(taskDocId); // ✅ Update task ID
+
+                            db.collection("users")
+                                    .document(user.getUid())
+                                    .collection("todoLists")
+                                    .document(listId)
+                                    .collection("tasks")
+                                    .document(taskDocId)
+                                    .update("isCompleted", task.isCompleted())
+                                    .addOnSuccessListener(aVoid -> {
+                                        Log.d(TAG, "✅ Task completion status updated: " + task.isCompleted());
+                                    })
+                                    .addOnFailureListener(e -> {
+                                        Log.e(TAG, "Failed to update task completion", e);
+                                    });
+                            break;
+                        }
                     }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to find task", e);
                 });
     }
+
     // ========================================
     // UPDATE TASK SCHEDULE DISPLAY
     // ========================================
@@ -1141,5 +1157,98 @@ public class TodoActivity extends AppCompatActivity {
         if (autoSaveHandler != null && autoSaveRunnable != null) {
             autoSaveHandler.removeCallbacks(autoSaveRunnable);
         }
+        // ✅ Add this:
+        if (tasksListener != null) {
+            tasksListener.remove();
+        }
+    }
+
+    private void setupTasksRealtimeListener(String userId) {
+        if (tasksListener != null) {
+            tasksListener.remove();
+        }
+
+        tasksListener = db.collection("users")
+                .document(userId)
+                .collection("todoLists")
+                .document(listId)
+                .collection("tasks")
+                .orderBy("position")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) {
+                        Log.e(TAG, "Tasks listener error", e);
+                        return;
+                    }
+
+                    if (snapshots == null || snapshots.isEmpty()) return;
+
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        String taskId = doc.getId();
+                        String taskText = doc.getString("taskText");
+                        Boolean isCompleted = doc.getBoolean("isCompleted");
+                        Long position = doc.getLong("position");
+
+                        Log.d(TAG, "🔄 Real-time update: " + taskText + " -> " + isCompleted);
+
+                        // Find and update matching task in UI
+                        for (int i = 0; i < taskList.size(); i++) {
+                            TodoTask task = taskList.get(i);
+
+                            // ✅ Match by ID if available, otherwise by text and position
+                            boolean matches = false;
+                            if (!task.getId().isEmpty() && task.getId().equals(taskId)) {
+                                matches = true;
+                            } else if (task.getTaskText().equals(taskText) &&
+                                    position != null && task.getPosition() == position.intValue()) {
+                                matches = true;
+                                task.setId(taskId); // ✅ Update task ID
+                            }
+
+                            if (matches) {
+                                boolean newStatus = isCompleted != null && isCompleted;
+                                if (task.isCompleted() != newStatus) {
+                                    Log.d(TAG, "✅ Updating UI for task: " + taskText);
+                                    task.setCompleted(newStatus);
+
+                                    // Update the UI
+                                    if (i < tasksContainer.getChildCount()) {
+                                        View taskView = tasksContainer.getChildAt(i);
+                                        if (taskView != null) {
+                                            CheckBox checkbox = taskView.findViewById(R.id.todoCheckbox);
+                                            EditText taskTextView = taskView.findViewById(R.id.todoEditText);
+
+                                            // Remove listener temporarily
+                                            checkbox.setOnCheckedChangeListener(null);
+                                            checkbox.setChecked(newStatus);
+
+                                            // Apply strikethrough
+                                            if (newStatus) {
+                                                taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                                                taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+                                            } else {
+                                                taskTextView.setTextColor(getResources().getColor(android.R.color.black));
+                                                taskTextView.setPaintFlags(taskTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+                                            }
+
+                                            // Re-attach listener
+                                            checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                                                task.setCompleted(isChecked);
+                                                if (isChecked) {
+                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+                                                } else {
+                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.black));
+                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+                                                }
+                                                updateTaskCompletionInFirebase(task);
+                                            });
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                });
     }
 }

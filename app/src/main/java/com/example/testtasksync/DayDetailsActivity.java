@@ -115,13 +115,13 @@ public class DayDetailsActivity extends AppCompatActivity {
 
         scheduleList = new ArrayList<>();
 
+        // ✅✅✅ CRITICAL FIX: Create adapter ONCE with ALL listeners set IMMEDIATELY
         adapter = new DayScheduleAdapter(scheduleList, new DayScheduleAdapter.OnScheduleClickListener() {
             @Override
             public void onScheduleClick(Schedule schedule) {
                 if (isDeleteMode) {
                     toggleScheduleSelection(schedule);
                 } else {
-                    // ✅ NEW: Navigate directly to the source activity
                     openScheduleSource(schedule);
                 }
             }
@@ -133,10 +133,22 @@ public class DayDetailsActivity extends AppCompatActivity {
             }
         });
 
+        // ✅✅✅ Set completion listener RIGHT AFTER creating adapter
+        adapter.setCompletionListener(new DayScheduleAdapter.OnTaskCompletionListener() {
+            @Override
+            public void onTaskCompleted(Schedule schedule) {
+                Log.d(TAG, "🎯 onCreate: completionListener TRIGGERED for: " + schedule.getTitle());
+                handleTaskCompletion(schedule);
+            }
+        });
+
+        Log.d(TAG, "✅ Adapter created and completion listener set!");
+
         schedulesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         schedulesRecyclerView.setAdapter(adapter);
 
         backButton.setOnClickListener(v -> finish());
+
         addScheduleButton.setOnClickListener(v -> {
             showAddScheduleDialog();
         });
@@ -147,9 +159,169 @@ public class DayDetailsActivity extends AppCompatActivity {
             }
         });
 
+        // ✅ Load schedules AFTER adapter is fully configured
         loadSchedulesForDate();
     }
+    private static final long REMOVAL_DELAY_MS = 600;
 
+    private void handleTaskCompletion(Schedule schedule) {
+        Log.d(TAG, "🔥 handleTaskCompletion CALLED for: " + schedule.getTitle());
+        Log.d(TAG, "🔥 Schedule ID: " + schedule.getId());
+        Log.d(TAG, "🔥 Category: " + schedule.getCategory());
+        Log.d(TAG, "🔥 Current list size: " + scheduleList.size());
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            Log.e(TAG, "❌ User is null!");
+            return;
+        }
+
+        String category = schedule.getCategory();
+        String sourceId = schedule.getSourceId();
+
+        // ✅ Find the position first (DON'T remove yet - animate first!)
+        int removedPosition = -1;
+        for (int i = scheduleList.size() - 1; i >= 0; i--) {
+            if (scheduleList.get(i).getId().equals(schedule.getId())) {
+                Log.d(TAG, "✅ Found item at position: " + i);
+                removedPosition = i;
+                break;
+            }
+        }
+
+        if (removedPosition == -1) {
+            Log.e(TAG, "❌ Item not found in list!");
+            return;
+        }
+
+        final int finalPosition = removedPosition;
+
+        // ✅ Add smooth animation BEFORE removing
+        View itemView = schedulesRecyclerView.getLayoutManager().findViewByPosition(finalPosition);
+        if (itemView != null) {
+            itemView.animate()
+                    .alpha(0f)
+                    .translationX(-itemView.getWidth())
+                    .setDuration(REMOVAL_DELAY_MS)
+                    .withEndAction(() -> {
+                        // Remove from list AFTER animation
+                        scheduleList.remove(finalPosition);
+                        adapter.notifyItemRemoved(finalPosition);
+                        updateScheduleDisplay();
+                        Log.d(TAG, "📊 After removal, list size: " + scheduleList.size());
+                    })
+                    .start();
+        } else {
+            // Fallback if view not found (just remove immediately)
+            scheduleList.remove(finalPosition);
+            adapter.notifyItemRemoved(finalPosition);
+            updateScheduleDisplay();
+        }
+
+        // ✅ Update Firestore (happens in parallel with animation)
+        if ("weekly".equals(category)) {
+            // Mark weekly task as completed
+            String taskId = schedule.getId().replace(sourceId + "_", "");
+            Log.d(TAG, "📝 Updating weekly task: " + taskId);
+
+            db.collection("users")
+                    .document(user.getUid())
+                    .collection("weeklyPlans")
+                    .document(sourceId)
+                    .collection("tasks")
+                    .document(taskId)
+                    .update("isCompleted", true)
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "✅ Weekly task marked as completed in Firestore");
+                        Toast.makeText(this, "✓ Task completed", Toast.LENGTH_SHORT).show();
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "❌ Failed to complete weekly task", e);
+                        Toast.makeText(this, "Failed to complete task", Toast.LENGTH_SHORT).show();
+
+                        // ✅ Rollback: Re-add the item if Firestore update failed
+                        scheduleList.add(schedule);
+                        Collections.sort(scheduleList, (s1, s2) -> {
+                            String t1 = s1.getTime() != null ? s1.getTime() : "";
+                            String t2 = s2.getTime() != null ? s2.getTime() : "";
+                            return t1.compareTo(t2);
+                        });
+                        adapter.notifyDataSetChanged();
+                        updateScheduleDisplay();
+                    });
+
+        } else if ("todo_task".equals(category)) {
+            // Mark todo task as completed
+            String taskId = schedule.getId().replace(sourceId + "_task_", "");
+            Log.d(TAG, "📝 Updating todo task: " + taskId);
+
+            db.collection("users")
+                    .document(user.getUid())
+                    .collection("todoLists")
+                    .document(sourceId)
+                    .collection("tasks")
+                    .document(taskId)
+                    .update("isCompleted", true)
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "✅ Todo task marked as completed in Firestore");
+                        Toast.makeText(this, "✓ Task completed", Toast.LENGTH_SHORT).show();
+
+                        // ✅ UPDATE: Also update the todoList's completion count
+                        updateTodoListCompletionCount(user.getUid(), sourceId);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "❌ Failed to complete todo task", e);
+                        Toast.makeText(this, "Failed to complete task", Toast.LENGTH_SHORT).show();
+
+                        // ✅ Rollback: Re-add the item if Firestore update failed
+                        scheduleList.add(schedule);
+                        Collections.sort(scheduleList, (s1, s2) -> {
+                            String t1 = s1.getTime() != null ? s1.getTime() : "";
+                            String t2 = s2.getTime() != null ? s2.getTime() : "";
+                            return t1.compareTo(t2);
+                        });
+                        adapter.notifyDataSetChanged();
+                        updateScheduleDisplay();
+                    });
+        } else {
+            Log.e(TAG, "❌ Unknown category: " + category);
+        }
+    }
+
+    private void updateTodoListCompletionCount(String userId, String listId) {
+        db.collection("users")
+                .document(userId)
+                .collection("todoLists")
+                .document(listId)
+                .collection("tasks")
+                .get()
+                .addOnSuccessListener(taskSnapshots -> {
+                    int totalTasks = 0;
+                    int completedTasks = 0;
+
+                    for (QueryDocumentSnapshot doc : taskSnapshots) {
+                        String taskText = doc.getString("taskText");
+                        if (taskText != null && !taskText.trim().isEmpty()) {
+                            totalTasks++;
+                            Boolean isCompleted = doc.getBoolean("isCompleted");
+                            if (isCompleted != null && isCompleted) {
+                                completedTasks++;
+                            }
+                        }
+                    }
+
+                    // Update the list metadata
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("taskCount", totalTasks);
+                    updates.put("completedCount", completedTasks);
+
+                    db.collection("users")
+                            .document(userId)
+                            .collection("todoLists")
+                            .document(listId)
+                            .update(updates);
+                });
+    }
     private void checkIfHoliday() {
         int year = selectedDate.get(Calendar.YEAR);
         int month = selectedDate.get(Calendar.MONTH);
@@ -266,7 +438,7 @@ public class DayDetailsActivity extends AppCompatActivity {
         Timestamp startTimestamp = new Timestamp(startOfDay.getTime());
         Timestamp endTimestamp = new Timestamp(endOfDay.getTime());
 
-        Log.d(TAG, "📅 Loading scheduled todo tasks for date");
+        Log.d(TAG, "Loading scheduled todo tasks for date");
 
         todoTasksListener = db.collection("users")
                 .document(user.getUid())
@@ -295,7 +467,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     for (QueryDocumentSnapshot listDoc : listSnapshots) {
                         // ✅ SKIP DELETED TODO LISTS
                         if (listDoc.get("deletedAt") != null) {
-                            Log.d(TAG, "⭕️ Skipping deleted todo list: " + listDoc.getId());
+                            Log.d(TAG, "Skipping deleted todo list: " + listDoc.getId());
                             int completed = completedQueries.incrementAndGet();
                             if (completed == totalLists) {
                                 updateScheduleDisplay();
@@ -324,7 +496,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                                         if (taskText != null && !taskText.trim().isEmpty()) {
                                             // ✅ Skip completed tasks
                                             if (isCompleted != null && isCompleted) {
-                                                Log.d(TAG, "⭐️ Skipping completed task: " + taskText);
+                                                Log.d(TAG, "Skipping completed task: " + taskText);
                                                 continue;
                                             }
 
@@ -696,6 +868,7 @@ public class DayDetailsActivity extends AppCompatActivity {
             String category = schedule.getCategory();
 
             if ("weekly".equals(category)) {
+                // ✅ Delete weekly task (stays the same)
                 String sourceId = schedule.getSourceId();
                 if (sourceId != null) {
                     String taskId = schedule.getId().replace(sourceId + "_", "");
@@ -709,6 +882,9 @@ public class DayDetailsActivity extends AppCompatActivity {
                             .delete()
                             .addOnSuccessListener(aVoid -> {
                                 Log.d(TAG, "Weekly task deleted");
+                                // ✅ Remove from local list immediately
+                                scheduleList.remove(schedule);
+                                updateScheduleDisplay();
                             })
                             .addOnFailureListener(e -> {
                                 Log.e(TAG, "Failed to delete weekly task", e);
@@ -716,7 +892,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     deleteCount++;
                 }
             } else if ("todo_task".equals(category)) {
-                // ✅ This is for tasks from todo lists
+                // ✅ Delete individual todo task (immediate delete)
                 String sourceId = schedule.getSourceId();
                 if (sourceId != null) {
                     String taskId = schedule.getId().replace(sourceId + "_task_", "");
@@ -729,7 +905,10 @@ public class DayDetailsActivity extends AppCompatActivity {
                             .document(taskId)
                             .delete()
                             .addOnSuccessListener(aVoid -> {
-                                Log.d(TAG, "Todo task deleted");
+                                Log.d(TAG, "✅ Todo task deleted immediately");
+                                // ✅ Remove from local list immediately
+                                scheduleList.remove(schedule);
+                                updateScheduleDisplay();
                             })
                             .addOnFailureListener(e -> {
                                 Log.e(TAG, "Failed to delete todo task", e);
@@ -737,18 +916,34 @@ public class DayDetailsActivity extends AppCompatActivity {
                     deleteCount++;
                 }
             } else {
-                // ✅ This handles regular "todo" schedules and any other category
-                // These are stored directly in the schedules collection
+                // ✅ FIXED: Soft delete for "todo" category (and any other category)
+                // Instead of .delete(), use soft delete by setting deletedAt
                 db.collection("users")
                         .document(user.getUid())
                         .collection("schedules")
                         .document(schedule.getId())
-                        .delete()
+                        .update("deletedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
                         .addOnSuccessListener(aVoid -> {
-                            Log.d(TAG, "Schedule deleted");
+                            Log.d(TAG, "✅ Schedule soft-deleted (sent to Bin)");
+
+                            // ✅ Also soft delete the source todoList if it exists
+                            String sourceId = schedule.getSourceId();
+                            if (sourceId != null && !sourceId.isEmpty()) {
+                                db.collection("users")
+                                        .document(user.getUid())
+                                        .collection("todoLists")
+                                        .document(sourceId)
+                                        .update("deletedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
+                                        .addOnSuccessListener(aVoid2 -> {
+                                            Log.d(TAG, "✅ TodoList source also soft-deleted");
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.e(TAG, "Failed to soft-delete todoList source", e);
+                                        });
+                            }
                         })
                         .addOnFailureListener(e -> {
-                            Log.e(TAG, "Failed to delete schedule", e);
+                            Log.e(TAG, "Failed to soft-delete schedule", e);
                         });
                 deleteCount++;
             }

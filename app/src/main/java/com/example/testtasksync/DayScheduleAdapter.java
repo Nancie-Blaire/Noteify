@@ -4,6 +4,7 @@ import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -17,6 +18,7 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
 
     private List<Schedule> scheduleList;
     private OnScheduleClickListener listener;
+    private OnTaskCompletionListener completionListener;
     private boolean isDeleteMode = false;
     private List<Schedule> selectedSchedules = new ArrayList<>();
 
@@ -25,9 +27,19 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
         void onScheduleLongClick(Schedule schedule);
     }
 
+    // ✅ Listener for checkbox clicks
+    public interface OnTaskCompletionListener {
+        void onTaskCompleted(Schedule schedule);
+    }
+
     public DayScheduleAdapter(List<Schedule> scheduleList, OnScheduleClickListener listener) {
         this.scheduleList = scheduleList;
         this.listener = listener;
+    }
+
+    // ✅ Set completion listener
+    public void setCompletionListener(OnTaskCompletionListener listener) {
+        this.completionListener = listener;
     }
 
     public void setDeleteMode(boolean deleteMode) {
@@ -53,7 +65,7 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
     @Override
     public void onBindViewHolder(@NonNull ScheduleViewHolder holder, int position) {
         Schedule schedule = scheduleList.get(position);
-        holder.bind(schedule, listener, isDeleteMode, selectedSchedules.contains(schedule));
+        holder.bind(schedule, listener, completionListener, isDeleteMode, selectedSchedules.contains(schedule));
     }
 
     @Override
@@ -66,6 +78,7 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
         TextView scheduleTime, scheduleAmPm;
         ImageView reminderIcon;
         View categoryIndicator;
+        CheckBox scheduleCheckbox;
 
         public ScheduleViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -76,9 +89,11 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
             scheduleTime = itemView.findViewById(R.id.scheduleTime);
             scheduleAmPm = itemView.findViewById(R.id.scheduleAmPm);
             categoryIndicator = itemView.findViewById(R.id.categoryIndicator);
+            scheduleCheckbox = itemView.findViewById(R.id.scheduleCheckbox);
         }
 
-        public void bind(Schedule schedule, OnScheduleClickListener listener, boolean isDeleteMode, boolean isSelected) {
+        public void bind(Schedule schedule, OnScheduleClickListener listener,
+                         OnTaskCompletionListener completionListener, boolean isDeleteMode, boolean isSelected) {
             // Set title
             scheduleTitle.setText(schedule.getTitle());
 
@@ -122,6 +137,37 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
             // Show reminder icon if reminder is set
             reminderIcon.setVisibility(schedule.hasReminder() ? View.VISIBLE : View.GONE);
 
+            // ✅ Show checkbox only for weekly and todo_task categories
+            String scheduleCategory = schedule.getCategory();
+            android.util.Log.d("DayScheduleAdapter", "🔍 Binding schedule: " + schedule.getTitle() + " | Category: " + scheduleCategory);
+
+            if ("weekly".equals(scheduleCategory) || "todo_task".equals(scheduleCategory)) {
+                scheduleCheckbox.setVisibility(View.VISIBLE);
+
+                android.util.Log.d("DayScheduleAdapter", "✅ Showing checkbox for: " + schedule.getTitle());
+
+                // ✅ CRITICAL: Remove listener BEFORE setting checked state to prevent false triggers
+                scheduleCheckbox.setOnCheckedChangeListener(null);
+                scheduleCheckbox.setChecked(false); // Reset to unchecked
+
+                // ✅ Set listener AFTER resetting checked state
+                scheduleCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    android.util.Log.d("DayScheduleAdapter", "📦 Checkbox changed! Checked: " + isChecked + " | Task: " + schedule.getTitle());
+
+                    if (isChecked) {
+                        if (completionListener != null) {
+                            android.util.Log.d("DayScheduleAdapter", "🚀 Calling completionListener.onTaskCompleted()");
+                            completionListener.onTaskCompleted(schedule);
+                        } else {
+                            android.util.Log.e("DayScheduleAdapter", "❌ completionListener is NULL!");
+                        }
+                    }
+                });
+            } else {
+                scheduleCheckbox.setVisibility(View.GONE);
+                scheduleCheckbox.setOnCheckedChangeListener(null); // Clear listener
+            }
+
             // Highlight if selected in delete mode
             if (isDeleteMode && isSelected) {
                 itemView.setBackgroundColor(Color.parseColor("#E3F2FD"));
@@ -147,9 +193,9 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
         private int getCategoryColor(String category) {
             switch (category) {
                 case "todo":
-                    return Color.parseColor("#4CAF50");// Green
-                case "todo_task": // ✅ NEW
-                    return Color.parseColor("#66BB6A");
+                    return Color.parseColor("#4CAF50"); // Green
+                case "todo_task":
+                    return Color.parseColor("#66BB6A"); // Light Green
                 case "weekly":
                     return Color.parseColor("#2196F3"); // Blue
                 case "holiday":
@@ -163,7 +209,7 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
             switch (category) {
                 case "todo":
                     return "To-Do";
-                case "todo_task": // ✅ NEW
+                case "todo_task":
                     return "To-Do Task";
                 case "weekly":
                     return "Weekly";

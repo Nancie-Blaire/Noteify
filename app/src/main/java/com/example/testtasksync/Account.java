@@ -1,13 +1,15 @@
 package com.example.testtasksync;
 
+import android.content.DialogInterface; // Idagdag ito
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Button;
+import android.util.Log;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog; // Idagdag ito
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -20,7 +22,9 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 public class Account extends AppCompatActivity {
 
-    private TextView btnLogout, btnEditProfile, tvChangePassword;
+    private static final String TAG = "AccountActivity";
+
+    private TextView btnLogout, btnEditProfile, tvChangePassword, tvDeleteAccount;
     private ImageView ivProfilePicture;
     private TextView tvUserName, tvUserEmail;
     private FirebaseAuth auth;
@@ -47,6 +51,7 @@ public class Account extends AppCompatActivity {
         btnLogout = findViewById(R.id.btnLogout);
         btnEditProfile = findViewById(R.id.btnEditProfile);
         tvChangePassword = findViewById(R.id.tvChangePassword);
+        tvDeleteAccount = findViewById(R.id.tvDeleteAccount);
 
         // Load user profile
         loadUserProfile();
@@ -61,7 +66,7 @@ public class Account extends AppCompatActivity {
             startActivity(intent);
             finish();
         });
-        
+
         // Edit Profile Button
         btnEditProfile.setOnClickListener(v -> {
             Intent intent = new Intent(Account.this, EditProfileActivity.class);
@@ -72,6 +77,11 @@ public class Account extends AppCompatActivity {
         tvChangePassword.setOnClickListener(v -> {
             Intent intent = new Intent(Account.this, ChangePasswordActivity.class);
             startActivity(intent);
+        });
+
+        // Delete Account Button
+        tvDeleteAccount.setOnClickListener(v -> {
+            showDeleteConfirmationDialog(); // Tatawagin ang confirmation dialog
         });
     }
 
@@ -161,10 +171,63 @@ public class Account extends AppCompatActivity {
         // TODO: You can create a custom drawable with first letter + colored circle
         // For now, just show default icon
         ivProfilePicture.setImageResource(R.drawable.ic_settings_account);
+    }
 
-        /* Optional: Create colored circle with initials
-        String firstLetter = name.substring(0, 1).toUpperCase();
-        // Use a library like "Android-Letter-Avatar" or create custom drawable
-        */
+    /**
+     * Ipinapakita ang confirmation dialog bago i-delete ang account.
+     */
+    private void showDeleteConfirmationDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Account")
+                .setMessage("Are you sure you want to permanently delete your account? All your data will be lost.")
+                .setPositiveButton("Delete", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // Kung pinindot ang "Delete", tawagin ang actual delete function
+                        deleteUserAccount();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null) // Walang gagawin kapag pinindot ang Cancel
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
+    }
+
+    /**
+     * Handles the user account deletion process, including Firestore data cleanup.
+     */
+    private void deleteUserAccount() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 1. Delete user data from Firestore first
+        db.collection("users").document(user.getUid())
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "User data successfully deleted from Firestore!");
+                    // 2. Then, delete the Firebase Auth user account
+                    user.delete()
+                            .addOnCompleteListener(task -> {
+                                if (task.isSuccessful()) {
+                                    Log.d(TAG, "User account deleted.");
+                                    Toast.makeText(Account.this, "Account deleted successfully.", Toast.LENGTH_LONG).show();
+
+                                    // Redirect to Login screen
+                                    Intent intent = new Intent(Account.this, Login.class);
+                                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                    startActivity(intent);
+                                    finish();
+                                } else {
+                                    // Handle failure. Needs re-authentication if the user's login session is too old.
+                                    Log.w(TAG, "Failed to delete user account: " + task.getException());
+                                    Toast.makeText(Account.this, "Failed to delete account. Please log out and log in again, then try deleting.", Toast.LENGTH_LONG).show();
+                                }
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    Log.w(TAG, "Error deleting user data from Firestore: " + e.getMessage());
+                    Toast.makeText(Account.this, "Failed to delete user data. Please try again.", Toast.LENGTH_SHORT).show();
+                });
     }
 }

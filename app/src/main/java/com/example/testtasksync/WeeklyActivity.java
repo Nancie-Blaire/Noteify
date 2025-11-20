@@ -34,9 +34,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 public class WeeklyActivity extends AppCompatActivity {
 
+    private boolean hasReminder = false;
+    private int reminderMinutes = 60;
+    private static final int NOTIFICATION_PERMISSION_CODE = 100;
     private static final String TAG = "WeeklyActivity";
     private FirebaseFirestore db;
     private FirebaseAuth auth;
@@ -75,6 +83,8 @@ public class WeeklyActivity extends AppCompatActivity {
         backButton = findViewById(R.id.backButton);
         scheduleButton = findViewById(R.id.scheduleButton);
 
+        NotificationHelper.createNotificationChannel(this);
+        requestNotificationPermission();
         // Initialize with current week by default
         setCurrentWeek();
 
@@ -116,6 +126,19 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         } else {
             loadWeeklyPlan();
+        }
+
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_CODE);
+            }
         }
     }
 
@@ -210,9 +233,40 @@ public class WeeklyActivity extends AppCompatActivity {
                                 endDate.add(Calendar.DAY_OF_MONTH, 6);
                             }
                         }
-                    }
 
-                    // ✅ Load tasks after plan details
+                        // ========================================
+                        // ✅ NEW: LOAD NOTIFICATION SETTINGS MULA SA SCHEDULES COLLECTION
+                        db.collection("users")
+                                .document(userId)
+                                .collection("schedules")
+                                .whereEqualTo("sourceId", planId)
+                                .whereEqualTo("category", "weekly")
+                                .get()
+                                .addOnSuccessListener(scheduleSnapshots -> {
+                                    if (!scheduleSnapshots.isEmpty()) {
+                                        DocumentSnapshot scheduleDoc = scheduleSnapshots.getDocuments().get(0);
+                                        Boolean hasReminderFromSchedule = scheduleDoc.getBoolean("hasReminder");
+                                        Long reminderMinutesFromSchedule = scheduleDoc.getLong("reminderMinutes");
+
+                                        if (hasReminderFromSchedule != null) {
+                                            // Update the class variable
+                                            hasReminder = hasReminderFromSchedule;
+                                        }
+                                        if (reminderMinutesFromSchedule != null) {
+                                            // Update the class variable
+                                            reminderMinutes = reminderMinutesFromSchedule.intValue();
+                                        }
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to load schedule notification settings", e);
+                                });
+                        // END OF NEW CODE
+                        // ========================================
+
+                    } // End of if (documentSnapshot.exists())
+
+                    // ✅ Load tasks after plan details and notification settings are initiated
                     loadWeeklyPlanTasks(userId);
                 })
                 .addOnFailureListener(e -> {
@@ -220,7 +274,6 @@ public class WeeklyActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load plan", Toast.LENGTH_SHORT).show();
                 });
     }
-
     // ✅ NEW: Separate method to load tasks
     private void loadWeeklyPlanTasks(String userId) {
         db.collection("users")
@@ -453,7 +506,9 @@ public class WeeklyActivity extends AppCompatActivity {
 
         // âœ… ADD TIME to mainScheduleData
         mainScheduleData.put("time", selectedTime != null ? selectedTime : "");
-        mainScheduleData.put("hasReminder", false);
+        mainScheduleData.put("hasReminder", hasReminder);
+        mainScheduleData.put("reminderMinutes", reminderMinutes);
+
 
         // Generate new ID if this is a new plan
         if (isNewPlan) {
@@ -557,9 +612,38 @@ public class WeeklyActivity extends AppCompatActivity {
                                             .add(taskData)
                                             .addOnSuccessListener(documentReference -> {
                                                 savedCount[0]++;
+
+                                                // 1. Tiyakin na na-save na ang lahat ng tasks
                                                 if (savedCount[0] == finalTasksToSave) {
                                                     // All tasks saved, now create main schedule
                                                     createOrUpdateMainSchedule(userId, planId, mainScheduleData);
+
+                                                    // 2. ✅ DITO ILALAGAY ANG NEW CODE: Schedule notifications
+                                                    if (hasReminder && selectedTime != null && !selectedTime.isEmpty() && startDate != null) {
+                                                        for (String d : days) { // Gumamit ng 'd' para maiwasan ang conflict sa variable na 'day' sa labas
+                                                            List<WeeklyTask> loopTasks = dayTasks.get(d);
+                                                            if (loopTasks != null) {
+                                                                for (WeeklyTask loopTask : loopTasks) {
+                                                                    if (!loopTask.getTaskText().trim().isEmpty() && !loopTask.isCompleted()) {
+                                                                        // Schedule notification for this day's task
+                                                                        NotificationHelper.scheduleWeeklyTaskNotification(
+                                                                                this,
+                                                                                loopTask.getId(),
+                                                                                planTitle,
+                                                                                loopTask.getTaskText(),
+                                                                                d,
+                                                                                startDate.getTime(),
+                                                                                selectedTime,
+                                                                                reminderMinutes
+                                                                        );
+
+                                                                        Log.d(TAG, "📢 Scheduled notification for " + d + ": " + loopTask.getTaskText());
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    // ✅ END OF NEW CODE
                                                 }
                                             })
                                             .addOnFailureListener(e -> {
@@ -575,7 +659,6 @@ public class WeeklyActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
                 });
     }
-
     private void createOrUpdateMainSchedule(String userId, String planId,
                                             Map<String, Object> mainScheduleData) {
         // Add sourceId to link back to the weekly plan
@@ -670,11 +753,15 @@ public class WeeklyActivity extends AppCompatActivity {
         android.widget.Button cancelButton = dialogView.findViewById(R.id.cancelButton);
         android.widget.Button saveScheduleButton = dialogView.findViewById(R.id.saveScheduleButton);
 
-        // Setup notification spinner
-        android.widget.ArrayAdapter<CharSequence> adapter = android.widget.ArrayAdapter.createFromResource(
+        // ✅ NEW: Setup notification spinner
+        String[] notificationTimes = {"5 minutes", "10 minutes", "15 minutes", "30 minutes",
+                "1 hour", "2 hours", "1 day"};
+        int[] notificationMinutes = {5, 10, 15, 30, 60, 120, 1440};
+
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
                 this,
-                R.array.reminder_times,
-                android.R.layout.simple_spinner_item
+                android.R.layout.simple_spinner_item,
+                notificationTimes
         );
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         notificationTimeSpinner.setAdapter(adapter);
@@ -685,6 +772,18 @@ public class WeeklyActivity extends AppCompatActivity {
         } else {
             setCurrentWeek();
             updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
+        }
+
+        // ✅ NEW: Load existing notification settings
+        notificationCheckbox.setChecked(hasReminder);
+        notificationTimeSection.setVisibility(hasReminder ? View.VISIBLE : View.GONE);
+
+        // Set spinner to saved notification time
+        for (int i = 0; i < notificationMinutes.length; i++) {
+            if (notificationMinutes[i] == reminderMinutes) {
+                notificationTimeSpinner.setSelection(i);
+                break;
+            }
         }
 
         // Week range picker
@@ -715,7 +814,7 @@ public class WeeklyActivity extends AppCompatActivity {
             timeDialog.show();
         });
 
-        // Notification checkbox
+        // ✅ NEW: Notification checkbox listener
         notificationCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             notificationTimeSection.setVisibility(isChecked ? View.VISIBLE : View.GONE);
         });
@@ -723,16 +822,18 @@ public class WeeklyActivity extends AppCompatActivity {
         // Cancel button
         cancelButton.setOnClickListener(v -> dialog.dismiss());
 
+        // ✅ UPDATED: Save button with notification handling
         saveScheduleButton.setOnClickListener(v -> {
             String selectedTimeValue = selectedTimeText.getText().toString();
-            boolean hasNotification = notificationCheckbox.isChecked();
-            String reminderTime = "";
 
-            if (hasNotification) {
-                reminderTime = notificationTimeSpinner.getSelectedItem().toString();
+            // ✅ Save notification settings
+            hasReminder = notificationCheckbox.isChecked();
+            if (hasReminder) {
+                int selectedPos = notificationTimeSpinner.getSelectedItemPosition();
+                reminderMinutes = notificationMinutes[selectedPos];
             }
 
-            // âœ… Save the time to the class variable
+            // Save the time
             if (!selectedTimeValue.equals("Select time")) {
                 selectedTime = selectedTimeValue;
             } else {
@@ -748,8 +849,8 @@ public class WeeklyActivity extends AppCompatActivity {
                 message += " at " + selectedTime;
             }
 
-            if (hasNotification) {
-                message += "\nReminder: " + reminderTime;
+            if (hasReminder) {
+                message += "\nReminder: " + notificationTimes[notificationTimeSpinner.getSelectedItemPosition()];
             }
 
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
@@ -758,7 +859,6 @@ public class WeeklyActivity extends AppCompatActivity {
 
         dialog.show();
     }
-
     private void showQuickWeekSelectorDialog(TextView weekRangeText, ImageView clearWeekButton) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Select Week");

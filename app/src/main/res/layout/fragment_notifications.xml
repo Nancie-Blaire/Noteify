@@ -1,20 +1,88 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5">
 
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="NOTIFS"
-        android:textSize="24sp"
-        android:textColor="#000000"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <!-- Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Notifications"
+            android:textSize="28sp"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- UPCOMING SECTION -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="UPCOMING"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Upcoming Empty State -->
+        <TextView
+            android:id="@+id/upcomingEmptyText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No upcoming tasks"
+            android:textSize="14sp"
+            android:textColor="#999999"
+            android:padding="16dp"
+            android:gravity="center"
+            android:visibility="gone"/>
+
+        <!-- Upcoming RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/upcomingRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:nestedScrollingEnabled="false"/>
+
+        <!-- OVERDUE SECTION -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="OVERDUE"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Overdue Empty State -->
+        <TextView
+            android:id="@+id/overdueEmptyText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No overdue tasks"
+            android:textSize="14sp"
+            android:textColor="#999999"
+            android:padding="16dp"
+            android:gravity="center"
+            android:visibility="gone"/>
+
+        <!-- Overdue RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/overdueRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:nestedScrollingEnabled="false"/>
+
+    </LinearLayout>
+
+</ScrollView>

@@ -20,4 +20,12 @@
     <color name="text_secondary">#757575</color>
     <color name="colorPrimary">#6200EE</color>
     <color name="calender_hue">#b2c8e6</color>
+
+    <!-- Notification colors -->
+    <color name="todo_blue">#4CAF50</color>
+    <color name="weekly_green">#FF6B6B</color>
+
+    <!-- You can change these to match your app's design -->
+    <color name="upcoming_bg">#75CEC6</color>
+    <color name="overdue_bg">#FA94A3</color>
 </resources>

@@ -75,6 +75,7 @@ public class NoteActivity extends AppCompatActivity {
     private boolean isBulletListMode = false;
     private int currentListNumber = 1;
     private boolean isToggleListMode = false;
+    private boolean isTogglingState = false;
     private Map<Integer, Boolean> toggleStates = new HashMap<>(); // position -> isExpanded
     private Map<Integer, String> toggleContents = new HashMap<>(); // position -> content
 
@@ -629,8 +630,12 @@ public class NoteActivity extends AppCompatActivity {
             // ✅ STEP 6: Check for bookmarks that should be MERGED
             // Find bookmarks that are now adjacent (no divider between them anymore)
             List<Bookmark> sortedBookmarks = new ArrayList<>(currentBookmarks);
-            sortedBookmarks.sort((b1, b2) -> Integer.compare(b1.getStartIndex(), b2.getStartIndex()));
-
+            java.util.Collections.sort(sortedBookmarks, new java.util.Comparator<Bookmark>() {
+                @Override
+                public int compare(Bookmark b1, Bookmark b2) {
+                    return Integer.compare(b1.getStartIndex(), b2.getStartIndex());
+                }
+            });
             for (int i = 0; i < sortedBookmarks.size() - 1; i++) {
                 Bookmark first = sortedBookmarks.get(i);
                 Bookmark second = sortedBookmarks.get(i + 1);
@@ -854,11 +859,18 @@ public class NoteActivity extends AppCompatActivity {
             toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
+        // ✅ ADD THIS: Save toggle contents
+        Map<String, String> toggleContentsForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+            toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
         Map<String, Object> updates = new HashMap<>();
         updates.put("content", content);
         updates.put("timestamp", System.currentTimeMillis());
         updates.put("dividerStyles", dividerStylesForFirestore);
         updates.put("toggleStates", toggleStatesForFirestore);
+        updates.put("toggleContents", toggleContentsForFirestore); // ✅ ADD THIS LINE
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
@@ -914,6 +926,12 @@ public class NoteActivity extends AppCompatActivity {
             toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
+        // ✅ ADD THIS: Convert toggle contents for Firestore
+        Map<String, String> toggleContentsForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+            toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
         Map<String, Object> noteData = new HashMap<>();
         noteData.put("title", title);
         noteData.put("content", content);
@@ -921,6 +939,7 @@ public class NoteActivity extends AppCompatActivity {
         noteData.put("timestamp", System.currentTimeMillis());
         noteData.put("dividerStyles", dividerStylesForFirestore);
         noteData.put("toggleStates", toggleStatesForFirestore);
+        noteData.put("toggleContents", toggleContentsForFirestore); // ✅ ADD THIS LINE
 
         db.collection("users").document(user.getUid())
                 .collection("notes")
@@ -1071,6 +1090,36 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
+                        // ✅ Load toggle states
+                        Map<String, Object> savedToggleStates = (Map<String, Object>) doc.get("toggleStates");
+                        if (savedToggleStates != null) {
+                            toggleStates.clear();
+                            for (Map.Entry<String, Object> entry : savedToggleStates.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    Boolean state = (Boolean) entry.getValue();
+                                    toggleStates.put(position, state);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        // ✅ ADD THIS: Load toggle contents
+                        Map<String, Object> savedToggleContents = (Map<String, Object>) doc.get("toggleContents");
+                        if (savedToggleContents != null) {
+                            toggleContents.clear();
+                            for (Map.Entry<String, Object> entry : savedToggleContents.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    String toggleContent = (String) entry.getValue();
+                                    toggleContents.put(position, toggleContent);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
                         // ✅ Set flag to prevent text watcher from running
                         isUpdatingText = true;
 
@@ -1156,11 +1205,11 @@ public class NoteActivity extends AppCompatActivity {
     }
 
 //BOOKMARK FUNCTION
-    private void updateBookmarkIndices(int changePosition, int lengthDiff) {
+private void updateBookmarkIndices(int changePosition, int lengthDiff) {
     FirebaseUser user = auth.getCurrentUser();
     if (user == null) return;
 
-    if (isUpdatingText) return;
+    if (isUpdatingText || isTogglingState) return;
     String currentText = noteContent.getText().toString();
 
     if (currentText.equals(lastSavedContent)) return;
@@ -1189,123 +1238,94 @@ public class NoteActivity extends AppCompatActivity {
 
         // ✅ If divider inserted, just shift bookmarks - DON'T modify their range
         if (dividerInserted) {
-            // Divider inserted before bookmark - shift both start and end
             if (changePosition <= start) {
                 start += dividerLength;
                 end += dividerLength;
                 needsUpdate = true;
-            }
-            // Divider inserted after bookmark - no change needed
-            else if (changePosition >= end) {
+            } else if (changePosition >= end) {
                 // No change
-            }
-            // Divider inserted WITHIN bookmark - this shouldn't happen due to our preventions
-            // But if it does, just shift the end
-            else if (changePosition > start && changePosition < end) {
+            } else if (changePosition > start && changePosition < end) {
                 end += dividerLength;
                 needsUpdate = true;
             }
         }
-        // Case 1: edit before the bookmark → shift entire range
+        // ✅ Case 1: Edit BEFORE bookmark → shift entire range
         else if (changePosition < start) {
             start += lengthDiff;
             end += lengthDiff;
             needsUpdate = true;
         }
-        // Case 2: edit inside the highlight → expand/contract based on content
+        // ✅ Case 2: Edit INSIDE bookmark → adjust end
         else if (changePosition >= start && changePosition < end) {
-            if (lengthDiff > 0) {
-                // ✅ ALWAYS expand when typing inside bookmark
-                // This preserves the highlight even when adding spaces in the middle
-                end += lengthDiff;
-                needsUpdate = true;
-            } else if (lengthDiff < 0) {
-                // Deletion inside bookmark
-                end += lengthDiff;
-                needsUpdate = true;
+            end += lengthDiff;
+            needsUpdate = true;
+
+            // ✅ Check if bookmark became invalid (too short or deleted)
+            if (end <= start) {
+                shouldDelete = true;
             }
         }
-        // Case 3: edit RIGHT AT the end boundary
+        // ✅ Case 3: Edit RIGHT AT end boundary
         else if (changePosition == end && lengthDiff > 0) {
-            int insStart = changePosition;
-            int insEnd = Math.min(currentText.length(), changePosition + lengthDiff);
+            // Only expand if inserting non-whitespace
+            if (changePosition < currentText.length()) {
+                int insStart = changePosition;
+                int insEnd = Math.min(currentText.length(), changePosition + lengthDiff);
 
-            if (insStart >= 0 && insEnd > insStart) {
-                String inserted = currentText.substring(insStart, insEnd);
+                if (insStart >= 0 && insEnd > insStart) {
+                    String inserted = currentText.substring(insStart, insEnd);
+                    boolean hasNonWhitespace = !inserted.trim().isEmpty();
 
-                // ✅ Only expand if inserting actual content (not whitespace/newlines)
-                boolean isValid = true;
-                for (int i = 0; i < inserted.length(); i++) {
-                    char c = inserted.charAt(i);
-                    if (Character.isWhitespace(c) || c == '\n' || c == '\r' || c == '\t') {
-                        isValid = false;
-                        break;
+                    if (hasNonWhitespace) {
+                        end += lengthDiff;
+                        needsUpdate = true;
                     }
                 }
-
-                if (isValid) {
-                    end += lengthDiff;
-                    needsUpdate = true;
-                }
             }
         }
 
-        // Safety: validate bounds
+        // ✅ Validate bounds
         if (start < 0 || end > currentText.length() || start >= end) {
             shouldDelete = true;
         }
 
-        if (shouldDelete) {
-            deleteBookmarkFromFirestore(bookmark.getId());
-            anyBookmarkUpdated = true;
-        } else if (needsUpdate) {
-            // ✅ Only trim trailing/leading spaces, NOT internal spaces
-            String updatedText;
+        // ✅ Extract and validate text
+        String updatedText = "";
+        if (!shouldDelete && start >= 0 && end <= currentText.length() && start < end) {
             try {
                 updatedText = currentText.substring(start, end);
-            } catch (Exception e) {
-                updatedText = bookmark.getText();
-            }
 
-            // Trim only leading spaces
-            int trimStart = start;
-            while (trimStart < end && trimStart < currentText.length() && currentText.charAt(trimStart) == ' ') {
-                trimStart++;
-            }
-
-            // Trim only trailing spaces
-            int trimEnd = end;
-            while (trimEnd > trimStart && trimEnd > 0 && currentText.charAt(trimEnd - 1) == ' ') {
-                trimEnd--;
-            }
-
-            // Double-check bounds after trimming
-            if (trimStart >= trimEnd || trimStart < 0 || trimEnd > currentText.length()) {
-                deleteBookmarkFromFirestore(bookmark.getId());
-                anyBookmarkUpdated = true;
-                continue;
-            }
-
-            try {
-                updatedText = currentText.substring(trimStart, trimEnd);
-                if (updatedText.trim().isEmpty() || updatedText.contains(dividerPlaceholder)) {
-                    deleteBookmarkFromFirestore(bookmark.getId());
-                    anyBookmarkUpdated = true;
-                    continue;
+                // Delete if contains divider
+                if (updatedText.contains(dividerPlaceholder)) {
+                    shouldDelete = true;
+                }
+                // Delete if only whitespace
+                else if (updatedText.trim().isEmpty()) {
+                    shouldDelete = true;
                 }
             } catch (Exception e) {
-                deleteBookmarkFromFirestore(bookmark.getId());
-                anyBookmarkUpdated = true;
-                continue;
+                shouldDelete = true;
             }
+        }
 
-            updateBookmarkInFirestore(bookmark.getId(), trimStart, trimEnd, updatedText);
+        if (shouldDelete) {
+            deleteBookmarkFromFirestore(bookmark.getId());
+            currentBookmarks.remove(bookmark);
+            anyBookmarkUpdated = true;
+        } else if (needsUpdate) {
+            // ✅ Update both Firestore AND local object immediately
+            updateBookmarkInFirestore(bookmark.getId(), start, end, updatedText.trim());
+            bookmark.setStartIndex(start);
+            bookmark.setEndIndex(end);
+            bookmark.setText(updatedText.trim());
             anyBookmarkUpdated = true;
         }
     }
 
     if (anyBookmarkUpdated) {
         saveNoteContentDebounced(currentText);
+        // ✅ Reapply visuals immediately
+        noteContent.postDelayed(() -> applyBookmarksToText(), 100);
     }
 }
     private void updateBookmarkInFirestore(String bookmarkId, int newStart, int newEnd, String newText) {
@@ -1876,6 +1896,7 @@ public class NoteActivity extends AppCompatActivity {
             currentPos += line.length() + 1;
         }
     }
+
     private void openBookmarks() {
         Intent i = new Intent(this, BookmarksActivity.class);
         i.putExtra("noteId", noteId);
@@ -2042,7 +2063,10 @@ public class NoteActivity extends AppCompatActivity {
 
         String currentLine = currentText.substring(lineStart, lineEnd);
         String newLine;
-
+        //  Check if it's a toggle line
+        if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
+            newLine = "    " + currentLine;
+        }
         // Check if it's a bullet line
         if (currentLine.matches("^\\s*[●○■]\\s.*")) {
             newLine = indentBulletLine(currentLine);
@@ -2078,7 +2102,18 @@ public class NoteActivity extends AppCompatActivity {
 
         String currentLine = currentText.substring(lineStart, lineEnd);
         String newLine;
-
+        // Check if it's a toggle line
+        if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
+            if (currentLine.startsWith("    ")) {
+                newLine = currentLine.substring(4);
+            } else if (currentLine.startsWith("  ")) {
+                newLine = currentLine.substring(2);
+            } else if (currentLine.startsWith(" ")) {
+                newLine = currentLine.substring(1);
+            } else {
+                newLine = currentLine;
+            }
+        }
         // Check if it's a bullet line
         if (currentLine.matches("^\\s*[●○■]\\s.*")) {
             newLine = outdentBulletLine(currentLine);
@@ -2136,7 +2171,8 @@ public class NoteActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (isProcessing) return;
+                if (isProcessing || isUpdatingText || isTogglingState) return;
+                //if (isProcessing) return;
 
                 // Check if user pressed Enter (added newline)
                 if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
@@ -2362,7 +2398,8 @@ public class NoteActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (isProcessing) return;
+                if (isProcessing || isUpdatingText || isTogglingState) return;
+                //if (isProcessing) return;
 
                 // Check if user pressed Enter (added newline)
                 if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
@@ -2459,8 +2496,7 @@ public class NoteActivity extends AppCompatActivity {
     }
 
 //TOGGLE LIST
-    private static final String CONTENT_PLACEHOLDER = "Empty toggle";
-
+    private static final String CONTENT_PLACEHOLDER = "";
     private void setupToggleListWatcher() {
         noteContent.addTextChangedListener(new TextWatcher() {
             private boolean isProcessing = false;
@@ -2470,7 +2506,7 @@ public class NoteActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (isProcessing) return;
+                if (isProcessing || isUpdatingText || isTogglingState) return;
 
                 // Check if user pressed Enter (added newline)
                 if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
@@ -2496,37 +2532,93 @@ public class NoteActivity extends AppCompatActivity {
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
                         } else {
-                            // Create new toggle list
-                            String newToggle = "▶ ";
+                            // ✅ Check if toggle is EXPANDED (▼) or COLLAPSED (▶)
+                            boolean isExpanded = currentLine.contains("▼");
 
-                            String newText = s.toString().substring(0, start + 1) +
-                                    newToggle +
-                                    s.toString().substring(start + 1);
+                            // Get THIS toggle's indentation
+                            int toggleIndent = 0;
+                            for (char c : currentLine.toCharArray()) {
+                                if (c == ' ') toggleIndent++;
+                                else break;
+                            }
 
-                            noteContent.setText(newText);
-                            noteContent.setSelection(start + 1 + newToggle.length());
+                            if (isExpanded) {
+                                // ✅ Toggle is EXPANDED - create content line (toggle indent + 4)
+                                StringBuilder indent = new StringBuilder();
+                                for (int i = 0; i < toggleIndent + 4; i++) {
+                                    indent.append(" ");
+                                }
+
+                                String newText = s.toString().substring(0, start + 1) +
+                                        indent.toString() +
+                                        s.toString().substring(start + 1);
+
+                                noteContent.setText(newText);
+                                noteContent.setSelection(start + 1 + indent.length());
+                            } else {
+                                // ✅ Toggle is COLLAPSED - create new toggle at SAME level
+                                StringBuilder indent = new StringBuilder();
+                                for (int i = 0; i < toggleIndent; i++) {
+                                    indent.append(" ");
+                                }
+                                String newToggle = indent.toString() + "▶ ";
+
+                                String newText = s.toString().substring(0, start + 1) +
+                                        newToggle +
+                                        s.toString().substring(start + 1);
+
+                                noteContent.setText(newText);
+                                noteContent.setSelection(start + 1 + newToggle.length());
+                            }
                         }
                     }
-                    // Check if cursor is on toggle content (indented lines)
-                    else if (currentLine.matches("^    .*")) {
+                    // ✅ Check if cursor is on ANY indented content (4+ spaces)
+                    else if (currentLine.length() >= 4 && currentLine.substring(0, 4).equals("    ")) {
+                        // Get current indentation
+                        int currentIndent = 0;
+                        for (char c : currentLine.toCharArray()) {
+                            if (c == ' ') currentIndent++;
+                            else break;
+                        }
+
                         String trimmedLine = currentLine.trim();
 
-                        // Check if this is an empty content line (just placeholder or empty)
-                        boolean isCurrentEmpty = trimmedLine.isEmpty() || trimmedLine.equals("Empty toggle");
+                        // Check if current line is empty
+                        boolean isCurrentEmpty = trimmedLine.isEmpty();
 
                         if (isCurrentEmpty) {
-                            // This is an empty line - check if it's a double enter
-                            // Look back to see if the previous content line was also empty
-                            int prevContentLineStart = textBeforeNewline.lastIndexOf('\n', lastNewlineIndex - 1) + 1;
-                            if (prevContentLineStart > 0) {
-                                String prevContentLine = textBeforeNewline.substring(prevContentLineStart, lastNewlineIndex);
-                                String trimmedPrev = prevContentLine.trim();
-                                boolean isPrevEmpty = trimmedPrev.isEmpty() || trimmedPrev.equals("Empty toggle");
+                            // Check if previous line was also empty content
+                            int prevLineStart = textBeforeNewline.lastIndexOf('\n', lastNewlineIndex - 1) + 1;
+                            if (prevLineStart >= 0 && prevLineStart < lastNewlineIndex) {
+                                String prevLine = textBeforeNewline.substring(prevLineStart, lastNewlineIndex);
 
-                                if (isPrevEmpty && prevContentLine.matches("^    .*")) {
-                                    // Double enter detected - create new toggle list
-                                    // Remove the current empty line and add new toggle
-                                    String newToggle = "▶ ";
+                                if (prevLine.length() >= 4 && prevLine.substring(0, 4).equals("    ") && prevLine.trim().isEmpty()) {
+                                    // ✅ Find PARENT toggle indentation by going backwards
+                                    int parentIndent = 0;
+                                    int searchPos = prevLineStart - 1;
+
+                                    while (searchPos >= 0) {
+                                        int searchLineStart = textBeforeNewline.lastIndexOf('\n', searchPos - 1) + 1;
+                                        if (searchLineStart < 0) searchLineStart = 0;
+                                        String searchLine = textBeforeNewline.substring(searchLineStart, Math.min(searchPos + 1, textBeforeNewline.length()));
+
+                                        if (searchLine.matches("^\\s*[▶▼]\\s.*")) {
+                                            for (char c : searchLine.toCharArray()) {
+                                                if (c == ' ') parentIndent++;
+                                                else break;
+                                            }
+                                            break;
+                                        }
+                                        searchPos = searchLineStart - 1;
+                                    }
+
+                                    // Create new toggle at SAME level as parent
+                                    StringBuilder indent = new StringBuilder();
+                                    for (int i = 0; i < parentIndent; i++) {
+                                        indent.append(" ");
+                                    }
+                                    String newToggle = indent.toString() + "▶ ";
+
                                     String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                             newToggle +
                                             s.toString().substring(start + 1);
@@ -2538,14 +2630,18 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // Add new content line (single enter or first empty line)
-                        String newContent = CONTENT_PLACEHOLDER;
+                        // ✅ Add new content line with SAME indentation (stay inside toggle)
+                        StringBuilder indent = new StringBuilder();
+                        for (int i = 0; i < currentIndent; i++) {
+                            indent.append(" ");
+                        }
+
                         String newText = s.toString().substring(0, start + 1) +
-                                newContent +
+                                indent.toString() +
                                 s.toString().substring(start + 1);
 
                         noteContent.setText(newText);
-                        noteContent.setSelection(start + 1 + newContent.length());
+                        noteContent.setSelection(start + 1 + indent.length());
                     }
 
                     isProcessing = false;
@@ -2553,41 +2649,7 @@ public class NoteActivity extends AppCompatActivity {
             }
 
             @Override
-            public void afterTextChanged(Editable s) {
-                // Remove placeholder text when user starts typing
-                String text = s.toString();
-                int cursorPos = noteContent.getSelectionStart();
-
-                // Find current line
-                int lineStart = text.lastIndexOf('\n', cursorPos - 1) + 1;
-                int lineEnd = text.indexOf('\n', cursorPos);
-                if (lineEnd == -1) lineEnd = text.length();
-
-                if (lineStart < lineEnd && lineStart < text.length()) {
-                    String currentLine = text.substring(lineStart, lineEnd);
-
-                    // If line starts with placeholder and has additional content after it
-                    if (currentLine.startsWith(CONTENT_PLACEHOLDER)) {
-                        String afterPlaceholder = currentLine.substring(CONTENT_PLACEHOLDER.length());
-
-                        // If user typed something after the placeholder
-                        if (!afterPlaceholder.isEmpty() && !afterPlaceholder.trim().isEmpty()) {
-                            // Remove the placeholder, keep the user's text
-                            String newText = text.substring(0, lineStart) +
-                                    "    " + afterPlaceholder.trim() +
-                                    text.substring(lineEnd);
-
-                            // Calculate new cursor position
-                            int newCursorPos = lineStart + 4 + afterPlaceholder.trim().length();
-
-                            noteContent.removeTextChangedListener(this);
-                            noteContent.setText(newText);
-                            noteContent.setSelection(Math.min(newCursorPos, newText.length()));
-                            noteContent.addTextChangedListener(this);
-                        }
-                    }
-                }
-            }
+            public void afterTextChanged(Editable s) {}
         });
     }
     private void setupToggleClickListener() {
@@ -2614,167 +2676,330 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 }
 
-                // Only toggle if cursor is within 3 characters of the arrow
-                if (arrowPos != -1 && Math.abs(cursorPos - arrowPos) <= 3) {
+                // ✅ CHANGED: Only toggle if cursor is EXACTLY on the arrow (within 1 character)
+                if (arrowPos != -1 && Math.abs(cursorPos - arrowPos) <= 1) {
                     toggleToggleState(lineStart, content);
                 }
             }
         });
     }
     private void toggleToggleState(int togglePosition, String fullContent) {
+        // ✅ CRITICAL: Set this flag FIRST to prevent TextWatcher interference
         isUpdatingText = true;
+        isTogglingState = true;
 
-        int lineEnd = fullContent.indexOf('\n', togglePosition);
-        if (lineEnd == -1) lineEnd = fullContent.length();
+        try {
+            // Find the toggle line
+            int lineEnd = fullContent.indexOf('\n', togglePosition);
+            if (lineEnd == -1) lineEnd = fullContent.length();
 
-        String toggleLine = fullContent.substring(togglePosition, lineEnd);
-        boolean isExpanded = toggleLine.contains("▼");
+            String toggleLine = fullContent.substring(togglePosition, lineEnd);
+            boolean isExpanded = toggleLine.contains("▼");
 
-        StringBuilder newContent = new StringBuilder();
-
-        if (isExpanded) {
-            // COLLAPSE: Change ▼ to ▶ and hide content
-            String newToggleLine = toggleLine.replace("▼", "▶");
-
-            newContent.append(fullContent.substring(0, togglePosition));
-            newContent.append(newToggleLine);
-
-            // Find and save content lines (indented lines after toggle)
-            int contentStart = lineEnd + 1;
-            int contentEnd = contentStart;
-            StringBuilder savedContent = new StringBuilder();
-
-            // Get toggle indentation
+            // Get toggle indentation level
             int toggleIndent = 0;
             for (char c : toggleLine.toCharArray()) {
                 if (c == ' ') toggleIndent++;
                 else break;
             }
 
-            // Find where content ends and save all content
-            while (contentEnd < fullContent.length()) {
-                int nextLineEnd = fullContent.indexOf('\n', contentEnd);
-                if (nextLineEnd == -1) {
-                    // Last line of document
-                    String lastLine = fullContent.substring(contentEnd);
+            // ✅ Store old bookmark positions before making changes
+            Map<String, int[]> oldBookmarkPositions = new HashMap<>();
+            for (Bookmark bookmark : currentBookmarks) {
+                oldBookmarkPositions.put(bookmark.getId(), new int[]{bookmark.getStartIndex(), bookmark.getEndIndex()});
+            }
 
+            if (isExpanded) {
+                // ========== COLLAPSE ==========
+                String newToggleLine = toggleLine.replace("▼", "▶");
+
+                // Find all content lines (must be indented MORE than toggle)
+                int contentStart = lineEnd + 1;
+                int contentEnd = contentStart;
+                StringBuilder savedContent = new StringBuilder();
+
+                while (contentEnd < fullContent.length()) {
+                    int nextLineEnd = fullContent.indexOf('\n', contentEnd);
+                    if (nextLineEnd == -1) nextLineEnd = fullContent.length();
+
+                    String nextLine = fullContent.substring(contentEnd, nextLineEnd);
+
+                    // Count indentation
                     int lineIndent = 0;
-                    for (char c : lastLine.toCharArray()) {
+                    for (char c : nextLine.toCharArray()) {
                         if (c == ' ') lineIndent++;
                         else break;
                     }
 
+                    // ✅ CRITICAL: Line must be indented MORE than the toggle itself
                     if (lineIndent > toggleIndent) {
                         if (savedContent.length() > 0) savedContent.append("\n");
-                        savedContent.append(lastLine);
-                        contentEnd = fullContent.length();
+                        savedContent.append(nextLine);
+                        contentEnd = nextLineEnd + 1;
+                    } else if (nextLine.trim().isEmpty() && contentEnd < fullContent.length() - 1) {
+                        // Peek ahead to see if more content follows
+                        int peekPos = nextLineEnd + 1;
+                        if (peekPos < fullContent.length()) {
+                            int peekEnd = fullContent.indexOf('\n', peekPos);
+                            if (peekEnd == -1) peekEnd = fullContent.length();
+
+                            if (peekPos < peekEnd) {
+                                String peekLine = fullContent.substring(peekPos, peekEnd);
+                                int peekIndent = 0;
+                                for (char c : peekLine.toCharArray()) {
+                                    if (c == ' ') peekIndent++;
+                                    else break;
+                                }
+
+                                if (peekIndent > toggleIndent) {
+                                    // Empty line is part of content
+                                    if (savedContent.length() > 0) savedContent.append("\n");
+                                    savedContent.append(nextLine);
+                                    contentEnd = nextLineEnd + 1;
+                                    continue;
+                                }
+                            }
+                        }
+                        contentEnd = nextLineEnd + 1;
+                        break;
+                    } else {
+                        // Found a line at same or less indentation - stop
+                        break;
                     }
-                    break;
                 }
 
-                String nextLine = fullContent.substring(contentEnd, nextLineEnd);
-
-                // Check if line is indented more than the toggle (content or nested toggle)
-                int lineIndent = 0;
-                for (char c : nextLine.toCharArray()) {
-                    if (c == ' ') lineIndent++;
-                    else break;
-                }
-
-                // Content must be indented more than the parent toggle
-                if (lineIndent > toggleIndent) {
-                    // This is content (including nested toggles)
-                    if (savedContent.length() > 0) savedContent.append("\n");
-                    savedContent.append(nextLine);
-                    contentEnd = nextLineEnd + 1;
+                // Save the content
+                if (savedContent.length() > 0) {
+                    toggleContents.put(togglePosition, savedContent.toString());
                 } else {
-                    // This line is at same or less indentation - stop here
-                    break;
+                    // ✅ Save proper indentation for empty content
+                    String emptyContent = "";
+                    for (int i = 0; i < toggleIndent + 4; i++) {
+                        emptyContent += " ";
+                    }
+                    toggleContents.put(togglePosition, emptyContent);
                 }
-            }
 
-            // Save all content for this toggle
-            if (savedContent.length() > 0) {
-                toggleContents.put(togglePosition, savedContent.toString());
-            } else {
-                // If no content found, preserve any previously saved content
-                if (!toggleContents.containsKey(togglePosition)) {
-                    toggleContents.put(togglePosition, CONTENT_PLACEHOLDER);
+                // Build new content
+                StringBuilder result = new StringBuilder();
+                result.append(fullContent.substring(0, togglePosition));
+                result.append(newToggleLine);
+
+                if (contentEnd < fullContent.length()) {
+                    String afterContent = fullContent.substring(contentEnd);
+                    if (!afterContent.startsWith("\n")) {
+                        result.append("\n");
+                    }
+                    result.append(afterContent);
+                } else if (savedContent.length() > 0) {
+                    result.append("\n");
                 }
-            }
 
-            // Append everything after the content (NO EXTRA NEWLINE)
-            if (contentEnd < fullContent.length()) {
-                newContent.append(fullContent.substring(contentEnd));
-            }
+                toggleStates.put(togglePosition, false);
 
-            toggleStates.put(togglePosition, false);
+                final String finalContent = result.toString();
+                final int finalCursor = Math.min(togglePosition + newToggleLine.length(), finalContent.length());
 
-        } else {
-            // EXPAND: Change ▶ to ▼ and show content
-            String newToggleLine = toggleLine.replace("▶", "▼");
-            boolean hasContent = toggleContents.containsKey(togglePosition);
+                // ✅ Calculate how much content was removed
+                int removedLength = contentEnd - (lineEnd + 1);
 
-            newContent.append(fullContent.substring(0, togglePosition));
-            newContent.append(newToggleLine);
+                // ✅ Update all bookmarks that come AFTER the collapsed content
+                FirebaseUser user = auth.getCurrentUser();
+                if (user != null && removedLength > 0) {
+                    for (Bookmark bookmark : currentBookmarks) {
+                        int oldStart = bookmark.getStartIndex();
+                        int oldEnd = bookmark.getEndIndex();
 
-            // Get toggle indentation for proper content formatting
-            int toggleIndent = 0;
-            for (char c : toggleLine.toCharArray()) {
-                if (c == ' ') toggleIndent++;
-                else break;
-            }
-            String indent = "";
-            for (int i = 0; i < toggleIndent + 4; i++) indent += " ";
+                        // If bookmark is completely AFTER the collapsed content
+                        if (oldStart >= contentEnd) {
+                            int newStart = oldStart - removedLength;
+                            int newEnd = oldEnd - removedLength;
 
-            // Add content or placeholder (with proper indentation)
-            if (hasContent) {
-                String savedContentStr = toggleContents.get(togglePosition);
-                newContent.append("\n");
-                newContent.append(savedContentStr);
+                            if (newStart >= 0 && newEnd <= finalContent.length() && newStart < newEnd) {
+                                String bookmarkText = finalContent.substring(newStart, newEnd);
+                                if (!bookmarkText.trim().isEmpty()) {
+                                    updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText);
+                                    bookmark.setStartIndex(newStart);
+                                    bookmark.setEndIndex(newEnd);
+                                    bookmark.setText(bookmarkText);
+                                }
+                            }
+                        }
+                        // If bookmark is partially or completely INSIDE collapsed content - hide it
+                        else if ((oldStart >= contentStart && oldStart < contentEnd) ||
+                                (oldEnd > contentStart && oldEnd <= contentEnd) ||
+                                (oldStart < contentStart && oldEnd > contentEnd)) {
+                            // Bookmark is inside collapsed content - it will be restored on expand
+                            // No action needed here
+                        }
+                    }
+                }
+
+                noteContent.setText(finalContent);
+                noteContent.setSelection(finalCursor);
+
             } else {
-                newContent.append("\n");
-                newContent.append(indent).append("Empty toggle");
+                // ========== EXPAND ==========
+                String newToggleLine = toggleLine.replace("▶", "▼");
+
+                // ✅ Get saved content or create default with proper indentation
+                String savedContent = toggleContents.get(togglePosition);
+                if (savedContent == null || savedContent.trim().isEmpty()) {
+                    savedContent = "";
+                    for (int i = 0; i < toggleIndent + 4; i++) {
+                        savedContent += " ";
+                    }
+                }
+
+                // Build new content
+                StringBuilder result = new StringBuilder();
+                result.append(fullContent.substring(0, togglePosition));
+                result.append(newToggleLine);
+                result.append("\n");
+                result.append(savedContent);
+
+                if (lineEnd < fullContent.length()) {
+                    result.append(fullContent.substring(lineEnd));
+                }
+
+                toggleStates.put(togglePosition, true);
+
+                final String finalContent = result.toString();
+                final int contentLineStart = togglePosition + newToggleLine.length() + 1;
+                final int finalCursor = Math.min(contentLineStart + savedContent.length(), finalContent.length());
+
+                // ✅ Calculate how much content was added
+                int addedLength = savedContent.length() + 1; // +1 for newline
+
+                // ✅ Update all bookmarks that come AFTER the expanded toggle
+                FirebaseUser user = auth.getCurrentUser();
+                if (user != null && addedLength > 0) {
+                    for (Bookmark bookmark : currentBookmarks) {
+                        int[] oldPos = oldBookmarkPositions.get(bookmark.getId());
+                        if (oldPos == null) continue;
+
+                        int oldStart = oldPos[0];
+                        int oldEnd = oldPos[1];
+
+                        // If bookmark is completely AFTER the toggle line
+                        if (oldStart > lineEnd) {
+                            int newStart = oldStart + addedLength;
+                            int newEnd = oldEnd + addedLength;
+
+                            if (newStart >= 0 && newEnd <= finalContent.length() && newStart < newEnd) {
+                                try {
+                                    String bookmarkText = finalContent.substring(newStart, newEnd);
+                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                                        updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText);
+                                        bookmark.setStartIndex(newStart);
+                                        bookmark.setEndIndex(newEnd);
+                                        bookmark.setText(bookmarkText);
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                noteContent.setText(finalContent);
+                noteContent.setSelection(finalCursor);
             }
 
-            // Append rest of content (NO EXTRA NEWLINE)
-            if (lineEnd < fullContent.length()) {
-                newContent.append(fullContent.substring(lineEnd));
-            }
+            // ✅ Save changes to Firestore
+            saveNoteContentToFirestore(noteContent.getText().toString());
 
-            toggleStates.put(togglePosition, true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // ✅ Re-enable watchers after a delay
+            noteContent.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    applyBookmarksToText();
+                    isUpdatingText = false;
+                    isTogglingState = false;
+                }
+            }, 200);
         }
-
-        String resultContent = newContent.toString();
-        noteContent.setText(resultContent);
-
-        // Set cursor safely
-        int cursorPos = Math.min(togglePosition + 2, resultContent.length());
-        if (cursorPos < 0) cursorPos = 0;
-        if (cursorPos > resultContent.length()) cursorPos = resultContent.length();
-        noteContent.setSelection(cursorPos);
-
-        // Reapply bookmarks and formatting
-        noteContent.postDelayed(() -> {
-            applyBookmarksToText();
-            isUpdatingText = false;
-        }, 100);
     }
     private void insertToggleList() {
-        int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
-        String toggleItem = "\n▶ ";
+        int cursorPosition = noteContent.getSelectionStart();
 
+        // Safety check
+        if (cursorPosition < 0) cursorPosition = 0;
+        if (cursorPosition > currentText.length()) cursorPosition = currentText.length();
+
+        // ✅ Detect if we're inside a toggle's content
+        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
+        int lineEnd = currentText.indexOf('\n', cursorPosition);
+        if (lineEnd == -1) lineEnd = currentText.length();
+
+        String currentLine = currentText.substring(lineStart, lineEnd);
+
+        // Count current indentation
+        int currentIndent = 0;
+        for (char c : currentLine.toCharArray()) {
+            if (c == ' ') currentIndent++;
+            else break;
+        }
+
+        // ✅ FIXED: If we're inside content (4+ spaces), nested toggle should be at content level + 4
+        // If we're at root level (0 spaces), stay at root
+        int toggleIndent = 0;
+        if (currentIndent >= 4) {
+            // We're inside a toggle's content, nest deeper
+            toggleIndent = currentIndent;
+        }
+
+        String indent = "";
+        for (int i = 0; i < toggleIndent; i++) {
+            indent += " ";
+        }
+
+        // Check if we need a leading newline
+        String toggleItem;
+        if (cursorPosition > 0 && currentText.charAt(cursorPosition - 1) != '\n') {
+            toggleItem = "\n" + indent + "▶ ";
+        } else {
+            toggleItem = indent + "▶ ";
+        }
+
+        // Build new text
         String newText = currentText.substring(0, cursorPosition) +
                 toggleItem +
                 currentText.substring(cursorPosition);
 
-        noteContent.setText(newText);
-        noteContent.setSelection(cursorPosition + toggleItem.length());
+        // Calculate final cursor position BEFORE setting text
+        final int finalCursorPos = cursorPosition + toggleItem.length();
 
+        // Set text
+        noteContent.setText(newText);
+
+        // Set cursor in post() with safety checks
+        noteContent.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    int textLength = noteContent.getText().length();
+                    int safePos = Math.min(finalCursorPos, textLength);
+                    safePos = Math.max(0, safePos);
+
+                    if (safePos <= textLength && safePos >= 0) {
+                        noteContent.setSelection(safePos);
+                    }
+                } catch (Exception e) {
+                    try {
+                        noteContent.setSelection(noteContent.getText().length());
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        });
         isToggleListMode = true;
     }
-
 // + BUTTON MENU
     private void setupAddMenuOptions() {
         // Subpage

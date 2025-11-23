@@ -3,15 +3,20 @@ package com.example.testtasksync;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.Spannable;
+import android.text.SpannableString;
 import android.text.TextWatcher;
+import android.text.style.ImageSpan;
 import android.util.Log;
 import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ImageButton;
@@ -42,6 +47,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 
 public class NoteActivity extends AppCompatActivity {
@@ -84,6 +108,18 @@ public class NoteActivity extends AppCompatActivity {
     private Map<Long, View> weblinkViews = new HashMap<>();
     private ListenerRegistration weblinkListener; // ✅ Add this field at the top
 
+
+    // Para sa Camera at Gallery
+    private ActivityResultLauncher<Intent> galleryLauncher;
+    private ActivityResultLauncher<Intent> cameraLauncher;
+    private ActivityResultLauncher<String> permissionLauncher;
+    private Uri currentPhotoUri;
+    //private boolean imagesLoaded = false;
+    private static final int MAX_IMAGE_WIDTH = 1024;     // Max width/height to scale the image down (in pixels)
+    private static final int MAX_IMAGE_HEIGHT = 1024;    //
+    private static final int COMPRESSION_QUALITY = 80;   // JPEG compression quality (0-100)
+    private static final int MAX_INLINE_IMAGE_KB = 700;  // Max size (in KB) for an image to be saved in one document
+    private static final int CHUNK_SIZE = 50000;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -105,6 +141,9 @@ public class NoteActivity extends AppCompatActivity {
         noteId = getIntent().getStringExtra("noteId");
         scrollToPosition = getIntent().getIntExtra("scrollToPosition", -1);
 
+        // Add this in onCreate() method, before setupTextWatcher()
+        setupImagePickers();
+
         //  CALLING METHODS
         loadNoteColor();
         setupColorPicker();
@@ -116,6 +155,7 @@ public class NoteActivity extends AppCompatActivity {
         setupToggleListWatcher();
         setupCheckboxWatcher();
         setupCheckboxAutoWatcher();
+        setupImageDeletion();
 
         // Create Firestore note if new
         if (noteId == null) {
@@ -144,8 +184,9 @@ public class NoteActivity extends AppCompatActivity {
         findViewById(R.id.outdentOption).setOnClickListener(v -> outdentLine());
 
         if (noteId != null) {
-            loadNote();
-            noteContent.postDelayed(() -> setupBookmarkListener(), 400);
+            loadNote(); // This now handles EVERYTHING including images
+
+            noteContent.postDelayed(() -> setupBookmarkListener(), 800);
             loadSubpages();
             loadWeblinks();
         }
@@ -250,8 +291,6 @@ public class NoteActivity extends AppCompatActivity {
             }
         });
     }
-
-
 
     private void showDividerBottomSheet() {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
@@ -887,24 +926,23 @@ public class NoteActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        Log.d("IMAGE_DEBUG", "🔄 ===== onResume START =====");
 
         if (noteId != null) {
-            // Only load note if bookmarks aren't already loaded
-            if (currentBookmarks.isEmpty()) {
-                loadNote();
-                setupBookmarkListener();
-            } else {
-                // Just reapply the bookmarks without reloading
-                applyBookmarksToText();
+            // ✅ ALWAYS reload
+            loadNote();
+
+            // Only setup listener once
+            if (bookmarkListener == null) {
+                noteContent.postDelayed(() -> setupBookmarkListener(), 800);
             }
 
             loadSubpages();
 
-            // Scroll to bookmark after everything is loaded
             if (scrollToPosition >= 0) {
                 final int positionToScroll = scrollToPosition;
-                scrollToPosition = -1; // Reset immediately to prevent multiple scrolls
-                noteContent.postDelayed(() -> scrollToBookmark(positionToScroll), 800);
+                scrollToPosition = -1;
+                noteContent.postDelayed(() -> scrollToBookmark(positionToScroll), 1000);
             }
         }
     }
@@ -1052,7 +1090,7 @@ public class NoteActivity extends AppCompatActivity {
                     case 3: // Delete Bookmark
                         Bookmark bookmarkToDelete = getBookmarkAtSelection(start, end);
                         if (bookmarkToDelete != null) {
-                            showDeleteBookmarkConfirmation(bookmarkToDelete);
+                            loadAndDisplayImages();      showDeleteBookmarkConfirmation(bookmarkToDelete);
                         }
                         mode.finish();
                         return true;
@@ -1074,6 +1112,8 @@ public class NoteActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) return;
 
+        Log.d("IMAGE_DEBUG", "📖 Loading note: " + noteId);
+
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .get()
@@ -1082,7 +1122,7 @@ public class NoteActivity extends AppCompatActivity {
                         String title = doc.getString("title");
                         String content = doc.getString("content");
 
-                        // ✅ Load divider styles
+                        // Load divider styles
                         Map<String, Object> savedStyles = (Map<String, Object>) doc.get("dividerStyles");
                         if (savedStyles != null) {
                             dividerStyles.clear();
@@ -1097,7 +1137,7 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // ✅ Load toggle states
+                        // Load toggle states
                         Map<String, Object> savedToggleStates = (Map<String, Object>) doc.get("toggleStates");
                         if (savedToggleStates != null) {
                             toggleStates.clear();
@@ -1112,7 +1152,7 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // ✅ ADD THIS: Load toggle contents
+                        // Load toggle contents
                         Map<String, Object> savedToggleContents = (Map<String, Object>) doc.get("toggleContents");
                         if (savedToggleContents != null) {
                             toggleContents.clear();
@@ -1127,22 +1167,120 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // ✅ Set flag to prevent text watcher from running
+                        // ✅ SET isUpdatingText BEFORE setText
                         isUpdatingText = true;
 
                         if (title != null) noteTitle.setText(title);
-                        if (content != null) noteContent.setText(content);
+                        if (content != null) {
+                            noteContent.setText(content);
+                            lastSavedContent = content;
+                            Log.d("IMAGE_DEBUG", "✅ Text set, length: " + content.length());
+                        }
 
-                        lastSavedContent = content != null ? content : "";
-
-                        // ✅ Reset flag after a short delay
+                        // ✅ WAIT 100ms for EditText to settle, then load images
                         noteContent.postDelayed(() -> {
-                            isUpdatingText = false;
-                            applyBookmarksToText();
+                            Log.d("IMAGE_DEBUG", "🔸 Starting image load...");
+                            loadAndDisplayImages();
                         }, 100);
                     }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("IMAGE_DEBUG", "❌ Error loading note", e);
+                    isUpdatingText = false;
                 });
     }
+
+    // 3️⃣ ADD THIS NEW METHOD - Main image loading orchestrator
+    private void loadAndDisplayImages() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) {
+            Log.e("IMAGE_DEBUG", "❌ User or noteId is null");
+            isUpdatingText = false;
+            return;
+        }
+
+        Log.d("IMAGE_DEBUG", "🔍 Querying images collection...");
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("images")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    Log.d("IMAGE_DEBUG", "✅ Query successful. Found " + querySnapshot.size() + " images");
+
+                    if (querySnapshot.isEmpty()) {
+                        Log.d("IMAGE_DEBUG", "🔭 No images to load");
+                        finishImageLoading();
+                        return;
+                    }
+
+                    // Process each image
+                    int totalImages = querySnapshot.size();
+                    int[] processedCount = {0};
+
+                    for (QueryDocumentSnapshot doc : querySnapshot) {
+                        String imageId = doc.getString("imageId");
+                        Boolean isChunked = doc.getBoolean("isChunked");
+
+                        Log.d("IMAGE_DEBUG", "📷 Processing image: " + imageId + ", Chunked: " + isChunked);
+
+                        if (imageId != null) {
+                            if (isChunked != null && isChunked) {
+                                loadChunkedImage(imageId, () -> {
+                                    processedCount[0]++;
+                                    Log.d("IMAGE_DEBUG", "✅ Chunked image loaded (" + processedCount[0] + "/" + totalImages + ")");
+                                    if (processedCount[0] == totalImages) {
+                                        finishImageLoading();
+                                    }
+                                });
+                            } else {
+                                String base64Data = doc.getString("base64Data");
+                                if (base64Data != null) {
+                                    Log.d("IMAGE_DEBUG", "📊 Base64 length: " + base64Data.length());
+
+                                    // ✅ DELAY each image display slightly
+                                    noteContent.postDelayed(() -> {
+                                        displayImage(imageId, base64Data);
+                                    }, 50 * processedCount[0]); // Stagger by 50ms each
+
+                                } else {
+                                    Log.e("IMAGE_DEBUG", "❌ No base64Data for image: " + imageId);
+                                }
+                                processedCount[0]++;
+
+                                if (processedCount[0] == totalImages) {
+                                    // ✅ Wait for last image to display
+                                    noteContent.postDelayed(() -> {
+                                        finishImageLoading();
+                                    }, 100 + (50 * totalImages));
+                                }
+                            }
+                        } else {
+                            processedCount[0]++;
+                            if (processedCount[0] == totalImages) {
+                                finishImageLoading();
+                            }
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("IMAGE_DEBUG", "❌ Error querying images", e);
+                    finishImageLoading();
+                });
+    }
+
+    private void finishImageLoading() {
+        Log.d("IMAGE_DEBUG", "✅ All images processed!");
+
+        noteContent.postDelayed(() -> {
+            Log.d("IMAGE_DEBUG", "🎨 Applying bookmarks...");
+            applyBookmarksToText();
+            isUpdatingText = false;
+            Log.d("IMAGE_DEBUG", "🎉 LOADING COMPLETE!");
+        }, 150);
+    }
+
+
     private void loadSubpages() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -1830,11 +1968,27 @@ public class NoteActivity extends AppCompatActivity {
     private void applyBookmarksToText() {
         isUpdatingText = true;
         String content = noteContent.getText().toString();
-        if (content.isEmpty()) { isUpdatingText = false; return; }
+        if (content.isEmpty()) {
+            isUpdatingText = false;
+            return;
+        }
+
+        // ✅ SAVE existing ImageSpans FIRST
+        Editable currentEditable = noteContent.getEditableText();
+        List<SpanInfo> savedImageSpans = new ArrayList<>();
+
+        ImageSpan[] existingImages = currentEditable.getSpans(0, currentEditable.length(), ImageSpan.class);
+        for (ImageSpan span : existingImages) {
+            int start = currentEditable.getSpanStart(span);
+            int end = currentEditable.getSpanEnd(span);
+            if (start >= 0 && end <= content.length() && start < end) {
+                savedImageSpans.add(new SpanInfo(span, start, end));
+            }
+        }
 
         android.text.SpannableString span = new android.text.SpannableString(content);
 
-        String dividerPlaceholder = "〔DIVIDER〕";
+        String dividerPlaceholder = "【DIVIDER】";
 
         // Collect all divider positions first
         List<int[]> dividerRanges = new ArrayList<>();
@@ -1874,7 +2028,19 @@ public class NoteActivity extends AppCompatActivity {
         dividerStyles = newDividerStyles;
         applyCheckboxStyles(span, content);
 
-        // ✅ NEW: Collect IDs of all hidden bookmarks to skip them
+        // ✅ RESTORE ImageSpans BEFORE applying bookmarks
+        for (SpanInfo info : savedImageSpans) {
+            if (info.start >= 0 && info.end <= content.length() && info.start < info.end) {
+                span.setSpan(
+                        info.span,
+                        info.start,
+                        info.end,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+        }
+
+        // Collect IDs of all hidden bookmarks to skip them
         Set<String> hiddenBookmarkIds = new HashSet<>();
         for (List<Bookmark> hiddenList : hiddenBookmarksByToggle.values()) {
             for (Bookmark hidden : hiddenList) {
@@ -1884,7 +2050,6 @@ public class NoteActivity extends AppCompatActivity {
 
         // Apply bookmarks (AVOID divider areas AND skip hidden bookmarks)
         for (Bookmark b : currentBookmarks) {
-            // ✅ SKIP if bookmark is hidden in a collapsed toggle
             if (hiddenBookmarkIds.contains(b.getId())) {
                 continue;
             }
@@ -3222,7 +3387,7 @@ public class NoteActivity extends AppCompatActivity {
                     isUpdatingText = false;
                     isTogglingState = false;
                 }
-            }, 200);
+            }, 100);
         }
     }
     private void insertToggleList() {
@@ -3738,7 +3903,6 @@ public class NoteActivity extends AppCompatActivity {
         noteContent.setText(newText);
         noteContent.setSelection(cursorPosition + checkbox.length());
     }
-
     private void setupCheckboxAutoWatcher() {
         noteContent.addTextChangedListener(new TextWatcher() {
             private boolean isProcessing = false;
@@ -3803,7 +3967,8 @@ public class NoteActivity extends AppCompatActivity {
 
         return "☐ ";
     }
-    //              TOGGLE AND CHECKBOX WATCHER
+
+    //TOGGLE AND CHECKBOX WATCHER
     private void setupCheckboxWatcher() {
         noteContent.setOnClickListener(v -> {
             int cursorPos = noteContent.getSelectionStart();
@@ -3856,7 +4021,6 @@ public class NoteActivity extends AppCompatActivity {
             }
         });
     }
-
     private void toggleCheckbox(int lineStart, int lineEnd, boolean currentlyChecked) {
         isUpdatingText = true;
 
@@ -3895,7 +4059,6 @@ public class NoteActivity extends AppCompatActivity {
         // Save to Firestore
         saveNoteContentToFirestore(newContent);
     }
-
     private void applyCheckboxStyles(android.text.SpannableString spannable, String content) {
         String[] lines = content.split("\n");
         int currentPos = 0;
@@ -3927,6 +4090,13 @@ public class NoteActivity extends AppCompatActivity {
             }
 
             currentPos += line.length() + 1; // +1 for newline
+        }
+    }
+    private void toggleAddMenu() {
+        if (isMenuOpen) {
+            closeAddMenu();
+        } else {
+            openAddMenu();
         }
     }
 
@@ -3996,6 +4166,694 @@ public class NoteActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
         }
     }
+
+    // Insert Image and Take Photo Workflow
+// =========================================================================
+    private static class SpanInfo {
+        Object span;
+        int start;
+        int end;
+
+        SpanInfo(Object span, int start, int end) {
+            this.span = span;
+            this.start = start;
+            this.end = end;
+        }
+    }
+    private void setupImagePickers() {
+        // Gallery launcher
+        galleryLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        Uri imageUri = result.getData().getData();
+                        if (imageUri != null) {
+                            uploadImageToFirebase(imageUri);
+                        }
+                    }
+                }
+        );
+
+        // Camera launcher
+        cameraLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK) {
+                        if (currentPhotoUri != null) {
+                            // currentPhotoUri holds the URI of the captured image
+                            uploadImageToFirebase(currentPhotoUri);
+                        }
+                    }
+                }
+        );
+
+        // Permission launcher
+        permissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        openCamera();
+                    } else {
+                        Toast.makeText(this, "Camera permission is required to take pictures",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
+    }
+
+    private void showInsertMediaBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        // Assuming you have R.layout.insert_media_bottom_sheet
+        View sheetView = getLayoutInflater().inflate(R.layout.insert_media_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Assuming these IDs are in your bottom sheet layout
+        View openGallery = sheetView.findViewById(R.id.openGalleryOption);
+        View takePicture = sheetView.findViewById(R.id.takePictureOption);
+
+        openGallery.setOnClickListener(v -> {
+            bottomSheet.dismiss();
+            openGallery();
+        });
+
+        takePicture.setOnClickListener(v -> {
+            bottomSheet.dismiss();
+            checkCameraPermission();
+        });
+
+        // NOTE: You can remove R.id.cancelMediaBtn if the bottom sheet closes on swipe/tap outside.
+        // If you need a separate cancel button:
+        // TextView cancelBtn = sheetView.findViewById(R.id.cancelMediaBtn);
+        // cancelBtn.setOnClickListener(v -> bottomSheet.dismiss());
+
+        bottomSheet.show();
+    }
+
+    private void openGallery() {
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        galleryLauncher.launch(intent);
+    }
+
+    private void checkCameraPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                    != PackageManager.PERMISSION_GRANTED) {
+                permissionLauncher.launch(Manifest.permission.CAMERA);
+            } else {
+                openCamera();
+            }
+        } else {
+            openCamera();
+        }
+    }
+
+    private void openCamera() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                Toast.makeText(this, "Error creating image file", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (photoFile != null) {
+                // Use FileProvider to get a safe Uri
+                currentPhotoUri = FileProvider.getUriForFile(this,
+                        getApplicationContext().getPackageName() + ".fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, currentPhotoUri);
+                cameraLauncher.launch(takePictureIntent);
+            }
+        }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                .format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        return File.createTempFile(imageFileName, ".jpg", storageDir);
+    }
+
+// Image Processing and Upload Logic
+// =========================================================================
+
+    private void uploadImageToFirebase(Uri imageUri) {
+        if (noteId == null) {
+            Toast.makeText(this, "Please save the note first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        android.app.ProgressDialog progressDialog = new android.app.ProgressDialog(this);
+        progressDialog.setMessage("Processing image...");
+        progressDialog.setCancelable(false);
+        progressDialog.show();
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            progressDialog.dismiss();
+            return;
+        }
+
+        // Remember cursor position BEFORE processing
+        final int cursorPosition = noteContent.getSelectionStart();
+
+        new Thread(() -> {
+            try {
+                // Get Bitmap from Uri
+                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+
+                // Scaling Logic (Good practice)
+                int originalWidth = bitmap.getWidth();
+                int originalHeight = bitmap.getHeight();
+                float scale = Math.min(
+                        MAX_IMAGE_WIDTH / (float) originalWidth,
+                        MAX_IMAGE_HEIGHT / (float) originalHeight
+                );
+
+                if (scale < 1.0f) {
+                    int newWidth = (int) (originalWidth * scale);
+                    int newHeight = (int) (originalHeight * scale);
+                    bitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true);
+                }
+
+                // Compression
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, COMPRESSION_QUALITY, baos);
+                byte[] imageBytes = baos.toByteArray();
+
+                // 🛠️ IMPORTANT FIX: Use Base64.NO_WRAP to prevent newlines
+                String base64Image = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP);
+
+                // Stats
+                int originalSizeKB = imageBytes.length / 1024;
+                int base64SizeKB = base64Image.length() / 1024;
+
+                // Keep bitmap for inline display
+                final Bitmap finalBitmap = bitmap;
+
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+
+                    // Check for chunking requirement
+                    if (base64SizeKB > MAX_INLINE_IMAGE_KB) { // Assuming MAX_INLINE_IMAGE_KB = 700
+                        Toast.makeText(this,
+                                "Saving large image (" + originalSizeKB + " KB) in chunks...",
+                                Toast.LENGTH_SHORT).show();
+                        uploadImageInChunks(base64Image, originalSizeKB, cursorPosition, finalBitmap);
+                    } else {
+                        Toast.makeText(this,
+                                "Saving image (" + originalSizeKB + " KB) inline...",
+                                Toast.LENGTH_SHORT).show();
+                        insertImageIntoNote(base64Image, false, originalSizeKB, cursorPosition, finalBitmap);
+                    }
+                });
+
+            } catch (IOException e) {
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+                    Toast.makeText(this, "Error processing image: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+                e.printStackTrace();
+            } catch (OutOfMemoryError e) {
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+                    Toast.makeText(this, "Image too large for device memory", Toast.LENGTH_LONG).show();
+                });
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    private void uploadImageInChunks(String base64Image, int sizeKB, int cursorPosition, Bitmap bitmap) {
+        String imageId = System.currentTimeMillis() + "";
+        int totalLength = base64Image.length();
+        int chunkCount = (int) Math.ceil(totalLength / (double) CHUNK_SIZE);
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("imageId", imageId);
+        metadata.put("isChunked", true);
+        metadata.put("chunkCount", chunkCount);
+        metadata.put("totalSize", totalLength);
+        metadata.put("sizeKB", sizeKB);
+        metadata.put("position", cursorPosition);
+        metadata.put("timestamp", System.currentTimeMillis());
+
+        // 1. Save metadata
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("images").document(imageId)
+                .set(metadata)
+                .addOnSuccessListener(aVoid -> {
+                    // 2. Save chunks
+                    for (int i = 0; i < chunkCount; i++) {
+                        int start = i * CHUNK_SIZE;
+                        int end = Math.min(start + CHUNK_SIZE, totalLength);
+                        String chunk = base64Image.substring(start, end);
+
+                        Map<String, Object> chunkData = new HashMap<>();
+                        chunkData.put("data", chunk);
+                        chunkData.put("chunkIndex", i);
+
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("images").document(imageId)
+                                .collection("chunks").document(String.valueOf(i))
+                                .set(chunkData);
+                    }
+
+                    // 3. Insert inline placeholder
+                    insertInlineImage(imageId, bitmap, cursorPosition);
+                    Toast.makeText(this, "✅ Large image saved and inserted", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to save large image", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void insertImageIntoNote(String base64Image, boolean isChunked, int sizeKB, int cursorPosition, Bitmap bitmap) {
+        String imageId = System.currentTimeMillis() + "";
+
+        Map<String, Object> imageData = new HashMap<>();
+        if (!isChunked) {
+            // Only include base64Data if not chunked
+            imageData.put("base64Data", base64Image);
+        }
+        imageData.put("imageId", imageId);
+        imageData.put("isChunked", isChunked);
+        imageData.put("sizeKB", sizeKB);
+        imageData.put("position", cursorPosition);
+        imageData.put("timestamp", System.currentTimeMillis());
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("images").document(imageId)
+                    .set(imageData)
+                    .addOnSuccessListener(aVoid -> {
+                        // Insert inline at cursor position
+                        insertInlineImage(imageId, bitmap, cursorPosition);
+                        Toast.makeText(this, "✅ Image saved and inserted", Toast.LENGTH_SHORT).show();
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show();
+                    });
+        }
+    }
+
+// Display and Deletion Logic
+// =========================================================================
+
+    private void insertInlineImage(String imageId, Bitmap bitmap, int cursorPosition) {
+        Log.d("IMAGE_DEBUG", "🖼 Inserting image: " + imageId + " at position: " + cursorPosition);
+
+        isUpdatingText = true;
+        isTogglingState = true; // ✅ PREVENT all text watchers
+
+        String currentText = noteContent.getText().toString();
+        String imagePlaceholder = "【IMAGE:" + imageId + "】";
+
+        int safeCursorPosition = Math.max(0, Math.min(cursorPosition, currentText.length()));
+
+        String prefix = currentText.substring(0, safeCursorPosition);
+        String suffix = currentText.substring(safeCursorPosition);
+
+        String nlBefore = (prefix.length() > 0 && prefix.charAt(prefix.length() - 1) != '\n') ? "\n" : "";
+        String nlAfter = (suffix.length() > 0 && suffix.charAt(0) != '\n') ? "\n" : "";
+
+        String newText = prefix + nlBefore + imagePlaceholder + nlAfter + suffix;
+
+        int totalInsertedLength = nlBefore.length() + imagePlaceholder.length() + nlAfter.length();
+
+        // Update bookmarks (your existing code)
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                int bStart = bookmark.getStartIndex();
+                int bEnd = bookmark.getEndIndex();
+                boolean needsUpdate = false;
+
+                if (bStart >= safeCursorPosition) {
+                    bStart += totalInsertedLength;
+                    bEnd += totalInsertedLength;
+                    needsUpdate = true;
+                } else if (safeCursorPosition > bStart && safeCursorPosition < bEnd) {
+                    bEnd += totalInsertedLength;
+                    needsUpdate = true;
+                }
+
+                if (needsUpdate && bStart >= 0 && bEnd <= newText.length() && bStart < bEnd) {
+                    try {
+                        String bookmarkText = newText.substring(bStart, bEnd);
+                        if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【IMAGE:")) {
+                            bookmark.setStartIndex(bStart);
+                            bookmark.setEndIndex(bEnd);
+                            bookmark.setText(bookmarkText);
+                            updateBookmarkInFirestore(bookmark.getId(), bStart, bEnd, bookmarkText);
+                        }
+                    } catch (Exception e) {
+                        Log.e("IMAGE_DEBUG", "Error updating bookmark", e);
+                    }
+                }
+            }
+        }
+
+        // ✅ CREATE SPANNABLE with image
+        SpannableString spannable = new SpannableString(newText);
+
+        int placeholderStart = newText.indexOf(imagePlaceholder, prefix.length());
+        int placeholderEnd = placeholderStart + imagePlaceholder.length();
+
+        if (placeholderStart == -1) {
+            Log.e("IMAGE_DEBUG", "❌ Placeholder not found after insertion");
+            isUpdatingText = false;
+            isTogglingState = false;
+            return;
+        }
+
+        // Resize bitmap for display
+        int maxWidth = noteContent.getWidth() - noteContent.getPaddingLeft() - noteContent.getPaddingRight();
+        if (maxWidth <= 0) maxWidth = 800;
+
+        int displayWidth = Math.min(bitmap.getWidth(), maxWidth);
+        int displayHeight = (int) (bitmap.getHeight() * (displayWidth / (float) bitmap.getWidth()));
+
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, displayWidth, displayHeight, true);
+
+        BitmapDrawable drawable = new BitmapDrawable(getResources(), resizedBitmap);
+        drawable.setBounds(0, 0, displayWidth, displayHeight);
+
+        ImageSpan imageSpan = new ImageSpan(drawable, ImageSpan.ALIGN_BASELINE);
+
+        spannable.setSpan(
+                imageSpan,
+                placeholderStart,
+                placeholderEnd,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+
+        // ✅ SET SPANNABLE (not plain text)
+        noteContent.setText(spannable, TextView.BufferType.SPANNABLE);
+
+        // Set cursor position
+        int newCursorPos = placeholderEnd + nlAfter.length();
+        if (newCursorPos <= spannable.length()) {
+            noteContent.setSelection(newCursorPos);
+        } else {
+            noteContent.setSelection(spannable.length());
+        }
+
+        Log.d("IMAGE_DEBUG", "✅ Image inserted successfully");
+
+        // ✅ LONGER DELAY before re-enabling watchers
+        noteContent.postDelayed(() -> {
+            isUpdatingText = false;
+            isTogglingState = false;
+            noteContent.invalidate();
+        }, 500); // 500ms delay
+
+        saveNoteContentToFirestore(newText);
+    }
+    private void displayImagesInNote() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) {
+            Log.e("IMAGE_DEBUG", "User or noteId is null");
+            return;
+        }
+
+        Log.d("IMAGE_DEBUG", "🔍 Loading images for note: " + noteId);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("images")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    Log.d("IMAGE_DEBUG", "✅ Found " + querySnapshot.size() + " images");
+
+                    for (QueryDocumentSnapshot doc : querySnapshot) {
+                        String imageId = doc.getString("imageId");
+                        Boolean isChunked = doc.getBoolean("isChunked");
+
+                        Log.d("IMAGE_DEBUG", "📷 Image ID: " + imageId + ", Chunked: " + isChunked);
+
+                        if (imageId != null) {
+                            if (isChunked != null && isChunked) {
+                                loadChunkedImageInline(imageId);
+                            } else {
+                                String base64Data = doc.getString("base64Data");
+                                if (base64Data != null) {
+                                    Log.d("IMAGE_DEBUG", "📊 Base64 size: " + base64Data.length());
+                                    displayImage(imageId, base64Data);
+                                } else {
+                                    Log.e("IMAGE_DEBUG", "❌ No base64Data for image: " + imageId);
+                                }
+                            }
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("IMAGE_DEBUG", "❌ Error loading images", e);
+
+                });
+    }
+    private void loadChunkedImageInline(String imageId) {
+        loadChunkedImage(imageId, () -> {
+            // No callback needed for this version
+        });
+    }
+    private void loadChunkedImage(String imageId, ImageLoadCallback callback) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            callback.onComplete();
+            return;
+        }
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("images").document(imageId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (!doc.exists() || doc.getLong("chunkCount") == null) {
+                        callback.onComplete();
+                        return;
+                    }
+
+                    int expectedChunkCount = doc.getLong("chunkCount").intValue();
+
+                    db.collection("users").document(user.getUid())
+                            .collection("notes").document(noteId)
+                            .collection("images").document(imageId)
+                            .collection("chunks")
+                            .orderBy("chunkIndex")
+                            .get()
+                            .addOnSuccessListener(chunks -> {
+                                if (chunks.size() != expectedChunkCount) {
+                                    Log.w("IMAGE_DEBUG", "Missing chunks");
+                                    callback.onComplete();
+                                    return;
+                                }
+
+                                StringBuilder fullBase64 = new StringBuilder();
+                                for (QueryDocumentSnapshot chunk : chunks) {
+                                    String data = chunk.getString("data");
+                                    if (data != null) {
+                                        fullBase64.append(data);
+                                    }
+                                }
+
+                                if (fullBase64.length() > 0) {
+                                    displayImage(imageId, fullBase64.toString());
+                                }
+                                callback.onComplete();
+                            })
+                            .addOnFailureListener(e -> callback.onComplete());
+                })
+                .addOnFailureListener(e -> callback.onComplete());
+    }
+
+    private void displayImage(String imageId, String base64Data) {
+        Log.d("IMAGE_DEBUG", "🎨 displayImage called for: " + imageId);
+
+        // ✅ Run on main thread
+        runOnUiThread(() -> {
+            try {
+                String content = noteContent.getText().toString();
+                String placeholder = "【IMAGE:" + imageId + "】";
+
+                Log.d("IMAGE_DEBUG", "🔍 Searching for: " + placeholder);
+
+                int placeholderIndex = content.indexOf(placeholder);
+
+                if (placeholderIndex == -1) {
+                    Log.e("IMAGE_DEBUG", "❌ Placeholder NOT FOUND!");
+                    Log.e("IMAGE_DEBUG", "Content preview: " + content.substring(0, Math.min(100, content.length())));
+                    return;
+                }
+
+                Log.d("IMAGE_DEBUG", "✅ Placeholder found at index: " + placeholderIndex);
+
+                // Decode Base64
+                byte[] decodedBytes = android.util.Base64.decode(base64Data, android.util.Base64.NO_WRAP);
+                Bitmap bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+
+                if (bitmap == null) {
+                    Log.e("IMAGE_DEBUG", "❌ Failed to decode bitmap!");
+                    return;
+                }
+
+                Log.d("IMAGE_DEBUG", "✅ Bitmap decoded: " + bitmap.getWidth() + "x" + bitmap.getHeight());
+
+                // ✅ Check EditText width
+                int viewWidth = noteContent.getWidth();
+                if (viewWidth <= 0) {
+                    Log.e("IMAGE_DEBUG", "❌ EditText width = 0, waiting...");
+                    noteContent.postDelayed(() -> displayImage(imageId, base64Data), 100);
+                    return;
+                }
+
+                // Resize bitmap
+                int maxWidth = viewWidth - noteContent.getPaddingLeft() - noteContent.getPaddingRight();
+                if (maxWidth <= 0) maxWidth = 800;
+
+                int displayWidth = Math.min(bitmap.getWidth(), maxWidth);
+                int displayHeight = (int) (bitmap.getHeight() * (displayWidth / (float) bitmap.getWidth()));
+
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, displayWidth, displayHeight, true);
+
+                BitmapDrawable drawable = new BitmapDrawable(getResources(), resizedBitmap);
+                drawable.setBounds(0, 0, displayWidth, displayHeight);
+
+                ImageSpan imageSpan = new ImageSpan(drawable, ImageSpan.ALIGN_BASELINE);
+
+                // ✅ Get EDITABLE text
+                Editable editable = noteContent.getEditableText();
+
+                // ✅ Remove old spans
+                ImageSpan[] existingSpans = editable.getSpans(
+                        placeholderIndex,
+                        placeholderIndex + placeholder.length(),
+                        ImageSpan.class
+                );
+
+                for (ImageSpan span : existingSpans) {
+                    editable.removeSpan(span);
+                }
+
+                // ✅ Apply new span
+                editable.setSpan(
+                        imageSpan,
+                        placeholderIndex,
+                        placeholderIndex + placeholder.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+
+                Log.d("IMAGE_DEBUG", "✅ ImageSpan applied!");
+
+                // ✅ Force redraw
+                noteContent.invalidate();
+
+            } catch (Exception e) {
+                Log.e("IMAGE_DEBUG", "❌ Exception in displayImage", e);
+                e.printStackTrace();
+            }
+        });
+    }
+    private interface ImageLoadCallback {
+    void onComplete();
+}
+    private void setupImageDeletion() {
+        noteContent.setOnLongClickListener(v -> {
+            int cursorPos = noteContent.getSelectionStart();
+            String content = noteContent.getText().toString();
+
+            // ✅ FIX: Use correct pattern with Chinese brackets
+            String imagePattern = "【IMAGE:(\\d+)】";
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(imagePattern);
+            java.util.regex.Matcher matcher = pattern.matcher(content);
+
+            while (matcher.find()) {
+                int start = matcher.start();
+                int end = matcher.end();
+
+                if (cursorPos >= start && cursorPos <= end) {
+                    String imageId = matcher.group(1);
+                    showDeleteImageDialog(imageId);
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    }
+
+    private void showDeleteImageDialog(String imageId) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Image")
+                .setMessage("Remove this image from the note?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    deleteInlineImage(imageId);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void deleteInlineImage(String imageId) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        // Delete from Firestore
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("images").document(imageId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    Boolean isChunked = doc.getBoolean("isChunked");
+
+                    if (isChunked != null && isChunked) {
+                        // Delete chunks
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("images").document(imageId)
+                                .collection("chunks")
+                                .get()
+                                .addOnSuccessListener(chunks -> {
+                                    for (QueryDocumentSnapshot chunk : chunks) {
+                                        chunk.getReference().delete();
+                                    }
+                                    deleteImageDocumentInline(imageId);
+                                });
+                    } else {
+                        deleteImageDocumentInline(imageId);
+                    }
+                });
+    }
+
+    private void deleteImageDocumentInline(String imageId) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("images").document(imageId)
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    String content = noteContent.getText().toString();
+
+                    // ✅ FIX: Use correct placeholder format
+                    String placeholderWithNewlines = "\n【IMAGE:" + imageId + "】\n";
+                    String placeholder = "【IMAGE:" + imageId + "】";
+
+                    // ... rest of your deletion code
+                });
+    }
+
     // + BUTTON MENU
     private void setupAddMenuOptions() {
         // Subpage
@@ -4045,14 +4903,14 @@ public class NoteActivity extends AppCompatActivity {
             insertCheckbox();
             closeAddMenu();
         });
-    }
-    private void toggleAddMenu() {
-        if (isMenuOpen) {
+
+        //Insert Image
+        findViewById(R.id.insertImage).setOnClickListener(v -> {
+            showInsertMediaBottomSheet();
             closeAddMenu();
-        } else {
-            openAddMenu();
-        }
+        });
     }
+
     private void openAddMenu() {
         addOptionsMenu.setVisibility(View.VISIBLE);
         isMenuOpen = true;
@@ -4067,4 +4925,18 @@ public class NoteActivity extends AppCompatActivity {
         // Reset the + icon rotation
         addMenuBtn.animate().rotation(0f).setDuration(200).start();
     }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("IMAGE_DEBUG", "⏩ onStart");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d("IMAGE_DEBUG", "⏸️ onStop");
+    }
+
+
 }

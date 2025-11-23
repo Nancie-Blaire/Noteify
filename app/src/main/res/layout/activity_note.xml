@@ -633,6 +633,37 @@
 
                         </LinearLayout>
 
+                        <!-- Insert Image -->
+                        <LinearLayout
+                            android:id="@+id/insertImage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_insert_image"
+                                android:padding="8dp"
+                                android:background="@drawable/circle_bg"
+                                app:tint="#757575" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Theme"
+                                android:textSize="12sp"
+                                android:textColor="#666"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
                     </LinearLayout>
 
                 </HorizontalScrollView>

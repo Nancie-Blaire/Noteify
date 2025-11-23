@@ -6,9 +6,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -16,18 +14,23 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.tasks.Task; // <-- ADDED
+import com.google.android.gms.tasks.Tasks; // <-- ADDED
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot; // <-- ADDED
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
+import java.util.Set;
 
 public class Notifications extends Fragment {
     private static final String TAG = "NotificationsFragment";
@@ -45,6 +48,13 @@ public class Notifications extends Fragment {
 
     private NotificationAdapter upcomingAdapter;
     private NotificationAdapter overdueAdapter;
+
+    // Track deleted schedules
+    private Set<String> deletedTodoLists = new HashSet<>();
+    private Set<String> deletedWeeklyPlans = new HashSet<>();
+
+    // Counter to track the main loading operations (Todo and Weekly) <-- ADDED
+    private int pendingLoads = 0;
 
     @Nullable
     @Override
@@ -72,8 +82,19 @@ public class Notifications extends Fragment {
         overdueRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
         // Setup adapters
-        upcomingAdapter = new NotificationAdapter(upcomingList, item -> openTask(item));
-        overdueAdapter = new NotificationAdapter(overdueList, item -> openTask(item));
+        upcomingAdapter = new NotificationAdapter(upcomingList, new NotificationAdapter.OnItemClickListener() {
+            @Override
+            public void onItemClick(NotificationItem item) {
+                openTask(item);
+            }
+        });
+
+        overdueAdapter = new NotificationAdapter(overdueList, new NotificationAdapter.OnItemClickListener() {
+            @Override
+            public void onItemClick(NotificationItem item) {
+                openTask(item);
+            }
+        });
 
         upcomingRecyclerView.setAdapter(upcomingAdapter);
         overdueRecyclerView.setAdapter(overdueAdapter);
@@ -89,28 +110,97 @@ public class Notifications extends Fragment {
         loadNotifications();
     }
 
+    /**
+     * Decrements the pendingLoads counter and calls updateUI() when all main loads are complete.
+     */
+    private void checkAndCallUpdateUI() { // <-- ADDED
+        pendingLoads--;
+        if (pendingLoads <= 0) {
+            // Ensure UI update happens only once all asynchronous tasks are done
+            updateUI();
+        }
+    }
+
+
     private void loadNotifications() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
+        // Clear lists before loading
         upcomingList.clear();
         overdueList.clear();
+        deletedTodoLists.clear();
+        deletedWeeklyPlans.clear();
+
+        // Reset counter and set number of main tasks to wait for (loadTodoTasks and loadWeeklyTasks) <-- CHANGED
+        pendingLoads = 2;
 
         Calendar now = Calendar.getInstance();
-        Date currentDate = now.getTime();
 
-        // Load Todo tasks with schedules
+        // First, get list of deleted schedules
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .get()
+                .addOnSuccessListener(scheduleSnapshots -> {
+                    // Build list of deleted source IDs
+                    for (QueryDocumentSnapshot doc : scheduleSnapshots) {
+                        if (doc.get("deletedAt") != null) {
+                            String category = doc.getString("category");
+                            String sourceId = doc.getString("sourceId");
+
+                            if (sourceId != null) {
+                                if ("todo".equals(category)) {
+                                    deletedTodoLists.add(sourceId);
+                                    Log.d(TAG, "Marking todo as deleted: " + sourceId);
+                                } else if ("weekly".equals(category)) {
+                                    deletedWeeklyPlans.add(sourceId);
+                                    Log.d(TAG, "Marking weekly as deleted: " + sourceId);
+                                }
+                            }
+                        }
+                    }
+
+                    // Now load tasks, coordinated by pendingLoads
+                    loadTodoTasks(user, now);
+                    loadWeeklyTasks(user, now);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error loading schedules", e);
+                    // Continue anyway, but still wait for the two main loads
+                    loadTodoTasks(user, now);
+                    loadWeeklyTasks(user, now);
+                });
+    }
+
+    private void loadTodoTasks(FirebaseUser user, Calendar now) {
         db.collection("users")
                 .document(user.getUid())
                 .collection("todoLists")
                 .get()
                 .addOnSuccessListener(todoSnapshots -> {
+
+                    // List to hold all async task fetches for individual todo lists <-- ADDED
+                    final List<Task<QuerySnapshot>> taskFetchTasks = new ArrayList<>();
+
+                    if (todoSnapshots.isEmpty()) {
+                        checkAndCallUpdateUI(); // No lists, signal completion immediately
+                        return;
+                    }
+
                     for (QueryDocumentSnapshot todoDoc : todoSnapshots) {
                         String listId = todoDoc.getId();
+
+                        // Skip if this todo list is marked as deleted
+                        if (deletedTodoLists.contains(listId)) {
+                            Log.d(TAG, "Skipping deleted todo list: " + listId);
+                            continue;
+                        }
+
                         String listTitle = todoDoc.getString("title");
 
-                        // Get tasks from this todo list
-                        db.collection("users")
+                        // Get tasks from this todo list and add the Task to the list <-- CHANGED
+                        Task<QuerySnapshot> fetchTasksTask = db.collection("users")
                                 .document(user.getUid())
                                 .collection("todoLists")
                                 .document(listId)
@@ -160,25 +250,60 @@ public class Notifications extends Fragment {
 
                                             // Categorize as upcoming or overdue
                                             if (taskCalendar.getTimeInMillis() < now.getTimeInMillis()) {
-                                                overdueList.add(item);
+                                                // Ang .contains() ay gumagana na ng tama dahil sa pagbabago sa NotificationItem.java
+                                                if (!overdueList.contains(item)) {
+                                                    overdueList.add(item);
+                                                }
                                             } else {
-                                                upcomingList.add(item);
+                                                if (!upcomingList.contains(item)) {
+                                                    upcomingList.add(item);
+                                                }
                                             }
                                         }
                                     }
-                                    updateUI();
+                                    // REMOVED: updateUI();
                                 });
-                    }
-                });
 
-        // Load Weekly tasks with schedules
+                        taskFetchTasks.add(fetchTasksTask);
+                    }
+
+                    // Wait for all inner tasks (task fetches) to complete before signaling loadTodoTasks completion <-- ADDED
+                    Tasks.whenAllComplete(taskFetchTasks)
+                            .addOnCompleteListener(task -> {
+                                checkAndCallUpdateUI(); // loadTodoTasks is complete
+                            });
+
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error loading todo lists", e);
+                    checkAndCallUpdateUI(); // Signal completion even on failure
+                });
+    }
+
+    private void loadWeeklyTasks(FirebaseUser user, Calendar now) {
         db.collection("users")
                 .document(user.getUid())
                 .collection("weeklyPlans")
                 .get()
                 .addOnSuccessListener(weeklySnapshots -> {
+
+                    // List to hold all async task fetches for individual weekly plans <-- ADDED
+                    final List<Task<QuerySnapshot>> taskFetchTasks = new ArrayList<>();
+
+                    if (weeklySnapshots.isEmpty()) {
+                        checkAndCallUpdateUI(); // No plans, signal completion immediately
+                        return;
+                    }
+
                     for (QueryDocumentSnapshot weeklyDoc : weeklySnapshots) {
                         String planId = weeklyDoc.getId();
+
+                        // Skip if this weekly plan is marked as deleted
+                        if (deletedWeeklyPlans.contains(planId)) {
+                            Log.d(TAG, "Skipping deleted weekly plan: " + planId);
+                            continue;
+                        }
+
                         String planTitle = weeklyDoc.getString("title");
                         Timestamp startTimestamp = weeklyDoc.getTimestamp("startDate");
                         String time = weeklyDoc.getString("time");
@@ -187,8 +312,8 @@ public class Notifications extends Fragment {
                             continue;
                         }
 
-                        // Get tasks from this weekly plan
-                        db.collection("users")
+                        // Get tasks from this weekly plan and add the Task to the list <-- CHANGED
+                        Task<QuerySnapshot> fetchTasksTask = db.collection("users")
                                 .document(user.getUid())
                                 .collection("weeklyPlans")
                                 .document(planId)
@@ -238,22 +363,52 @@ public class Notifications extends Fragment {
 
                                             // Categorize as upcoming or overdue
                                             if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
-                                                overdueList.add(item);
+                                                // Ang .contains() ay gumagana na ng tama dahil sa pagbabago sa NotificationItem.java
+                                                if (!overdueList.contains(item)) {
+                                                    overdueList.add(item);
+                                                }
                                             } else {
-                                                upcomingList.add(item);
+                                                if (!upcomingList.contains(item)) {
+                                                    upcomingList.add(item);
+                                                }
                                             }
                                         }
                                     }
-                                    updateUI();
+                                    // REMOVED: updateUI();
                                 });
+
+                        taskFetchTasks.add(fetchTasksTask);
                     }
+
+                    // Wait for all inner tasks (task fetches) to complete before signaling loadWeeklyTasks completion <-- ADDED
+                    Tasks.whenAllComplete(taskFetchTasks)
+                            .addOnCompleteListener(task -> {
+                                checkAndCallUpdateUI(); // loadWeeklyTasks is complete
+                            });
+
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error loading weekly plans", e);
+                    checkAndCallUpdateUI(); // Signal completion even on failure
                 });
     }
 
     private void updateUI() {
         // Sort by date (closest first)
-        upcomingList.sort((a, b) -> a.getDueDate().compareTo(b.getDueDate()));
-        overdueList.sort((a, b) -> b.getDueDate().compareTo(a.getDueDate())); // Most overdue first
+        Collections.sort(upcomingList, new Comparator<NotificationItem>() {
+            @Override
+            public int compare(NotificationItem a, NotificationItem b) {
+                return a.getDueDate().compareTo(b.getDueDate());
+            }
+        });
+
+        // Most overdue first
+        Collections.sort(overdueList, new Comparator<NotificationItem>() {
+            @Override
+            public int compare(NotificationItem a, NotificationItem b) {
+                return b.getDueDate().compareTo(a.getDueDate());
+            }
+        });
 
         // Update adapters
         upcomingAdapter.notifyDataSetChanged();

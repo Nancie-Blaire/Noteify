@@ -18,6 +18,7 @@ public class NotificationHelper {
     private static final String TAG = "NotificationHelper";
     private static final String CHANNEL_ID = "task_reminders";
     private static final String CHANNEL_NAME = "Task Reminders";
+    private static final String APP_NAME = "Noteify"; // ✅ Your app name
 
     /**
      * Create notification channel (required for Android 8.0+)
@@ -43,14 +44,21 @@ public class NotificationHelper {
     }
 
     /**
-     * Schedule a notification for a todo task
+     * ✅ IMPORTANT: Use this ONLY when scheduling the ENTIRE todo list
+     * (when the list itself has a due date, not individual tasks)
      */
-    public static void scheduleTodoNotification(Context context, String taskId,
-                                                String taskTitle, String taskText,
-                                                Date scheduleDate, String scheduleTime,
-                                                int reminderMinutes) {
+    public static void scheduleTodoListNotification(Context context, String listId,
+                                                    String listTitle,
+                                                    Date scheduleDate, String scheduleTime,
+                                                    int reminderMinutes) {
         if (scheduleDate == null) {
             Log.d(TAG, "⚠️ No schedule date, skipping notification");
+            return;
+        }
+
+        // ✅ Skip if title is empty
+        if (listTitle == null || listTitle.trim().isEmpty()) {
+            Log.d(TAG, "⚠️ Skipping notification with empty title");
             return;
         }
 
@@ -80,8 +88,62 @@ public class NotificationHelper {
             return;
         }
 
-        scheduleNotification(context, taskId, taskTitle, taskText,
+        Log.d(TAG, "✅ Scheduling TODO LIST notification: " + listTitle);
+
+        // ✅ FIXED: Title is always "Noteify", message is the list title
+        scheduleNotification(context, listId, APP_NAME, listTitle,
                 notificationTime.getTimeInMillis(), "todo");
+    }
+
+    /**
+     * Schedule notification for an INDIVIDUAL TODO TASK
+     */
+    public static void scheduleTodoTaskNotification(Context context, String taskId,
+                                                    String taskText,
+                                                    Date scheduleDate, String scheduleTime,
+                                                    int reminderMinutes) {
+        if (scheduleDate == null) {
+            Log.d(TAG, "⚠️ No schedule date, skipping notification");
+            return;
+        }
+
+        // ✅ Skip if task text is empty
+        if (taskText == null || taskText.trim().isEmpty()) {
+            Log.d(TAG, "⚠️ Skipping notification with empty task text");
+            return;
+        }
+
+        Calendar notificationTime = Calendar.getInstance();
+        notificationTime.setTime(scheduleDate);
+
+        // If time is specified, set it
+        if (scheduleTime != null && !scheduleTime.isEmpty()) {
+            try {
+                String[] timeParts = scheduleTime.split(":");
+                int hour = Integer.parseInt(timeParts[0]);
+                int minute = Integer.parseInt(timeParts[1]);
+                notificationTime.set(Calendar.HOUR_OF_DAY, hour);
+                notificationTime.set(Calendar.MINUTE, minute);
+                notificationTime.set(Calendar.SECOND, 0);
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing time", e);
+            }
+        }
+
+        // Subtract reminder minutes
+        notificationTime.add(Calendar.MINUTE, -reminderMinutes);
+
+        // Don't schedule if time is in the past
+        if (notificationTime.getTimeInMillis() <= System.currentTimeMillis()) {
+            Log.d(TAG, "⚠️ Notification time is in the past, skipping");
+            return;
+        }
+
+        Log.d(TAG, "✅ Scheduling individual TASK notification: " + taskText);
+
+        // ✅ FIXED: Title is always "Noteify", message is the task text
+        scheduleNotification(context, taskId, APP_NAME, taskText,
+                notificationTime.getTimeInMillis(), "todo_task");
     }
 
     /**
@@ -93,6 +155,12 @@ public class NotificationHelper {
                                                       String time, int reminderMinutes) {
         if (startDate == null || time == null || time.isEmpty()) {
             Log.d(TAG, "⚠️ Missing date or time for weekly task");
+            return;
+        }
+
+        // ✅ Skip if task text is empty
+        if (taskText == null || taskText.trim().isEmpty()) {
+            Log.d(TAG, "⚠️ Skipping notification with empty task text");
             return;
         }
 
@@ -130,8 +198,9 @@ public class NotificationHelper {
             return;
         }
 
-        String notificationTitle = planTitle + " - " + day;
-        scheduleNotification(context, taskId, notificationTitle, taskText,
+        // ✅ FIXED: Title is always "Noteify", message shows task text
+        String notificationMessage = taskText + " (" + planTitle + " - " + day + ")";
+        scheduleNotification(context, taskId, APP_NAME, notificationMessage,
                 taskDate.getTimeInMillis(), "weekly");
     }
 

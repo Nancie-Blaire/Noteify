@@ -1,6 +1,7 @@
 package com.example.testtasksync;
 
 import java.util.Date;
+import java.util.Objects; // Import kailangan para sa Objects.hash/equals
 
 public class NotificationItem {
     private String sourceId; // todoList ID or weeklyPlan ID
@@ -66,5 +67,27 @@ public class NotificationItem {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    // ----------------------------------------------------------------
+    // PAGBABAGO DITO: I-override ang equals() at hashCode()
+    // ----------------------------------------------------------------
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        NotificationItem that = (NotificationItem) o;
+
+        // Itinuturing na magkapareho ang dalawang item kung pareho ang Source ID (list/plan ID),
+        // Task Text, at Type (todo/weekly).
+        return Objects.equals(sourceId, that.sourceId) &&
+                Objects.equals(taskText, that.taskText) &&
+                Objects.equals(type, that.type);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sourceId, taskText, type);
     }
 }

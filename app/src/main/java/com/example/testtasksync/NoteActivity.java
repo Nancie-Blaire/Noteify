@@ -120,6 +120,14 @@ public class NoteActivity extends AppCompatActivity {
     private static final int COMPRESSION_QUALITY = 80;   // JPEG compression quality (0-100)
     private static final int MAX_INLINE_IMAGE_KB = 700;  // Max size (in KB) for an image to be saved in one document
     private static final int CHUNK_SIZE = 50000;
+
+    //Headings and fonts
+    private Map<Integer, String> textStyles = new HashMap<>(); // position -> style type
+    // Add these fields at the top of your class
+    private final android.os.Handler styleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable styleRunnable = null;
+    private static final long STYLE_APPLY_DELAY_MS = 300L;
+    private boolean isApplyingStyles = false;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -910,12 +918,19 @@ public class NoteActivity extends AppCompatActivity {
             toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
+
+        Map<String, String> textStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
+            textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
         Map<String, Object> updates = new HashMap<>();
         updates.put("content", content);
         updates.put("timestamp", System.currentTimeMillis());
         updates.put("dividerStyles", dividerStylesForFirestore);
         updates.put("toggleStates", toggleStatesForFirestore);
         updates.put("toggleContents", toggleContentsForFirestore); // ✅ ADD THIS LINE
+        updates.put("textStyles", textStylesForFirestore); // Add this
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
@@ -1167,6 +1182,21 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
+                        //Headings and fonts
+                        Map<String, Object> savedTextStyles = (Map<String, Object>) doc.get("textStyles");
+                        if (savedTextStyles != null) {
+                            textStyles.clear();
+                            for (Map.Entry<String, Object> entry : savedTextStyles.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    String style = (String) entry.getValue();
+                                    textStyles.put(position, style);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
                         // ✅ SET isUpdatingText BEFORE setText
                         isUpdatingText = true;
 
@@ -1181,6 +1211,7 @@ public class NoteActivity extends AppCompatActivity {
                         noteContent.postDelayed(() -> {
                             Log.d("IMAGE_DEBUG", "🔸 Starting image load...");
                             loadAndDisplayImages();
+                            applyTextStyles();
                         }, 100);
                     }
                 })
@@ -2137,6 +2168,7 @@ public class NoteActivity extends AppCompatActivity {
 
             currentPos += line.length() + 1;
         }
+        applyTextStyles();
     }
 
 
@@ -4495,7 +4527,7 @@ public class NoteActivity extends AppCompatActivity {
         Log.d("IMAGE_DEBUG", "🖼 Inserting image: " + imageId + " at position: " + cursorPosition);
 
         isUpdatingText = true;
-        isTogglingState = true; // ✅ PREVENT all text watchers
+        isTogglingState = true;
 
         String currentText = noteContent.getText().toString();
         String imagePlaceholder = "【IMAGE:" + imageId + "】";
@@ -4512,7 +4544,18 @@ public class NoteActivity extends AppCompatActivity {
 
         int totalInsertedLength = nlBefore.length() + imagePlaceholder.length() + nlAfter.length();
 
-        // Update bookmarks (your existing code)
+        // ✅ STEP 1: Save all existing ImageSpans and their positions
+        Editable oldEditable = noteContent.getEditableText();
+        List<SpanInfo> existingImageSpans = new ArrayList<>();
+
+        ImageSpan[] oldSpans = oldEditable.getSpans(0, oldEditable.length(), ImageSpan.class);
+        for (ImageSpan span : oldSpans) {
+            int spanStart = oldEditable.getSpanStart(span);
+            int spanEnd = oldEditable.getSpanEnd(span);
+            existingImageSpans.add(new SpanInfo(span, spanStart, spanEnd));
+        }
+
+        // Update bookmarks
         FirebaseUser user = auth.getCurrentUser();
         if (user != null) {
             for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
@@ -4545,9 +4588,34 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ CREATE SPANNABLE with image
+        // ✅ STEP 2: Create spannable for new text
         SpannableString spannable = new SpannableString(newText);
 
+        // ✅ STEP 3: Re-apply all existing ImageSpans with adjusted positions
+        for (SpanInfo info : existingImageSpans) {
+            int oldStart = info.start;
+            int oldEnd = info.end;
+            int newStart = oldStart;
+            int newEnd = oldEnd;
+
+            // Adjust positions if the old span was after the insertion point
+            if (oldStart >= safeCursorPosition) {
+                newStart += totalInsertedLength;
+                newEnd += totalInsertedLength;
+            }
+
+            // Ensure bounds are valid
+            if (newStart >= 0 && newEnd <= newText.length() && newStart < newEnd) {
+                spannable.setSpan(
+                        info.span,
+                        newStart,
+                        newEnd,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+        }
+
+        // ✅ STEP 4: Add the NEW image span
         int placeholderStart = newText.indexOf(imagePlaceholder, prefix.length());
         int placeholderEnd = placeholderStart + imagePlaceholder.length();
 
@@ -4579,7 +4647,7 @@ public class NoteActivity extends AppCompatActivity {
                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
         );
 
-        // ✅ SET SPANNABLE (not plain text)
+        // ✅ STEP 5: Set the spannable text
         noteContent.setText(spannable, TextView.BufferType.SPANNABLE);
 
         // Set cursor position
@@ -4590,14 +4658,13 @@ public class NoteActivity extends AppCompatActivity {
             noteContent.setSelection(spannable.length());
         }
 
-        Log.d("IMAGE_DEBUG", "✅ Image inserted successfully");
+        Log.d("IMAGE_DEBUG", "✅ Image inserted successfully, existing images preserved");
 
-        // ✅ LONGER DELAY before re-enabling watchers
         noteContent.postDelayed(() -> {
             isUpdatingText = false;
             isTogglingState = false;
             noteContent.invalidate();
-        }, 500); // 500ms delay
+        }, 500);
 
         saveNoteContentToFirestore(newText);
     }
@@ -4874,8 +4941,372 @@ public class NoteActivity extends AppCompatActivity {
                 });
     }
 
+    //HEADINGS AND FONTS
+    private void showHeadingsAndFontsBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Headings
+        LinearLayout heading1 = sheetView.findViewById(R.id.heading1Option);
+        LinearLayout heading2 = sheetView.findViewById(R.id.heading2Option);
+        LinearLayout heading3 = sheetView.findViewById(R.id.heading3Option);
+
+        // Font styles
+        LinearLayout boldOption = sheetView.findViewById(R.id.boldOption);
+        LinearLayout italicOption = sheetView.findViewById(R.id.italicOption);
+        LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
+        LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
+
+        heading1.setOnClickListener(v -> {
+            applyHeading("h1");
+            bottomSheet.dismiss();
+        });
+
+        heading2.setOnClickListener(v -> {
+            applyHeading("h2");
+            bottomSheet.dismiss();
+        });
+
+        heading3.setOnClickListener(v -> {
+            applyHeading("h3");
+            bottomSheet.dismiss();
+        });
+
+        boldOption.setOnClickListener(v -> {
+            applyFontStyle("bold");
+            bottomSheet.dismiss();
+        });
+
+        italicOption.setOnClickListener(v -> {
+            applyFontStyle("italic");
+            bottomSheet.dismiss();
+        });
+
+        boldItalicOption.setOnClickListener(v -> {
+            applyFontStyle("bold_italic");
+            bottomSheet.dismiss();
+        });
+
+        normalOption.setOnClickListener(v -> {
+            applyFontStyle("normal");
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+    private void applyHeading(String headingType) {
+        int cursorPosition = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+
+        int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
+        int lineEnd = currentText.indexOf('\n', cursorPosition);
+        if (lineEnd == -1) lineEnd = currentText.length();
+
+        String currentLine = currentText.substring(lineStart, lineEnd);
+        String cleanLine = currentLine.replaceAll("^#{1,3}\\s*", "");
+
+        String newLine;
+        switch (headingType) {
+            case "h1":
+                newLine = "# " + cleanLine;
+                break;
+            case "h2":
+                newLine = "## " + cleanLine;
+                break;
+            case "h3":
+                newLine = "### " + cleanLine;
+                break;
+            default:
+                newLine = cleanLine;
+        }
+
+        String newText = currentText.substring(0, lineStart) +
+                newLine +
+                currentText.substring(lineEnd);
+
+        isUpdatingText = true;
+        noteContent.setText(newText);
+        textStyles.put(lineStart, headingType);
+
+        int newCursorPos = lineStart + newLine.length();
+        noteContent.setSelection(Math.min(newCursorPos, newText.length()));
+
+        // Apply styles after a delay
+        noteContent.postDelayed(() -> {
+            applyTextStyles();
+            isUpdatingText = false;
+        }, 100);
+
+        saveNoteContentToFirestore(newText);
+        Toast.makeText(this, "Heading applied", Toast.LENGTH_SHORT).show();
+    }
+
+    private void applyFontStyle(String style) {
+        int start = noteContent.getSelectionStart();
+        int end = noteContent.getSelectionEnd();
+
+        if (start == end) {
+            Toast.makeText(this, "Please select text first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String currentText = noteContent.getText().toString();
+        String selectedText = currentText.substring(start, end);
+
+        String styledText;
+        switch (style) {
+            case "bold":
+                styledText = "**" + selectedText + "**";
+                break;
+            case "italic":
+                styledText = "*" + selectedText + "*";
+                break;
+            case "bold_italic":
+                styledText = "***" + selectedText + "***";
+                break;
+            case "normal":
+                styledText = selectedText.replaceAll("\\*+", "");
+                break;
+            default:
+                styledText = selectedText;
+        }
+
+        String newText = currentText.substring(0, start) +
+                styledText +
+                currentText.substring(end);
+
+        isUpdatingText = true;
+        noteContent.setText(newText);
+        noteContent.setSelection(start, start + styledText.length());
+
+        // Apply styles after a delay
+        noteContent.postDelayed(() -> {
+            applyTextStyles();
+            isUpdatingText = false;
+        }, 100);
+
+        saveNoteContentToFirestore(newText);
+        Toast.makeText(this, "Style applied", Toast.LENGTH_SHORT).show();
+    }
+
+    private void applyTextStyles() {
+        // Prevent recursive calls
+        if (isApplyingStyles || isUpdatingText) return;
+
+        isApplyingStyles = true;
+
+        String content = noteContent.getText().toString();
+        Editable editable = noteContent.getEditableText();
+
+        // Remove old style spans first
+        android.text.style.RelativeSizeSpan[] sizeSpans = editable.getSpans(0, editable.length(), android.text.style.RelativeSizeSpan.class);
+        android.text.style.StyleSpan[] styleSpans = editable.getSpans(0, editable.length(), android.text.style.StyleSpan.class);
+        android.text.style.ForegroundColorSpan[] colorSpans = editable.getSpans(0, editable.length(), android.text.style.ForegroundColorSpan.class);
+
+        for (android.text.style.RelativeSizeSpan span : sizeSpans) {
+            editable.removeSpan(span);
+        }
+        for (android.text.style.StyleSpan span : styleSpans) {
+            editable.removeSpan(span);
+        }
+        // Only remove transparent color spans (used for hiding markers)
+        for (android.text.style.ForegroundColorSpan span : colorSpans) {
+            if (editable.getSpanStart(span) >= 0) {
+                int spanStart = editable.getSpanStart(span);
+                String spannedText = "";
+                if (spanStart < editable.length()) {
+                    int spanEnd = Math.min(editable.getSpanEnd(span), editable.length());
+                    spannedText = editable.subSequence(spanStart, spanEnd).toString();
+                }
+                // Only remove if it's a marker (contains # or *)
+                if (spannedText.contains("#") || spannedText.contains("*")) {
+                    editable.removeSpan(span);
+                }
+            }
+        }
+
+        // Apply headings
+        String[] lines = content.split("\n");
+        int currentPos = 0;
+
+        for (String line : lines) {
+            // H1: # Text
+            if (line.startsWith("# ") && !line.startsWith("## ")) {
+                int textStart = currentPos + 2;
+                int textEnd = currentPos + line.length();
+
+                if (textStart < editable.length() && textEnd <= editable.length()) {
+                    editable.setSpan(
+                            new android.text.style.RelativeSizeSpan(1.8f),
+                            textStart, textEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                    editable.setSpan(
+                            new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                            textStart, textEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                    // Hide the # marker
+                    if (currentPos + 2 <= editable.length()) {
+                        editable.setSpan(
+                                new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                                currentPos, currentPos + 2,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        );
+                    }
+                }
+            }
+            // H2: ## Text
+            else if (line.startsWith("## ") && !line.startsWith("### ")) {
+                int textStart = currentPos + 3;
+                int textEnd = currentPos + line.length();
+
+                if (textStart < editable.length() && textEnd <= editable.length()) {
+                    editable.setSpan(
+                            new android.text.style.RelativeSizeSpan(1.5f),
+                            textStart, textEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                    editable.setSpan(
+                            new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                            textStart, textEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                    if (currentPos + 3 <= editable.length()) {
+                        editable.setSpan(
+                                new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                                currentPos, currentPos + 3,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        );
+                    }
+                }
+            }
+            // H3: ### Text
+            else if (line.startsWith("### ")) {
+                int textStart = currentPos + 4;
+                int textEnd = currentPos + line.length();
+
+                if (textStart < editable.length() && textEnd <= editable.length()) {
+                    editable.setSpan(
+                            new android.text.style.RelativeSizeSpan(1.3f),
+                            textStart, textEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                    editable.setSpan(
+                            new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                            textStart, textEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                    if (currentPos + 4 <= editable.length()) {
+                        editable.setSpan(
+                                new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                                currentPos, currentPos + 4,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        );
+                    }
+                }
+            }
+
+            currentPos += line.length() + 1; // +1 for newline
+        }
+
+        // Apply inline styles (bold, italic)
+        applyInlineStyles(editable, content);
+
+        isApplyingStyles = false;
+    }
+    private void applyInlineStyles(Editable editable, String content) {
+        java.util.regex.Pattern boldItalicPattern = java.util.regex.Pattern.compile("\\*\\*\\*(.+?)\\*\\*\\*");
+        java.util.regex.Pattern boldPattern = java.util.regex.Pattern.compile("\\*\\*(.+?)\\*\\*");
+        java.util.regex.Pattern italicPattern = java.util.regex.Pattern.compile("\\*(.+?)\\*");
+
+        // Bold + Italic (must check first)
+        java.util.regex.Matcher matcher = boldItalicPattern.matcher(content);
+        while (matcher.find()) {
+            if (matcher.start() + 3 < editable.length() && matcher.end() - 3 <= editable.length()) {
+                editable.setSpan(
+                        new android.text.style.StyleSpan(android.graphics.Typeface.BOLD_ITALIC),
+                        matcher.start() + 3, matcher.end() - 3,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+                // Hide markers
+                if (matcher.start() + 3 <= editable.length()) {
+                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.start(), matcher.start() + 3, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+                if (matcher.end() <= editable.length()) {
+                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.end() - 3, matcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+
+        // Bold
+        matcher = boldPattern.matcher(content);
+        while (matcher.find()) {
+            // Skip if part of ***
+            if (matcher.start() > 0 && content.charAt(matcher.start() - 1) == '*') continue;
+
+            if (matcher.start() + 2 < editable.length() && matcher.end() - 2 <= editable.length()) {
+                editable.setSpan(
+                        new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                        matcher.start() + 2, matcher.end() - 2,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+                if (matcher.start() + 2 <= editable.length()) {
+                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.start(), matcher.start() + 2, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+                if (matcher.end() <= editable.length()) {
+                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.end() - 2, matcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+
+        // Italic
+        matcher = italicPattern.matcher(content);
+        while (matcher.find()) {
+            // Skip if part of ** or ***
+            if (matcher.start() > 0 && content.charAt(matcher.start() - 1) == '*') continue;
+            if (matcher.end() < content.length() && content.charAt(matcher.end()) == '*') continue;
+
+            if (matcher.start() + 1 < editable.length() && matcher.end() - 1 <= editable.length()) {
+                editable.setSpan(
+                        new android.text.style.StyleSpan(android.graphics.Typeface.ITALIC),
+                        matcher.start() + 1, matcher.end() - 1,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+                if (matcher.start() + 1 <= editable.length()) {
+                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.start(), matcher.start() + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+                if (matcher.end() <= editable.length()) {
+                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.end() - 1, matcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+    }
+    private void applyTextStylesDebounced() {
+        // Cancel previous pending style application
+        if (styleRunnable != null) {
+            styleHandler.removeCallbacks(styleRunnable);
+        }
+
+        styleRunnable = () -> applyTextStyles();
+        styleHandler.postDelayed(styleRunnable, STYLE_APPLY_DELAY_MS);
+    }
+
+
     // + BUTTON MENU
     private void setupAddMenuOptions() {
+        //Headings and fonts
+        findViewById(R.id.headingsandfont).setOnClickListener(v -> {
+            showHeadingsAndFontsBottomSheet();
+            closeAddMenu();
+        });
         // Subpage
         findViewById(R.id.addSubpageOption).setOnClickListener(v -> {
             openSubpage();

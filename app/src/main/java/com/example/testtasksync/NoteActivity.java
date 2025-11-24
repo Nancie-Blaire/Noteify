@@ -5,10 +5,14 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
+import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.TextWatcher;
+import android.text.style.BackgroundColorSpan;
 import android.text.style.ImageSpan;
 import android.util.Log;
 import android.view.ActionMode;
@@ -41,6 +45,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,6 +72,11 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
+import android.widget.*;
+import android.view.*;
+import android.graphics.drawable.*;
+import android.util.TypedValue;
+
 
 public class NoteActivity extends AppCompatActivity {
 
@@ -86,6 +96,8 @@ public class NoteActivity extends AppCompatActivity {
     private boolean hasSubpages = false;
     private String currentNoteColor = "#FAFAFA";
     private ActionMode actionMode;
+
+    // BOOKMARK
     private List<Bookmark> currentBookmarks = new ArrayList<>();
     private ListenerRegistration bookmarkListener;
     private boolean isUpdatingText = false;
@@ -96,17 +108,28 @@ public class NoteActivity extends AppCompatActivity {
     private Runnable bookmarkSaveRunnable = null;
     private static final long BOOKMARK_SAVE_DELAY_MS = 600L; // debounce delay
     private Map<Integer, String> dividerStyles = new HashMap<>();
+
+    // NUMBERED AND BULLETED LIST
     private boolean isNumberedListMode = false;
     private boolean isBulletListMode = false;
-    private int currentListNumber = 1;
+
+    // FOR TOGGLE
     private boolean isToggleListMode = false;
     private boolean isTogglingState = false;
     private Map<Integer, Boolean> toggleStates = new HashMap<>(); // position -> isExpanded
     private Map<Integer, String> toggleContents = new HashMap<>(); // position -> content
     private Map<Integer, List<Bookmark>> hiddenBookmarksByToggle = new HashMap<>();
+
+    // FOR LINK
     private List<LinkWeblink> weblinks = new ArrayList<>();
     private Map<Long, View> weblinkViews = new HashMap<>();
     private ListenerRegistration weblinkListener; // ✅ Add this field at the top
+
+    // FOR TABLE
+    private static final int PICK_IMAGE_REQUEST = 1001;
+    private ImageView selectedImageView;
+    private View currentSelectedTable;
+    private boolean isTableFullWidth = false;
 
 
     // Para sa Camera at Gallery
@@ -120,6 +143,15 @@ public class NoteActivity extends AppCompatActivity {
     private static final int COMPRESSION_QUALITY = 80;   // JPEG compression quality (0-100)
     private static final int MAX_INLINE_IMAGE_KB = 700;  // Max size (in KB) for an image to be saved in one document
     private static final int CHUNK_SIZE = 50000;
+
+    //    DRAG FUNCTIONALITY
+    private boolean isDragging = false;
+    private int dragStartLineIndex = -1;
+    private int dragCurrentLineIndex = -1;
+    private View dragOverlayView;
+    private TextView dragFloatingText;
+    private int dragTouchOffset = 0;
+    private Handler dragHandler = new Handler(Looper.getMainLooper());
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -141,9 +173,6 @@ public class NoteActivity extends AppCompatActivity {
         noteId = getIntent().getStringExtra("noteId");
         scrollToPosition = getIntent().getIntExtra("scrollToPosition", -1);
 
-        // Add this in onCreate() method, before setupTextWatcher()
-        setupImagePickers();
-
         //  CALLING METHODS
         loadNoteColor();
         setupColorPicker();
@@ -156,6 +185,8 @@ public class NoteActivity extends AppCompatActivity {
         setupCheckboxWatcher();
         setupCheckboxAutoWatcher();
         setupImageDeletion();
+        setupImagePickers();
+        setupDragFunctionality();
 
         // Create Firestore note if new
         if (noteId == null) {
@@ -4766,8 +4797,8 @@ public class NoteActivity extends AppCompatActivity {
         });
     }
     private interface ImageLoadCallback {
-    void onComplete();
-}
+        void onComplete();
+    }
     private void setupImageDeletion() {
         noteContent.setOnLongClickListener(v -> {
             int cursorPos = noteContent.getSelectionStart();
@@ -4853,7 +4884,640 @@ public class NoteActivity extends AppCompatActivity {
                     // ... rest of your deletion code
                 });
     }
+    //     INSERT TABLE
+    private void insertTable() {
+        EditText noteContent = findViewById(R.id.noteContent);
+        LinearLayout container = findViewById(R.id.noteContainer);
 
+        // Get cursor position
+        int cursorPosition = noteContent.getSelectionStart();
+        String fullText = noteContent.getText().toString();
+
+        // Create new table
+        TableView tableView = new TableView(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, dpToPx(8), 0, dpToPx(8));
+        tableView.setLayoutParams(params);
+
+        if (cursorPosition > 0) {
+            // Split text at cursor
+            String beforeCursor = fullText.substring(0, cursorPosition);
+            String afterCursor = fullText.substring(cursorPosition);
+
+            // Update noteContent with text before cursor
+            noteContent.setText(beforeCursor);
+
+            // Get index of noteContent
+            int noteContentIndex = container.indexOfChild(noteContent);
+
+            // Insert table after noteContent
+            container.addView(tableView, noteContentIndex + 1);
+
+            // If there's text after cursor, create new EditText
+            if (!afterCursor.isEmpty()) {
+                EditText afterEditText = new EditText(this);
+                LinearLayout.LayoutParams afterParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                afterEditText.setLayoutParams(afterParams);
+                afterEditText.setBackground(null);
+                afterEditText.setGravity(Gravity.TOP);
+                afterEditText.setHint("Start typing your note...");
+                afterEditText.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                        android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+                afterEditText.setMinHeight(dpToPx(200));
+                afterEditText.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
+                afterEditText.setTextColor(Color.parseColor("#333333"));
+                afterEditText.setTextSize(16);
+                afterEditText.setText(afterCursor);
+                afterEditText.setTextIsSelectable(true);
+
+                // Insert after table
+                container.addView(afterEditText, noteContentIndex + 2);
+
+                // Focus on new EditText
+                afterEditText.requestFocus();
+                afterEditText.setSelection(0);
+            }
+        } else {
+            // If cursor at beginning, just insert before noteContent
+            int noteContentIndex = container.indexOfChild(noteContent);
+            container.addView(tableView, noteContentIndex);
+        }
+    }
+
+    // Helper method to convert dp to pixels
+    private int dpToPx(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
+    //       DRAG FUNCTIONALITY
+    private void setupDragFunctionality() {
+        // Create invisible overlay for drag feedback
+        createDragOverlay();
+
+        noteContent.setOnTouchListener(new View.OnTouchListener() {
+            private GestureDetector gestureDetector = new GestureDetector(NoteActivity.this,
+                    new GestureDetector.SimpleOnGestureListener() {
+                        @Override
+                        public void onLongPress(MotionEvent e) {
+                            if (!isDragging) {
+                                startDragMode(e);
+                            }
+                        }
+                    });
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                // Let gesture detector handle long press
+                gestureDetector.onTouchEvent(event);
+
+                if (isDragging) {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_MOVE:
+                            handleDragMove(event);
+                            return true;
+
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            finishDrag();
+                            return true;
+                    }
+                    return true;
+                }
+
+                return false; // Allow normal EditText behavior when not dragging
+            }
+        });
+    }
+
+    private void createDragOverlay() {
+        // Create overlay container
+        dragOverlayView = new FrameLayout(this);
+        dragOverlayView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        dragOverlayView.setVisibility(View.GONE);
+        dragOverlayView.setElevation(dpToPx(8));
+
+        // Create floating text view
+        dragFloatingText = new TextView(this);
+        dragFloatingText.setBackgroundColor(Color.parseColor("#F0F0F0"));
+        dragFloatingText.setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12));
+        dragFloatingText.setTextColor(Color.parseColor("#333333"));
+        dragFloatingText.setTextSize(16);
+        dragFloatingText.setElevation(dpToPx(4));
+        dragFloatingText.setShadowLayer(8, 0, 4, Color.parseColor("#40000000"));
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor("#FFFFFF"));
+        bg.setCornerRadius(dpToPx(8));
+        bg.setStroke(dpToPx(2), Color.parseColor("#4CAF50"));
+        dragFloatingText.setBackground(bg);
+
+        ((FrameLayout) dragOverlayView).addView(dragFloatingText);
+
+        // Add to root layout
+        ((ViewGroup) findViewById(android.R.id.content)).addView(dragOverlayView);
+    }
+
+    private void startDragMode(MotionEvent e) {
+        String content = noteContent.getText().toString();
+        if (content.isEmpty()) return;
+
+        // Get line at touch position
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        int offset = noteContent.getOffsetForPosition(e.getX(), e.getY());
+        int line = layout.getLineForOffset(offset);
+
+        int lineStart = layout.getLineStart(line);
+        int lineEnd = layout.getLineEnd(line);
+
+        if (lineStart >= content.length()) return;
+
+        String lineText = content.substring(lineStart, Math.min(lineEnd, content.length())).trim();
+
+        // Don't allow dragging empty lines or dividers
+        if (lineText.isEmpty() || lineText.contains("〔DIVIDER〕") || lineText.contains("【IMAGE:")) {
+            return;
+        }
+
+        isDragging = true;
+        dragStartLineIndex = line;
+        dragCurrentLineIndex = line;
+
+        // Calculate touch offset within the line
+        int lineTop = layout.getLineTop(line);
+        dragTouchOffset = (int) (e.getY() - lineTop - noteContent.getScrollY());
+
+        // Show floating text
+        dragFloatingText.setText(lineText);
+        dragFloatingText.setMaxWidth(noteContent.getWidth() - dpToPx(32));
+        dragOverlayView.setVisibility(View.VISIBLE);
+
+        // Position floating text
+        updateFloatingTextPosition(e.getRawY());
+
+        // Highlight source line
+        highlightDragLine(lineStart, lineEnd);
+
+        // Haptic feedback
+        noteContent.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+
+        Toast.makeText(this, "Drag to reorder", Toast.LENGTH_SHORT).show();
+    }
+
+    private void handleDragMove(MotionEvent e) {
+        if (!isDragging) return;
+
+        // Update floating text position
+        updateFloatingTextPosition(e.getRawY());
+
+        // Determine current line under finger
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        // Convert screen Y to EditText coordinates
+        int[] location = new int[2];
+        noteContent.getLocationOnScreen(location);
+        float localY = e.getRawY() - location[1] + noteContent.getScrollY();
+
+        // Find line at this position
+        int currentLine = layout.getLineForVertical((int) localY);
+
+        if (currentLine != dragCurrentLineIndex && currentLine >= 0) {
+            dragCurrentLineIndex = currentLine;
+
+            // Visual feedback - highlight drop target
+            String content = noteContent.getText().toString();
+            int targetStart = layout.getLineStart(currentLine);
+            int targetEnd = layout.getLineEnd(currentLine);
+
+            if (targetStart < content.length()) {
+                highlightDropTarget(targetStart, Math.min(targetEnd, content.length()));
+            }
+
+            // Haptic feedback
+            noteContent.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        }
+    }
+
+    private void updateFloatingTextPosition(float rawY) {
+        int[] location = new int[2];
+        noteContent.getLocationOnScreen(location);
+
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) dragFloatingText.getLayoutParams();
+        params.leftMargin = dpToPx(16);
+        params.topMargin = (int) (rawY - location[1] - dragTouchOffset);
+        params.width = noteContent.getWidth() - dpToPx(32);
+        params.height = FrameLayout.LayoutParams.WRAP_CONTENT;
+
+        dragFloatingText.setLayoutParams(params);
+    }
+
+    private void highlightDragLine(int start, int end) {
+        SpannableString spannable = new SpannableString(noteContent.getText());
+
+        // Add semi-transparent highlight
+        spannable.setSpan(
+                new BackgroundColorSpan(Color.parseColor("#80BBDEFB")),
+                start,
+                end,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+
+        isUpdatingText = true;
+        noteContent.setText(spannable, TextView.BufferType.SPANNABLE);
+        isUpdatingText = false;
+    }
+
+    private void highlightDropTarget(int start, int end) {
+        SpannableString spannable = new SpannableString(noteContent.getText());
+
+        // Add green highlight for drop target
+        spannable.setSpan(
+                new BackgroundColorSpan(Color.parseColor("#80C8E6C9")),
+                start,
+                end,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+
+        isUpdatingText = true;
+        noteContent.setText(spannable, TextView.BufferType.SPANNABLE);
+
+        // Reapply bookmarks after short delay
+        noteContent.postDelayed(() -> {
+            applyBookmarksToText();
+            isUpdatingText = false;
+        }, 50);
+    }
+
+    private void finishDrag() {
+        if (!isDragging) return;
+
+        isDragging = false;
+        dragOverlayView.setVisibility(View.GONE);
+
+        // Perform the reordering
+        if (dragCurrentLineIndex != dragStartLineIndex && dragCurrentLineIndex >= 0) {
+            reorderLines(dragStartLineIndex, dragCurrentLineIndex);
+        } else {
+            // Just remove highlights
+            applyBookmarksToText();
+        }
+
+        dragStartLineIndex = -1;
+        dragCurrentLineIndex = -1;
+
+        // Haptic feedback
+        noteContent.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+    }
+
+    private void reorderLines(int fromLine, int toLine) {
+        String content = noteContent.getText().toString();
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        String[] lines = content.split("\n", -1);
+
+        if (fromLine >= lines.length || toLine >= lines.length) return;
+
+        String draggedLine = lines[fromLine];
+        String targetLine = lines[toLine];
+
+        // Detect line types
+        LineInfo fromInfo = analyzeLineType(draggedLine);
+        LineInfo toInfo = analyzeLineType(targetLine);
+
+        // ✅ KEY FIX: TRUE SWAP - Exchange positions AND formats
+        List<String> linesList = new ArrayList<>(Arrays.asList(lines));
+
+        // Process dragged line to take target's format
+        String processedDraggedLine = processLineForInsertion(draggedLine, fromInfo, toInfo, linesList, toLine);
+
+        // Process target line to take dragged's format (swap!)
+        String processedTargetLine = processLineForInsertion(targetLine, toInfo, fromInfo, linesList, fromLine);
+
+        // Perform the swap
+        linesList.set(fromLine, processedTargetLine);
+        linesList.set(toLine, processedDraggedLine);
+
+        // Renumber affected lists
+        int minLine = Math.min(fromLine, toLine);
+        int maxLine = Math.max(fromLine, toLine);
+        renumberAffectedLists(linesList, minLine, maxLine + 1);
+
+        // Rebuild content
+        StringBuilder newContent = new StringBuilder();
+        for (int i = 0; i < linesList.size(); i++) {
+            newContent.append(linesList.get(i));
+            if (i < linesList.size() - 1) {
+                newContent.append("\n");
+            }
+        }
+
+        // Update bookmarks positions
+        updateBookmarksAfterReorder(content, newContent.toString(), fromLine, toLine);
+
+        // Apply new content
+        isUpdatingText = true;
+        noteContent.setText(newContent.toString());
+
+        // Reapply styling
+        noteContent.postDelayed(() -> {
+            applyBookmarksToText();
+            isUpdatingText = false;
+            saveNoteContentToFirestore(newContent.toString());
+        }, 100);
+
+        Toast.makeText(this, "Lines swapped", Toast.LENGTH_SHORT).show();
+    }
+
+    private LineInfo analyzeLineType(String line) {
+        LineInfo info = new LineInfo();
+
+        // Count leading spaces
+        int indent = 0;
+        for (char c : line.toCharArray()) {
+            if (c == ' ') indent++;
+            else break;
+        }
+        info.indent = indent;
+
+        String trimmed = line.trim();
+
+        // Bullet list
+        if (trimmed.matches("^[●○■]\\s.*")) {
+            info.type = LineType.BULLET;
+            info.bullet = trimmed.charAt(0);
+            info.content = trimmed.substring(2);
+        }
+        // Numbered list
+        else if (trimmed.matches("^\\d+\\.\\s.*")) {
+            info.type = LineType.NUMBERED;
+            info.content = trimmed.replaceFirst("^\\d+\\.\\s", "");
+        }
+        // Lettered list
+        else if (trimmed.matches("^[a-z]\\.\\s.*")) {
+            info.type = LineType.LETTERED;
+            info.content = trimmed.replaceFirst("^[a-z]\\.\\s", "");
+        }
+        // Roman numeral list
+        else if (trimmed.matches("^[ivx]+\\.\\s.*")) {
+            info.type = LineType.ROMAN;
+            info.content = trimmed.replaceFirst("^[ivx]+\\.\\s", "");
+        }
+        // Toggle
+        else if (trimmed.matches("^[▶▼]\\s.*")) {
+            info.type = LineType.TOGGLE;
+            info.content = trimmed.substring(2);
+        }
+        // Checkbox
+        else if (trimmed.matches("^[☐☑]\\s.*")) {
+            info.type = LineType.CHECKBOX;
+            info.content = trimmed.substring(2);
+        }
+        // Regular text
+        else {
+            info.type = LineType.TEXT;
+            info.content = trimmed;
+        }
+
+        return info;
+    }
+
+    private String processLineForInsertion(String originalLine, LineInfo fromInfo, LineInfo toInfo,
+                                           List<String> lines, int insertIndex) {
+        StringBuilder result = new StringBuilder();
+
+        // ✅ KEY FIX: When swapping, the dragged item should TAKE THE EXACT FORMAT of target
+        // Use target indentation
+        int targetIndent = toInfo.indent;
+
+        // Add indentation
+        for (int i = 0; i < targetIndent; i++) {
+            result.append(" ");
+        }
+
+        // ✅ CRITICAL: Use the TARGET'S list format, not the source
+        if (toInfo.type != LineType.TEXT) {
+            // Use the TARGET's list marker
+            switch (toInfo.type) {
+                case BULLET:
+                    result.append(getBulletForIndent(targetIndent)).append(" ");
+                    break;
+                case NUMBERED:
+                    result.append("1. "); // Will be renumbered to target position
+                    break;
+                case LETTERED:
+                    result.append("a. "); // Will be renumbered to target position
+                    break;
+                case ROMAN:
+                    result.append("i. "); // Will be renumbered to target position
+                    break;
+                case TOGGLE:
+                    result.append("▶ ");
+                    break;
+                case CHECKBOX:
+                    result.append("☐ ");
+                    break;
+                default:
+                    result.append(fromInfo.content);
+                    return result.toString();
+            }
+        } else {
+            // If target is plain text, keep original format
+            String trimmed = originalLine.trim();
+            result.append(trimmed);
+            return result.toString();
+        }
+
+        result.append(fromInfo.content);
+        return result.toString();
+    }
+
+    private char getBulletForIndent(int indent) {
+        if (indent == 0) return '●';
+        if (indent == 4) return '○';
+        return '■';
+    }
+
+    private void renumberAffectedLists(List<String> lines, int startIndex, int endIndex) {
+        // Expand range to include full list blocks
+        int actualStart = findListStart(lines, startIndex);
+        int actualEnd = findListEnd(lines, endIndex);
+
+        for (int i = actualStart; i <= actualEnd && i < lines.size(); i++) {
+            String line = lines.get(i);
+            LineInfo info = analyzeLineType(line);
+
+            if (info.type == LineType.NUMBERED || info.type == LineType.LETTERED || info.type == LineType.ROMAN) {
+                // Find consecutive items at same indentation
+                int number = 1;
+                int currentIndent = info.indent;
+
+                // Count backwards to find starting number
+                for (int j = i - 1; j >= 0; j--) {
+                    LineInfo prevInfo = analyzeLineType(lines.get(j));
+                    if (prevInfo.indent == currentIndent && prevInfo.type == info.type) {
+                        number++;
+                    } else if (prevInfo.indent < currentIndent) {
+                        break;
+                    }
+                }
+
+                // Renumber this item
+                String indent = "";
+                for (int k = 0; k < currentIndent; k++) indent += " ";
+
+                String newLine = indent;
+                switch (info.type) {
+                    case NUMBERED:
+                        newLine += number + ". " + info.content;
+                        break;
+                    case LETTERED:
+                        newLine += ((char)('a' + number - 1)) + ". " + info.content;
+                        break;
+                    case ROMAN:
+                        newLine += convertToRoman(number) + ". " + info.content;
+                        break;
+                }
+
+                lines.set(i, newLine);
+            }
+        }
+    }
+
+    private int findListStart(List<String> lines, int fromIndex) {
+        if (fromIndex <= 0) return 0;
+
+        LineInfo currentInfo = analyzeLineType(lines.get(fromIndex));
+        if (currentInfo.type == LineType.TEXT) return fromIndex;
+
+        for (int i = fromIndex - 1; i >= 0; i--) {
+            LineInfo info = analyzeLineType(lines.get(i));
+            if (info.type != currentInfo.type || info.indent < currentInfo.indent) {
+                return i + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    private int findListEnd(List<String> lines, int fromIndex) {
+        if (fromIndex >= lines.size() - 1) return lines.size() - 1;
+
+        LineInfo currentInfo = analyzeLineType(lines.get(fromIndex));
+        if (currentInfo.type == LineType.TEXT) return fromIndex;
+
+        for (int i = fromIndex + 1; i < lines.size(); i++) {
+            LineInfo info = analyzeLineType(lines.get(i));
+            if (info.type != currentInfo.type || info.indent < currentInfo.indent) {
+                return i - 1;
+            }
+        }
+
+        return lines.size() - 1;
+    }
+
+    private String convertToRoman(int number) {
+        String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
+        if (number > 0 && number <= romans.length) {
+            return romans[number - 1];
+        }
+        return "i";
+    }
+
+    private void updateBookmarksAfterReorder(String oldContent, String newContent, int fromLine, int toLine) {
+        // Calculate position changes
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        String[] oldLines = oldContent.split("\n", -1);
+        String[] newLines = newContent.split("\n", -1);
+
+        // Build position map
+        Map<Integer, Integer> positionMap = new HashMap<>();
+
+        int oldPos = 0;
+        int newPos = 0;
+
+        for (int i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
+            if (i < oldLines.length) {
+                positionMap.put(oldPos, newPos);
+                oldPos += oldLines[i].length() + 1;
+            }
+            if (i < newLines.length) {
+                newPos += newLines[i].length() + 1;
+            }
+        }
+
+        // Update bookmarks
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                int oldStart = bookmark.getStartIndex();
+                int oldEnd = bookmark.getEndIndex();
+
+                // Find closest mapped position
+                Integer newStart = findClosestMappedPosition(positionMap, oldStart);
+                Integer newEnd = findClosestMappedPosition(positionMap, oldEnd);
+
+                if (newStart != null && newEnd != null && newStart < newEnd) {
+                    try {
+                        String bookmarkText = newContent.substring(newStart, Math.min(newEnd, newContent.length()));
+                        if (!bookmarkText.trim().isEmpty()) {
+                            updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText.trim());
+                            bookmark.setStartIndex(newStart);
+                            bookmark.setEndIndex(newEnd);
+                            bookmark.setText(bookmarkText.trim());
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
+
+    private Integer findClosestMappedPosition(Map<Integer, Integer> positionMap, int oldPos) {
+        if (positionMap.containsKey(oldPos)) {
+            return positionMap.get(oldPos);
+        }
+
+        // Find closest position
+        int closest = -1;
+        int minDiff = Integer.MAX_VALUE;
+
+        for (Map.Entry<Integer, Integer> entry : positionMap.entrySet()) {
+            int diff = Math.abs(entry.getKey() - oldPos);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = entry.getValue();
+            }
+        }
+
+        return closest >= 0 ? closest : null;
+    }
+
+    // Helper classes
+    private enum LineType {
+        TEXT, BULLET, NUMBERED, LETTERED, ROMAN, TOGGLE, CHECKBOX
+    }
+
+    private static class LineInfo {
+        LineType type = LineType.TEXT;
+        int indent = 0;
+        String content = "";
+        char bullet = '●';
+    }
     // + BUTTON MENU
     private void setupAddMenuOptions() {
         // Subpage
@@ -4907,6 +5571,11 @@ public class NoteActivity extends AppCompatActivity {
         //Insert Image
         findViewById(R.id.insertImage).setOnClickListener(v -> {
             showInsertMediaBottomSheet();
+            closeAddMenu();
+        });
+        //Insert Table
+        findViewById(R.id.addTableOption).setOnClickListener(v -> {
+            insertTable();
             closeAddMenu();
         });
     }

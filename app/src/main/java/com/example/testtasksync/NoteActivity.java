@@ -1965,6 +1965,7 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 });
     }
+
     private void applyBookmarksToText() {
         isUpdatingText = true;
         String content = noteContent.getText().toString();
@@ -1973,20 +1974,8 @@ public class NoteActivity extends AppCompatActivity {
             return;
         }
 
-        // ✅ SAVE existing ImageSpans FIRST
-        Editable currentEditable = noteContent.getEditableText();
-        List<SpanInfo> savedImageSpans = new ArrayList<>();
-
-        ImageSpan[] existingImages = currentEditable.getSpans(0, currentEditable.length(), ImageSpan.class);
-        for (ImageSpan span : existingImages) {
-            int start = currentEditable.getSpanStart(span);
-            int end = currentEditable.getSpanEnd(span);
-            if (start >= 0 && end <= content.length() && start < end) {
-                savedImageSpans.add(new SpanInfo(span, start, end));
-            }
-        }
-
-        android.text.SpannableString span = new android.text.SpannableString(content);
+        // ✅ FIX: Work directly with Editable instead of creating new SpannableString
+        Editable editable = noteContent.getEditableText();
 
         String dividerPlaceholder = "【DIVIDER】";
 
@@ -1996,6 +1985,12 @@ public class NoteActivity extends AppCompatActivity {
         while ((dividerIndex = content.indexOf(dividerPlaceholder, dividerIndex)) != -1) {
             dividerRanges.add(new int[]{dividerIndex, dividerIndex + dividerPlaceholder.length()});
             dividerIndex += dividerPlaceholder.length();
+        }
+
+        // ✅ Remove OLD divider spans only (keep ImageSpans!)
+        DividerSpan[] oldDividers = editable.getSpans(0, editable.length(), DividerSpan.class);
+        for (DividerSpan span : oldDividers) {
+            editable.removeSpan(span);
         }
 
         // Apply all dividers with their saved styles
@@ -2015,7 +2010,7 @@ public class NoteActivity extends AppCompatActivity {
 
             newDividerStyles.put(dividerIndex, style);
 
-            span.setSpan(
+            editable.setSpan(
                     new DividerSpan(style, 0xFF666666),
                     dividerIndex,
                     dividerEnd,
@@ -2026,19 +2021,9 @@ public class NoteActivity extends AppCompatActivity {
         }
 
         dividerStyles = newDividerStyles;
-        applyCheckboxStyles(span, content);
+        applyCheckboxStyles(editable, content);
 
-        // ✅ RESTORE ImageSpans BEFORE applying bookmarks
-        for (SpanInfo info : savedImageSpans) {
-            if (info.start >= 0 && info.end <= content.length() && info.start < info.end) {
-                span.setSpan(
-                        info.span,
-                        info.start,
-                        info.end,
-                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-            }
-        }
+        // ✅ ImageSpans are already in editable, we don't touch them!
 
         // Collect IDs of all hidden bookmarks to skip them
         Set<String> hiddenBookmarkIds = new HashSet<>();
@@ -2046,6 +2031,17 @@ public class NoteActivity extends AppCompatActivity {
             for (Bookmark hidden : hiddenList) {
                 hiddenBookmarkIds.add(hidden.getId());
             }
+        }
+
+        // ✅ Remove OLD bookmark spans only
+        android.text.style.BackgroundColorSpan[] oldBgSpans = editable.getSpans(0, editable.length(), android.text.style.BackgroundColorSpan.class);
+        for (android.text.style.BackgroundColorSpan span : oldBgSpans) {
+            editable.removeSpan(span);
+        }
+
+        CustomUnderlineSpan[] oldUnderlines = editable.getSpans(0, editable.length(), CustomUnderlineSpan.class);
+        for (CustomUnderlineSpan span : oldUnderlines) {
+            editable.removeSpan(span);
         }
 
         // Apply bookmarks (AVOID divider areas AND skip hidden bookmarks)
@@ -2083,14 +2079,14 @@ public class NoteActivity extends AppCompatActivity {
             try {
                 int color = android.graphics.Color.parseColor(b.getColor());
                 if ("highlight".equals(b.getStyle()))
-                    span.setSpan(new android.text.style.BackgroundColorSpan(color), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    editable.setSpan(new android.text.style.BackgroundColorSpan(color), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                 else if ("underline".equals(b.getStyle()))
-                    span.setSpan(new CustomUnderlineSpan(color, s, e), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    editable.setSpan(new CustomUnderlineSpan(color, s, e), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             } catch (Exception ignored) {}
         }
 
         int sel = noteContent.getSelectionStart();
-        noteContent.setText(span, android.widget.TextView.BufferType.SPANNABLE);
+        // ✅ DON'T call setText() - we modified editable directly!
         if (sel >= 0 && sel <= content.length()) noteContent.setSelection(sel);
 
         lastSavedContent = content;
@@ -2120,7 +2116,18 @@ public class NoteActivity extends AppCompatActivity {
                 }
 
                 int arrowColor = hasContent ? 0xFF000000 : 0xFF999999;
-                span.setSpan(
+
+                // ✅ Remove old arrow color spans first
+                android.text.style.ForegroundColorSpan[] oldArrowSpans = editable.getSpans(
+                        currentPos + arrowPos,
+                        currentPos + arrowPos + 1,
+                        android.text.style.ForegroundColorSpan.class
+                );
+                for (android.text.style.ForegroundColorSpan span : oldArrowSpans) {
+                    editable.removeSpan(span);
+                }
+
+                editable.setSpan(
                         new android.text.style.ForegroundColorSpan(arrowColor),
                         currentPos + arrowPos,
                         currentPos + arrowPos + 1,
@@ -2131,6 +2138,8 @@ public class NoteActivity extends AppCompatActivity {
             currentPos += line.length() + 1;
         }
     }
+
+
     private void openBookmarks() {
         Intent i = new Intent(this, BookmarksActivity.class);
         i.putExtra("noteId", noteId);
@@ -4059,9 +4068,20 @@ public class NoteActivity extends AppCompatActivity {
         // Save to Firestore
         saveNoteContentToFirestore(newContent);
     }
-    private void applyCheckboxStyles(android.text.SpannableString spannable, String content) {
+    private void applyCheckboxStyles(android.text.Spannable spannable, String content) {
         String[] lines = content.split("\n");
         int currentPos = 0;
+
+        // ✅ Remove old checkbox spans first
+        android.text.style.ForegroundColorSpan[] oldColorSpans = spannable.getSpans(0, spannable.length(), android.text.style.ForegroundColorSpan.class);
+        android.text.style.StrikethroughSpan[] oldStrikeSpans = spannable.getSpans(0, spannable.length(), android.text.style.StrikethroughSpan.class);
+
+        for (android.text.style.ForegroundColorSpan span : oldColorSpans) {
+            spannable.removeSpan(span);
+        }
+        for (android.text.style.StrikethroughSpan span : oldStrikeSpans) {
+            spannable.removeSpan(span);
+        }
 
         for (String line : lines) {
             if (line.contains("☑")) {
@@ -4298,7 +4318,7 @@ public class NoteActivity extends AppCompatActivity {
         return File.createTempFile(imageFileName, ".jpg", storageDir);
     }
 
-// Image Processing and Upload Logic
+    // Image Processing and Upload Logic
 // =========================================================================
 
     private void uploadImageToFirebase(Uri imageUri) {

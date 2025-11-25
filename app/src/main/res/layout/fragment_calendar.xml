@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F5F5F5">
+    android:background="@drawable/lightmode_bg">
 
     <!-- Header with Month/Year Dropdown -->
     <LinearLayout
@@ -37,7 +37,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="@android:color/white"
+        android:background="@drawable/lightmode_bg"
         android:padding="8dp"/>
 
 </LinearLayout>

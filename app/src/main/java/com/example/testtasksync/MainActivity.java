@@ -214,9 +214,20 @@ public class MainActivity extends AppCompatActivity {
         Notifs.setBackgroundTintList(null);
         Settings.setBackgroundTintList(null);
 
+        // Resets color
+        Home.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
+        Calendar.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
+        Notifs.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
+        Settings.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
+
+
         // Add circle to selected icon
         selectedIcon.setBackgroundResource(R.drawable.circle_bg);
         selectedIcon.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FFFFFF")));
+
+        // Change icon's color if selected
+        selectedIcon.setImageTintList(ColorStateList.valueOf(Color.parseColor("#008f84")));
+
     }
 
     /**
@@ -322,7 +333,7 @@ public class MainActivity extends AppCompatActivity {
         fabWeekly.setVisibility(View.GONE);
 
         // Change main FAB back to cyan with plus icon
-        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#26E9D8"))); // Cyan
+        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#f6d5b6"))); // light orange
         fabMain.setImageResource(R.drawable.ic_fab_add); // Change back to plus icon
 
         // Optional: Reset rotation

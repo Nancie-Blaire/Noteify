@@ -106,6 +106,7 @@ public class NoteActivity extends AppCompatActivity {
     private final android.os.Handler bookmarkSaveHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable bookmarkSaveRunnable = null;
     private static final long BOOKMARK_SAVE_DELAY_MS = 600L; // debounce delay
+    private boolean isProcessing = false;
     private Map<Integer, String> dividerStyles = new HashMap<>();
     private boolean isNumberedListMode = false;
     private boolean isBulletListMode = false;
@@ -763,6 +764,7 @@ public class NoteActivity extends AppCompatActivity {
         noteContent.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int after) {
+                if (isProcessing) return;
                 if (!isUpdatingText && !currentBookmarks.isEmpty()) {
                     int lengthDiff = after - before;
                     if (lengthDiff != 0) updateBookmarkIndices(start, lengthDiff);
@@ -2561,16 +2563,12 @@ public class NoteActivity extends AppCompatActivity {
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
 
-                            // ✅ PRESERVE HEADINGS
-                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
 
-                            // ✅ Reapply styles including headings
-                            noteContent.postDelayed(() -> {
-                                applyTextStyles();
-                                isUpdatingText = false;
-                            }, 50);
+                            // ✅ ADD THIS LINE!
+                            isProcessing = false;
+                            return; // ✅ EXIT IMMEDIATELY
                         } else {
                             String nextNumberText = getNextNumberFormat(currentLine);
 
@@ -2578,16 +2576,8 @@ public class NoteActivity extends AppCompatActivity {
                                     nextNumberText +
                                     s.toString().substring(start + 1);
 
-                            // ✅ PRESERVE HEADINGS
-                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(start + 1 + nextNumberText.length());
-
-                            // ✅ Reapply styles including headings
-                            noteContent.postDelayed(() -> {
-                                applyTextStyles();
-                                isUpdatingText = false;
-                            }, 50);
                         }
                     }
 
@@ -2761,6 +2751,7 @@ public class NoteActivity extends AppCompatActivity {
         // Enable bullet list mode
         isBulletListMode = true;
     }
+
     private void setupBulletListWatcher() {
         noteContent.addTextChangedListener(new TextWatcher() {
             private boolean isProcessing = false;
@@ -2788,16 +2779,12 @@ public class NoteActivity extends AppCompatActivity {
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
 
-                            // ✅ PRESERVE HEADINGS
-                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
 
-                            // ✅ Reapply styles including headings
-                            noteContent.postDelayed(() -> {
-                                applyTextStyles();
-                                isUpdatingText = false;
-                            }, 50);
+                            // ✅ ADD THIS LINE!
+                            isProcessing = false;
+                            return; // ✅ EXIT IMMEDIATELY
                         } else {
                             String indentAndBullet = getBulletWithIndentation(currentLine);
 
@@ -2805,16 +2792,8 @@ public class NoteActivity extends AppCompatActivity {
                                     indentAndBullet +
                                     s.toString().substring(start + 1);
 
-                            // ✅ PRESERVE HEADINGS
-                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(start + 1 + indentAndBullet.length());
-
-                            // ✅ Reapply styles including headings
-                            noteContent.postDelayed(() -> {
-                                applyTextStyles();
-                                isUpdatingText = false;
-                            }, 50);
                         }
                     }
 
@@ -2826,6 +2805,8 @@ public class NoteActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {}
         });
     }
+
+
     private String getBulletWithIndentation(String line) {
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\s*)([●○■])\\s");
         java.util.regex.Matcher matcher = pattern.matcher(line);
@@ -2888,104 +2869,92 @@ public class NoteActivity extends AppCompatActivity {
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (isProcessing || isUpdatingText || isTogglingState) return;
 
-                // Check if user pressed Enter (added newline)
                 if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
                     isProcessing = true;
 
-                    // Get the line before the newline
                     String textBeforeNewline = s.toString().substring(0, start);
                     int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
                     String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
 
-                    // Check if cursor is on toggle title (▶ or ▼ present)
                     if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
                         isToggleListMode = true;
 
-                        // Check if the toggle title is empty (no content after arrow)
                         if (currentLine.matches("^\\s*[▶▼]\\s*$")) {
-                            // Double enter detected - exit toggle list mode
                             isToggleListMode = false;
 
-                            // Remove the empty toggle line
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
 
-                            // ✅ PRESERVE HEADINGS
+                            // ✅ Save ALL spans
+                            Editable editable = noteContent.getEditableText();
+                            List<SpanInfo> allSpans = saveAllSpans(editable);
+
                             isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
 
-                            // ✅ Reapply styles including headings
-                            noteContent.postDelayed(() -> {
-                                applyTextStyles();
-                                isUpdatingText = false;
-                            }, 50);
+                            // ✅ Restore spans immediately
+                            restoreAllSpans(noteContent.getEditableText(), allSpans);
+                            isUpdatingText = false;
                         } else {
-                            // ✅ Check if toggle is EXPANDED (▼) or COLLAPSED (▶)
                             boolean isExpanded = currentLine.contains("▼");
 
-                            // Get THIS toggle's indentation
                             int toggleIndent = 0;
                             for (char c : currentLine.toCharArray()) {
                                 if (c == ' ') toggleIndent++;
                                 else break;
                             }
 
+                            String newText;
+                            int newCursorPos;
+
                             if (isExpanded) {
-                                // ✅ Toggle is EXPANDED - create content line (toggle indent + 4)
+                                // Toggle is EXPANDED - create content line
                                 StringBuilder indent = new StringBuilder();
                                 for (int i = 0; i < toggleIndent + 4; i++) {
                                     indent.append(" ");
                                 }
 
-                                String newText = s.toString().substring(0, start + 1) +
+                                newText = s.toString().substring(0, start + 1) +
                                         indent.toString() +
                                         s.toString().substring(start + 1);
 
-                                // ✅ Temporarily disable bookmark updates
-                                isUpdatingText = true;
-
-                                noteContent.setText(newText);
-
-                                // ✅ Update bookmarks AFTER setting text
-                                updateBookmarkIndicesForToggleNewline(start + 1, indent.length(), newText);
-
-                                noteContent.setSelection(start + 1 + indent.length());
-
-                                // ✅ Reapply styles including headings
-                                noteContent.postDelayed(() -> {
-                                    applyTextStyles();
-                                    applyBookmarksToText();
-                                    isUpdatingText = false;
-                                }, 50);
+                                newCursorPos = start + 1 + indent.length();
                             } else {
-                                // ✅ Toggle is COLLAPSED - create new toggle at SAME level
+                                // Toggle is COLLAPSED - create new toggle at SAME level
                                 StringBuilder indent = new StringBuilder();
                                 for (int i = 0; i < toggleIndent; i++) {
                                     indent.append(" ");
                                 }
                                 String newToggle = indent.toString() + "▶ ";
 
-                                String newText = s.toString().substring(0, start + 1) +
+                                newText = s.toString().substring(0, start + 1) +
                                         newToggle +
                                         s.toString().substring(start + 1);
 
-                                // ✅ PRESERVE HEADINGS
-                                isUpdatingText = true;
-                                noteContent.setText(newText);
-                                noteContent.setSelection(start + 1 + newToggle.length());
-
-                                // ✅ Reapply styles including headings
-                                noteContent.postDelayed(() -> {
-                                    applyTextStyles();
-                                    isUpdatingText = false;
-                                }, 50);
+                                newCursorPos = start + 1 + newToggle.length();
                             }
+
+                            // ✅ Save ALL spans
+                            Editable editable = noteContent.getEditableText();
+                            List<SpanInfo> allSpans = saveAllSpans(editable);
+
+                            // ✅ CRITICAL: Set BOTH flags to prevent interference
+                            isUpdatingText = true;
+                            isTogglingState = true;
+
+                            noteContent.setText(newText);
+                            noteContent.setSelection(newCursorPos);
+
+                            // ✅ Restore spans immediately
+                            restoreAllSpans(noteContent.getEditableText(), allSpans);
+
+                            isUpdatingText = false;
+                            isTogglingState = false;
                         }
                     }
-                    // ✅ Check if cursor is on ANY indented content (4+ spaces)
+                    // ✅ Check if cursor is on ANY indented content
                     else if (currentLine.length() >= 4 && currentLine.substring(0, 4).equals("    ")) {
-                        // Get current indentation
                         int currentIndent = 0;
                         for (char c : currentLine.toCharArray()) {
                             if (c == ' ') currentIndent++;
@@ -2993,18 +2962,15 @@ public class NoteActivity extends AppCompatActivity {
                         }
 
                         String trimmedLine = currentLine.trim();
-
-                        // Check if current line is empty
                         boolean isCurrentEmpty = trimmedLine.isEmpty();
 
                         if (isCurrentEmpty) {
-                            // Check if previous line was also empty content
                             int prevLineStart = textBeforeNewline.lastIndexOf('\n', lastNewlineIndex - 1) + 1;
                             if (prevLineStart >= 0 && prevLineStart < lastNewlineIndex) {
                                 String prevLine = textBeforeNewline.substring(prevLineStart, lastNewlineIndex);
 
                                 if (prevLine.length() >= 4 && prevLine.substring(0, 4).equals("    ") && prevLine.trim().isEmpty()) {
-                                    // ✅ Find PARENT toggle indentation by going backwards
+                                    // Find parent toggle indentation
                                     int parentIndent = 0;
                                     int searchPos = prevLineStart - 1;
 
@@ -3023,7 +2989,6 @@ public class NoteActivity extends AppCompatActivity {
                                         searchPos = searchLineStart - 1;
                                     }
 
-                                    // Create new toggle at SAME level as parent
                                     StringBuilder indent = new StringBuilder();
                                     for (int i = 0; i < parentIndent; i++) {
                                         indent.append(" ");
@@ -3034,68 +2999,20 @@ public class NoteActivity extends AppCompatActivity {
                                             newToggle +
                                             s.toString().substring(start + 1);
 
-                                    // ✅ Update bookmarks for double-enter parent toggle creation
+                                    // ✅ Save ALL spans
+                                    Editable editable = noteContent.getEditableText();
+                                    List<SpanInfo> allSpans = saveAllSpans(editable);
+
                                     isUpdatingText = true;
-
-                                    // Calculate how much content is being removed and added
-                                    int removeStart = lastNewlineIndex + 1;
-                                    int removeEnd = start + 1;
-                                    int removedLength = removeEnd - removeStart;
-                                    int addedLength = newToggle.length();
-                                    int lengthDiff = addedLength - removedLength;
-
-                                    // Update bookmark positions
-                                    FirebaseUser user = auth.getCurrentUser();
-                                    if (user != null) {
-                                        for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
-                                            int bStart = bookmark.getStartIndex();
-                                            int bEnd = bookmark.getEndIndex();
-                                            boolean needsUpdate = false;
-
-                                            // If bookmark is completely after the change, shift it
-                                            if (bStart >= removeEnd) {
-                                                bStart += lengthDiff;
-                                                bEnd += lengthDiff;
-                                                needsUpdate = true;
-                                            }
-                                            // If bookmark overlaps with removed content, it needs special handling
-                                            else if (bStart >= removeStart && bStart < removeEnd) {
-                                                // Bookmark starts in removed area - shift to after new toggle
-                                                bStart = removeStart + addedLength;
-                                                bEnd += lengthDiff;
-                                                needsUpdate = true;
-                                            }
-                                            else if (bEnd > removeStart && bEnd <= removeEnd) {
-                                                // Bookmark ends in removed area - truncate it
-                                                bEnd = removeStart;
-                                                needsUpdate = true;
-                                            }
-
-                                            if (needsUpdate && bStart >= 0 && bEnd <= newText.length() && bStart < bEnd) {
-                                                try {
-                                                    String bookmarkText = newText.substring(bStart, bEnd);
-                                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【DIVIDER】")) {
-                                                        bookmark.setStartIndex(bStart);
-                                                        bookmark.setEndIndex(bEnd);
-                                                        bookmark.setText(bookmarkText);
-                                                        updateBookmarkInFirestore(bookmark.getId(), bStart, bEnd, bookmarkText);
-                                                    }
-                                                } catch (Exception e) {
-                                                    e.printStackTrace();
-                                                }
-                                            }
-                                        }
-                                    }
+                                    isTogglingState = true;
 
                                     noteContent.setText(newText);
                                     noteContent.setSelection(lastNewlineIndex + 1 + newToggle.length());
 
-                                    // ✅ Reapply styles including headings
-                                    noteContent.postDelayed(() -> {
-                                        applyTextStyles();
-                                        applyBookmarksToText();
-                                        isUpdatingText = false;
-                                    }, 50);
+                                    restoreAllSpans(noteContent.getEditableText(), allSpans);
+
+                                    isUpdatingText = false;
+                                    isTogglingState = false;
 
                                     isProcessing = false;
                                     return;
@@ -3103,7 +3020,7 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // ✅ Add new content line with SAME indentation (stay inside toggle)
+                        // Add new content line with SAME indentation
                         StringBuilder indent = new StringBuilder();
                         for (int i = 0; i < currentIndent; i++) {
                             indent.append(" ");
@@ -3113,22 +3030,20 @@ public class NoteActivity extends AppCompatActivity {
                                 indent.toString() +
                                 s.toString().substring(start + 1);
 
-                        // ✅ Temporarily disable bookmark updates
+                        // ✅ Save ALL spans
+                        Editable editable = noteContent.getEditableText();
+                        List<SpanInfo> allSpans = saveAllSpans(editable);
+
                         isUpdatingText = true;
+                        isTogglingState = true;
 
                         noteContent.setText(newText);
-
-                        // ✅ Update bookmarks AFTER setting text
-                        updateBookmarkIndicesForToggleNewline(start + 1, indent.length(), newText);
-
                         noteContent.setSelection(start + 1 + indent.length());
 
-                        // ✅ Reapply styles including headings
-                        noteContent.postDelayed(() -> {
-                            applyTextStyles();
-                            applyBookmarksToText();
-                            isUpdatingText = false;
-                        }, 50);
+                        restoreAllSpans(noteContent.getEditableText(), allSpans);
+
+                        isUpdatingText = false;
+                        isTogglingState = false;
                     }
 
                     isProcessing = false;
@@ -4074,36 +3989,45 @@ public class NoteActivity extends AppCompatActivity {
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (isProcessing || isUpdatingText || isTogglingState) return;
 
-                // Check if user pressed Enter (added newline)
                 if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
                     isProcessing = true;
 
-                    // Get the line before the newline
                     String textBeforeNewline = s.toString().substring(0, start);
                     int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
                     String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
 
-                    // Check if the current line is a checkbox item
                     if (currentLine.matches("^\\s*[☐☑]\\s.*")) {
-                        // Check if the current line is an empty checkbox item
                         if (currentLine.matches("^\\s*[☐☑]\\s*$")) {
-                            // Double enter detected - exit checkbox mode
-                            // Remove the empty checkbox line
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
+
+                            // ✅ Save ALL spans
+                            Editable editable = noteContent.getEditableText();
+                            List<SpanInfo> allSpans = saveAllSpans(editable);
+
+                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
+
+                            restoreAllSpans(noteContent.getEditableText(), allSpans);
+                            isUpdatingText = false;
                         } else {
-                            // Get the indentation and checkbox type from current line
                             String indentAndCheckbox = getCheckboxWithIndentation(currentLine);
 
-                            // Add next checkbox item with same indentation
                             String newText = s.toString().substring(0, start + 1) +
                                     indentAndCheckbox +
                                     s.toString().substring(start + 1);
 
+                            // ✅ Save ALL spans
+                            Editable editable = noteContent.getEditableText();
+                            List<SpanInfo> allSpans = saveAllSpans(editable);
+
+                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(start + 1 + indentAndCheckbox.length());
+
+                            restoreAllSpans(noteContent.getEditableText(), allSpans);
+                            isUpdatingText = false;
                         }
                     }
 
@@ -5600,10 +5524,39 @@ public class NoteActivity extends AppCompatActivity {
             public void onTextChanged(CharSequence s, int start, int before, int after) {
                 if (isUpdatingText || isTogglingState) return;
 
+                // ✅ CHECK: If Enter was pressed (newline added)
+                if (after == 1 && start < s.length() && s.charAt(start) == '\n') {
+                    // Get the NEW line that was just created
+                    String currentText = s.toString();
+                    int newLineStart = start + 1; // Position after the newline
+
+                    if (newLineStart < currentText.length()) {
+                        int newLineEnd = currentText.indexOf('\n', newLineStart);
+                        if (newLineEnd == -1) newLineEnd = currentText.length();
+
+                        String newLine = currentText.substring(newLineStart, newLineEnd);
+
+                        // ✅ CHECK: If new line starts with special markers
+                        boolean isSpecialLine = newLine.matches("^\\s*[●○■]\\s.*") ||      // Bullet
+                                newLine.matches("^\\s*\\d+[.)]\\s.*") ||      // Number
+                                newLine.matches("^\\s*[a-z][.)]\\s.*") ||     // Letter
+                                newLine.matches("^\\s*[ivx]+[.)]\\s.*") ||    // Roman
+                                newLine.matches("^\\s*[▶▼]\\s.*") ||          // Toggle
+                                newLine.matches("^\\s*[☐☑]\\s.*");            // Checkbox
+
+                        // ✅ If it's a special line, RESET heading mode
+                        if (isSpecialLine && currentActiveStyle.startsWith("h")) {
+                            isStyleActive = false;
+                            currentActiveStyle = "normal";
+                            return; // Don't apply heading to this line
+                        }
+                    }
+                }
+
                 if (isStyleActive && after > 0 && startPos >= 0) {
                     String currentText = s.toString();
 
-                    // ✅ Safety check for empty text
+                    // Safety check for empty text
                     if (currentText.isEmpty() || start >= currentText.length()) return;
 
                     // Find current line boundaries with safety checks
@@ -5611,48 +5564,30 @@ public class NoteActivity extends AppCompatActivity {
                     int lineEnd = currentText.indexOf('\n', start);
                     if (lineEnd == -1) lineEnd = currentText.length();
 
-                    // ✅ Ensure valid range
+                    // Ensure valid range
                     if (lineStart < 0) lineStart = 0;
                     if (lineEnd > currentText.length()) lineEnd = currentText.length();
                     if (lineStart >= lineEnd) return;
 
                     String currentLine = currentText.substring(lineStart, lineEnd);
 
-                    // ✅ REMOVED the check that blocks special lines
-                    // Now headings/fonts can be applied to toggles, bullets, and numbers!
-
-                    // ✅ For HEADINGS: Apply IMMEDIATELY (now works on ALL lines!)
+                    // ✅ For HEADINGS: Apply IMMEDIATELY to current line
                     if (currentActiveStyle.startsWith("h")) {
                         textStyles.put(lineStart, currentActiveStyle);
-                        applyTextStyles(); // Apply immediately
+                        applyTextStyles();
                     }
                     // ✅ For INLINE STYLES (bold, italic): Apply IMMEDIATELY
                     else if (!currentActiveStyle.equals("normal")) {
                         int endPos = start + after;
                         textStyles.put(startPos, currentActiveStyle);
                         textStyles.put(endPos, "end_" + currentActiveStyle);
-                        applyTextStyles(); // ✅ REMOVED postDelayed - apply immediately
+                        applyTextStyles();
                     }
                 }
             }
 
             @Override
             public void afterTextChanged(Editable s) {
-                // ✅ Reset style mode after newline or when moving to new line
-                if (isStyleActive) {
-                    String text = s.toString();
-                    int cursor = noteContent.getSelectionStart();
-
-                    // Check if user pressed Enter
-                    if (cursor > 0 && cursor <= text.length() && text.charAt(cursor - 1) == '\n') {
-                        // ✅ For headings, deactivate after newline
-                        if (currentActiveStyle.startsWith("h")) {
-                            isStyleActive = false;
-                            currentActiveStyle = "normal";
-                        }
-                        // ✅ For inline styles, keep active for continuous typing
-                    }
-                }
             }
         });
     }
@@ -6338,5 +6273,40 @@ public class NoteActivity extends AppCompatActivity {
         }
 
         return 0; // Content starts at index 0
+    }
+
+    // ✅ NEW: Save ALL spans from Editable
+    private List<SpanInfo> saveAllSpans(Editable editable) {
+        List<SpanInfo> allSpans = new ArrayList<>();
+
+        // Save ALL span types
+        Object[] spans = editable.getSpans(0, editable.length(), Object.class);
+        for (Object span : spans) {
+            int start = editable.getSpanStart(span);
+            int end = editable.getSpanEnd(span);
+            if (start >= 0 && end >= start) {
+                allSpans.add(new SpanInfo(span, start, end));
+            }
+        }
+
+        return allSpans;
+    }
+
+    // ✅ NEW: Restore ALL spans to Editable
+    private void restoreAllSpans(Editable editable, List<SpanInfo> spans) {
+        for (SpanInfo info : spans) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                try {
+                    editable.setSpan(
+                            info.span,
+                            info.start,
+                            info.end,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                } catch (Exception e) {
+                    // Ignore invalid spans
+                }
+            }
+        }
     }
 }

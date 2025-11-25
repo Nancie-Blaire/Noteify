@@ -4,20 +4,30 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
+import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.TextWatcher;
+import android.text.style.BackgroundColorSpan;
 import android.text.style.ImageSpan;
 import android.util.Log;
 import android.view.ActionMode;
+import android.view.GestureDetector;
+import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ImageButton;
 import android.widget.Button;
@@ -41,6 +51,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -128,21 +139,41 @@ public class NoteActivity extends AppCompatActivity {
     private Runnable styleRunnable = null;
     private static final long STYLE_APPLY_DELAY_MS = 300L;
     private boolean isApplyingStyles = false;
+    private String currentActiveStyle = "normal";
+    private boolean isStyleActive = false;
+
+    //DRAG FUNCTIONALITY
+    private boolean isDragging = false;
+    private int dragStartLineIndex = -1;
+    private int dragCurrentLineIndex = -1;
+    private View dragOverlayView;
+    private TextView dragFloatingText;
+    private int dragTouchOffset = 0;
+    private Handler dragHandler = new Handler(Looper.getMainLooper());
+
+    // TABLE FUNCTIONALITY
+    private static final int PICK_IMAGE_REQUEST = 1001;
+    private ImageView selectedImageView;
+    private View currentSelectedTable;
+    private boolean isTableFullWidth = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_note);
 
+        // ✅ Initialize views (REMOVE addMenuBtn and addOptionsMenu)
         noteTitle = findViewById(R.id.noteTitle);
         noteContent = findViewById(R.id.noteContent);
         noteLayout = findViewById(R.id.noteLayout);
         colorPickerPanel = findViewById(R.id.colorPickerPanel);
         checkBtn = findViewById(R.id.checkBtn);
-        addOptionsMenu = findViewById(R.id.addOptionsMenu);
         subpagesRecyclerView = findViewById(R.id.subpagesRecyclerView);
         bookmarksLink = findViewById(R.id.bookmarksLink);
-        addMenuBtn = findViewById(R.id.addMenuBtn);
 
+        // ❌ REMOVE THESE TWO LINES:
+        // addMenuBtn = findViewById(R.id.addMenuBtn);
+        // addOptionsMenu = findViewById(R.id.addOptionsMenu);
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
@@ -155,15 +186,21 @@ public class NoteActivity extends AppCompatActivity {
         //  CALLING METHODS
         loadNoteColor();
         setupColorPicker();
-        setupAddMenuOptions();
+
+        // ✅ NEW METHOD (replaces setupAddMenuOptions)
+        setupKeyboardToolbar();
+
         setupTextSelection();
         setupTextWatcher();
+        setupStyleWatcher();
         setupNumberedListWatcher();
         setupBulletListWatcher();
         setupToggleListWatcher();
         setupCheckboxWatcher();
         setupCheckboxAutoWatcher();
         setupImageDeletion();
+
+        setupDragFunctionality();
 
         // Create Firestore note if new
         if (noteId == null) {
@@ -186,10 +223,15 @@ public class NoteActivity extends AppCompatActivity {
         // LISTENERS:
         setupRecyclerView();
         checkBtn.setOnClickListener(v -> saveAndExit());
-        addMenuBtn.setOnClickListener(v -> toggleAddMenu());
+
+        // ❌ DELETE THIS LINE (causing the crash):
+        // addMenuBtn.setOnClickListener(v -> toggleAddMenu());
+
         bookmarksLink.setOnClickListener(v -> openBookmarks());
-        findViewById(R.id.indentOption).setOnClickListener(v -> indentLine());
-        findViewById(R.id.outdentOption).setOnClickListener(v -> outdentLine());
+
+        // ❌ DELETE THESE LINES TOO (moved to setupKeyboardToolbar):
+        // findViewById(R.id.indentOption).setOnClickListener(v -> indentLine());
+        // findViewById(R.id.outdentOption).setOnClickListener(v -> outdentLine());
 
         if (noteId != null) {
             loadNote(); // This now handles EVERYTHING including images
@@ -199,7 +241,439 @@ public class NoteActivity extends AppCompatActivity {
             loadWeblinks();
         }
     }
+    
+    //BUTTONS MENU
+    private void setupKeyboardToolbar() {
+        final View rootView = findViewById(android.R.id.content);
+        final HorizontalScrollView keyboardToolbar = findViewById(R.id.keyboardToolbar);
 
+        rootView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                android.graphics.Rect r = new android.graphics.Rect();
+                rootView.getWindowVisibleDisplayFrame(r);
+
+                int screenHeight = rootView.getRootView().getHeight();
+                int keypadHeight = screenHeight - r.bottom;
+
+                if (keypadHeight > screenHeight * 0.15) {
+                    if (keyboardToolbar.getVisibility() != View.VISIBLE) {
+                        keyboardToolbar.setVisibility(View.VISIBLE);
+                        keyboardToolbar.setAlpha(0f);
+                        keyboardToolbar.animate()
+                                .alpha(1f)
+                                .setDuration(150)
+                                .start();
+                    }
+                } else {
+                    if (keyboardToolbar.getVisibility() == View.VISIBLE) {
+                        keyboardToolbar.animate()
+                                .alpha(0f)
+                                .setDuration(150)
+                                .withEndAction(() -> keyboardToolbar.setVisibility(View.GONE))
+                                .start();
+                    }
+                }
+            }
+        });
+
+        // Setup all toolbar buttons
+        findViewById(R.id.headingsandfont).setOnClickListener(v -> showHeadingsAndFontsBottomSheet());
+        findViewById(R.id.addDividerOption).setOnClickListener(v -> showDividerBottomSheet());
+        findViewById(R.id.addBulletListOption).setOnClickListener(v -> insertBulletList());
+        findViewById(R.id.addNumberedListOption).setOnClickListener(v -> insertNumberedList());
+        findViewById(R.id.addToggleListOption).setOnClickListener(v -> insertToggleList());
+        findViewById(R.id.addCheckboxOption).setOnClickListener(v -> insertCheckbox());
+        findViewById(R.id.addLinkOption).setOnClickListener(v -> insertLink());
+        findViewById(R.id.insertImage).setOnClickListener(v -> showInsertMediaBottomSheet());
+        findViewById(R.id.addTableOption).setOnClickListener(v -> insertTable());
+        findViewById(R.id.indentOption).setOnClickListener(v -> indentLine());
+        findViewById(R.id.outdentOption).setOnClickListener(v -> outdentLine());
+        findViewById(R.id.addThemeOption).setOnClickListener(v -> toggleColorPicker());
+        findViewById(R.id.addSubpageOption).setOnClickListener(v -> openSubpage());
+
+    }
+
+
+    private void saveNoteContentDebounced(String content) {
+        // cancel previous pending save
+        if (bookmarkSaveRunnable != null) {
+            bookmarkSaveHandler.removeCallbacks(bookmarkSaveRunnable);
+        }
+
+        bookmarkSaveRunnable = () -> saveNoteContentToFirestore(content);
+        bookmarkSaveHandler.postDelayed(bookmarkSaveRunnable, BOOKMARK_SAVE_DELAY_MS);
+    }
+
+    private void saveNoteContentToFirestore(String content) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        Map<String, String> dividerStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
+            toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        Map<String, String> toggleContentsForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+            toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        // ✅ SAVE textStyles too!
+        Map<String, String> textStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
+            textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("content", content);
+        updates.put("timestamp", System.currentTimeMillis());
+        updates.put("dividerStyles", dividerStylesForFirestore);
+        updates.put("toggleStates", toggleStatesForFirestore);
+        updates.put("toggleContents", toggleContentsForFirestore);
+        updates.put("textStyles", textStylesForFirestore); // ✅ Add this line
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .update(updates)
+                .addOnFailureListener(e -> e.printStackTrace());
+    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d("IMAGE_DEBUG", "🔄 ===== onResume START =====");
+
+        if (noteId != null) {
+            // ✅ ALWAYS reload
+            loadNote();
+
+            // Only setup listener once
+            if (bookmarkListener == null) {
+                noteContent.postDelayed(() -> setupBookmarkListener(), 800);
+            }
+
+            loadSubpages();
+
+            if (scrollToPosition >= 0) {
+                final int positionToScroll = scrollToPosition;
+                scrollToPosition = -1;
+                noteContent.postDelayed(() -> scrollToBookmark(positionToScroll), 1000);
+            }
+        }
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        autoSaveNote();
+    }
+    private void autoSaveNote() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        String title = noteTitle.getText().toString();
+        String content = noteContent.getText().toString();
+
+        // Convert divider styles for Firestore
+        Map<String, String> dividerStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        // Convert toggle states for Firestore
+        Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
+            toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        // ✅ Convert toggle contents for Firestore
+        Map<String, String> toggleContentsForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+            toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        // ✅ ADD THIS: Convert textStyles for Firestore
+        Map<String, String> textStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
+            textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        Map<String, Object> noteData = new HashMap<>();
+        noteData.put("title", title);
+        noteData.put("content", content);
+        noteData.put("color", currentNoteColor);
+        noteData.put("timestamp", System.currentTimeMillis());
+        noteData.put("dividerStyles", dividerStylesForFirestore);
+        noteData.put("toggleStates", toggleStatesForFirestore);
+        noteData.put("toggleContents", toggleContentsForFirestore);
+        noteData.put("textStyles", textStylesForFirestore); // ✅ ADD THIS LINE
+
+        db.collection("users").document(user.getUid())
+                .collection("notes")
+                .document(noteId)
+                .set(noteData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d("NoteActivity", "✅ Auto-saved note");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("NoteActivity", "❌ Auto-save failed", e);
+                });
+    }
+    private void saveAndExit() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            finish();
+            return;
+        }
+
+        String title = noteTitle.getText().toString();
+        String content = noteContent.getText().toString();
+
+        // ✅ Convert Integer keys to String keys for Firestore
+        Map<String, String> dividerStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
+            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        // ✅ ADD THIS: Convert textStyles for Firestore
+        Map<String, String> textStylesForFirestore = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
+            textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+
+        Map<String, Object> noteData = new HashMap<>();
+        noteData.put("title", title);
+        noteData.put("content", content);
+        noteData.put("color", currentNoteColor);
+        noteData.put("timestamp", System.currentTimeMillis());
+        noteData.put("dividerStyles", dividerStylesForFirestore);
+        noteData.put("textStyles", textStylesForFirestore); // ✅ ADD THIS LINE
+
+        db.collection("users").document(user.getUid())
+                .collection("notes")
+                .document(noteId)
+                .set(noteData)
+                .addOnSuccessListener(aVoid -> finish())
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error saving note", Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (bookmarkListener != null) bookmarkListener.remove();
+        if (weblinkListener != null) weblinkListener.remove(); // ✅ Add this line
+    }
+    private void setupTextSelection() {
+        noteContent.setOnLongClickListener(v -> {
+            int cursorPos = noteContent.getSelectionStart();
+
+            // ✅ Check if long-press is on a divider
+            String content = noteContent.getText().toString();
+            String dividerPlaceholder = "〔DIVIDER〕";
+
+            int dividerIndex = content.indexOf(dividerPlaceholder);
+            while (dividerIndex != -1) {
+                int dividerEnd = dividerIndex + dividerPlaceholder.length();
+
+                if (cursorPos >= dividerIndex && cursorPos <= dividerEnd) {
+                    // Show divider action menu
+                    showDividerActionMenu(dividerIndex);
+                    return true; // Consume the event
+                }
+
+                dividerIndex = content.indexOf(dividerPlaceholder, dividerEnd);
+            }
+
+            return false; // Let default behavior happen
+        });
+
+        noteContent.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
+            @Override
+            public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                int start = noteContent.getSelectionStart();
+                int end = noteContent.getSelectionEnd();
+
+                String selectedText = noteContent.getText().toString().substring(start, end);
+
+                // ✅ Check if selection contains divider
+                if (selectedText.contains("〔DIVIDER〕")) {
+                    noteContent.setSelection(start);
+                    return false;
+                }
+
+                // Check if selection is within any bookmark
+                Bookmark selectedBookmark = getBookmarkAtSelection(start, end);
+
+                if (selectedBookmark != null) {
+                    // Selection is within a bookmark - show expand option
+                    menu.clear();
+                    menu.add(0, 1, 0, "Expand Bookmark");
+                    menu.add(0, 2, 0, "Update Color/Style");
+                    menu.add(0, 3, 0, "Delete Bookmark");
+                } else {
+                    // Normal selection - show bookmark option
+                    menu.clear();
+                    menu.add(0, 0, 0, "Bookmark");
+                }
+
+                return true;
+            }
+
+            @Override
+            public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+                int start = noteContent.getSelectionStart();
+                int end = noteContent.getSelectionEnd();
+
+                switch (item.getItemId()) {
+                    case 0: // Bookmark (new)
+                        String selectedText = noteContent.getText().toString().substring(start, end);
+                        showBookmarkBottomSheet(selectedText, start, end);
+                        mode.finish();
+                        return true;
+
+                    case 1: // Expand Bookmark
+                        Bookmark bookmarkToExpand = getBookmarkAtSelection(start, end);
+                        if (bookmarkToExpand != null) {
+                            expandBookmark(bookmarkToExpand, start, end);
+                        }
+                        mode.finish();
+                        return true;
+
+                    case 2: // Update Color/Style
+                        Bookmark bookmarkToUpdate = getBookmarkAtSelection(start, end);
+                        if (bookmarkToUpdate != null) {
+                            showUpdateBookmarkBottomSheet(bookmarkToUpdate);
+                        }
+                        mode.finish();
+                        return true;
+
+                    case 3: // Delete Bookmark
+                        Bookmark bookmarkToDelete = getBookmarkAtSelection(start, end);
+                        if (bookmarkToDelete != null) {
+                            loadAndDisplayImages();      showDeleteBookmarkConfirmation(bookmarkToDelete);
+                        }
+                        mode.finish();
+                        return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                return false;
+            }
+
+            @Override
+            public void onDestroyActionMode(ActionMode mode) {
+            }
+        });
+    }
+    private void loadNote() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        Log.d("IMAGE_DEBUG", "📖 Loading note: " + noteId);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        String title = doc.getString("title");
+                        String content = doc.getString("content");
+
+                        // Load divider styles
+                        Map<String, Object> savedStyles = (Map<String, Object>) doc.get("dividerStyles");
+                        if (savedStyles != null) {
+                            dividerStyles.clear();
+                            for (Map.Entry<String, Object> entry : savedStyles.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    String style = (String) entry.getValue();
+                                    dividerStyles.put(position, style);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        // Load toggle states
+                        Map<String, Object> savedToggleStates = (Map<String, Object>) doc.get("toggleStates");
+                        if (savedToggleStates != null) {
+                            toggleStates.clear();
+                            for (Map.Entry<String, Object> entry : savedToggleStates.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    Boolean state = (Boolean) entry.getValue();
+                                    toggleStates.put(position, state);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        // Load toggle contents
+                        Map<String, Object> savedToggleContents = (Map<String, Object>) doc.get("toggleContents");
+                        if (savedToggleContents != null) {
+                            toggleContents.clear();
+                            for (Map.Entry<String, Object> entry : savedToggleContents.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    String toggleContent = (String) entry.getValue();
+                                    toggleContents.put(position, toggleContent);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        //Headings and fonts
+                        Map<String, Object> savedTextStyles = (Map<String, Object>) doc.get("textStyles");
+                        if (savedTextStyles != null) {
+                            textStyles.clear();
+                            for (Map.Entry<String, Object> entry : savedTextStyles.entrySet()) {
+                                try {
+                                    int position = Integer.parseInt(entry.getKey());
+                                    String style = (String) entry.getValue();
+                                    textStyles.put(position, style);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        // ✅ SET isUpdatingText BEFORE setText
+                        isUpdatingText = true;
+
+                        if (title != null) noteTitle.setText(title);
+                        if (content != null) {
+                            noteContent.setText(content);
+                            lastSavedContent = content;
+                            Log.d("IMAGE_DEBUG", "✅ Text set, length: " + content.length());
+                        }
+
+                        // ✅ WAIT 100ms for EditText to settle, then load images
+                        noteContent.postDelayed(() -> {
+                            Log.d("IMAGE_DEBUG", "🔸 Starting image load...");
+                            loadAndDisplayImages();
+                            applyTextStyles();
+                        }, 100);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("IMAGE_DEBUG", "❌ Error loading note", e);
+                    isUpdatingText = false;
+                });
+    }
+
+    //DIVIDER
     private void setupTextWatcher() {
         final String dividerPlaceholder = "〔DIVIDER〕";
 
@@ -299,7 +773,6 @@ public class NoteActivity extends AppCompatActivity {
             }
         });
     }
-
     private void showDividerBottomSheet() {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.divider_bottom_sheet, null);
@@ -357,11 +830,9 @@ public class NoteActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
-
     private boolean isDividerLine(String line) {
         return line.contains("〔DIVIDER〕");
     }
-
     private int[] getLineBounds(String content, int pos) {
         // Find start of line (character after previous newline, or 0)
         int start = content.lastIndexOf('\n', pos - 1) + 1;
@@ -372,24 +843,18 @@ public class NoteActivity extends AppCompatActivity {
 
         return new int[]{start, end};
     }
-
-
-    private void insertDivider(String style) {
+    private void insertDivider(String dividerStyle) {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
-        String dividerPlaceholder = "〔DIVIDER〕";
+        String dividerPlaceholder = "【DIVIDER】";
 
-        // Add newlines around divider for proper spacing
         String textToInsert;
-
-        // Check if we need leading newline
         if (cursorPosition > 0 && currentText.charAt(cursorPosition - 1) != '\n') {
             textToInsert = "\n" + dividerPlaceholder;
         } else {
             textToInsert = dividerPlaceholder;
         }
 
-        // Always add trailing newline
         textToInsert += "\n";
 
         int insertLength = textToInsert.length();
@@ -397,30 +862,24 @@ public class NoteActivity extends AppCompatActivity {
 
         FirebaseUser user = auth.getCurrentUser();
 
-        // ✅ SPLIT OR UPDATE BOOKMARKS
         if (user != null) {
             for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
                 int bStart = bookmark.getStartIndex();
                 int bEnd = bookmark.getEndIndex();
 
-                // Case 1: Divider inserted INSIDE bookmark - SPLIT IT
                 if (cursorPosition > bStart && cursorPosition < bEnd) {
-                    // Create first part (before divider)
                     int firstPartEnd = cursorPosition;
                     String firstPartText = currentText.substring(bStart, firstPartEnd).trim();
 
                     if (!firstPartText.isEmpty()) {
-                        // Update existing bookmark to be the first part
                         updateBookmarkInFirestore(bookmark.getId(), bStart, firstPartEnd, firstPartText);
                     }
 
-                    // Create second part (after divider)
                     int secondPartStart = cursorPosition + insertLength;
                     int secondPartEnd = bEnd + insertLength;
                     String secondPartText = currentText.substring(cursorPosition, bEnd).trim();
 
                     if (!secondPartText.isEmpty()) {
-                        // Create new bookmark for second part
                         Bookmark newBookmark = new Bookmark(
                                 secondPartText,
                                 bookmark.getNote(),
@@ -435,57 +894,120 @@ public class NoteActivity extends AppCompatActivity {
                                 .collection("bookmarks").add(newBookmark);
                     }
 
-                    // If first part is empty, delete the original bookmark
                     if (firstPartText.isEmpty()) {
                         deleteBookmarkFromFirestore(bookmark.getId());
                     }
                 }
-                // Case 2: Divider inserted BEFORE bookmark - SHIFT bookmark
                 else if (cursorPosition <= bStart) {
                     updateBookmarkInFirestore(bookmark.getId(),
                             bStart + insertLength,
                             bEnd + insertLength,
                             bookmark.getText());
                 }
-                // Case 3: Divider inserted AFTER bookmark - NO CHANGE needed
             }
+        }
+
+        if (insertLength != 0) {
+            Map<Integer, String> updatedTextStyles = new HashMap<>();
+            for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
+                int pos = entry.getKey();
+                String styleValue = entry.getValue();
+
+                if (pos >= cursorPosition) {
+                    updatedTextStyles.put(pos + insertLength, styleValue);
+                } else {
+                    updatedTextStyles.put(pos, styleValue);
+                }
+            }
+            textStyles = updatedTextStyles;
+        }
+
+        if (insertLength != 0) {
+            Map<Integer, Boolean> updatedToggleStates = new HashMap<>();
+            for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
+                int pos = entry.getKey();
+                Boolean state = entry.getValue();
+
+                if (pos >= cursorPosition) {
+                    updatedToggleStates.put(pos + insertLength, state);
+                } else {
+                    updatedToggleStates.put(pos, state);
+                }
+            }
+            toggleStates = updatedToggleStates;
+        }
+
+        if (insertLength != 0) {
+            Map<Integer, String> updatedToggleContents = new HashMap<>();
+            for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+                int pos = entry.getKey();
+                String content = entry.getValue();
+
+                if (pos >= cursorPosition) {
+                    updatedToggleContents.put(pos + insertLength, content);
+                } else {
+                    updatedToggleContents.put(pos, content);
+                }
+            }
+            toggleContents = updatedToggleContents;
+        }
+
+        if (insertLength != 0) {
+            Map<Integer, List<Bookmark>> updatedHiddenBookmarks = new HashMap<>();
+            for (Map.Entry<Integer, List<Bookmark>> entry : hiddenBookmarksByToggle.entrySet()) {
+                int pos = entry.getKey();
+                List<Bookmark> bookmarks = entry.getValue();
+
+                if (pos >= cursorPosition) {
+                    updatedHiddenBookmarks.put(pos + insertLength, bookmarks);
+                } else {
+                    updatedHiddenBookmarks.put(pos, bookmarks);
+                }
+            }
+            hiddenBookmarksByToggle = updatedHiddenBookmarks;
         }
 
         String newText = currentText.substring(0, cursorPosition) +
                 textToInsert +
                 currentText.substring(cursorPosition);
 
-        // Temporarily disable text watcher
+        int dividerStart = cursorPosition + leadingNewline;
+        dividerStyles.put(dividerStart, dividerStyle);
+
         isUpdatingText = true;
 
-        // Create spannable with divider
-        android.text.SpannableString spannable = new android.text.SpannableString(newText);
-        int dividerStart = cursorPosition + leadingNewline;
-        int dividerEnd = dividerStart + dividerPlaceholder.length();
+        noteContent.setText(newText);
 
-        dividerStyles.put(dividerStart, style);
-
-        // Apply the divider span
-        spannable.setSpan(
-                new DividerSpan(style, 0xFF666666),
-                dividerStart,
-                dividerEnd,
-                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-        );
-
-        noteContent.setText(spannable);
-
-        // Move cursor after the divider
-        int newCursorPos = dividerEnd + 1;
-        noteContent.setSelection(newCursorPos);
-
-        // Re-apply existing bookmarks
         noteContent.postDelayed(() -> {
-            applyBookmarksToText();
-            isUpdatingText = false;
+            try {
+                Editable editable = noteContent.getEditableText();
+                int dividerEnd = dividerStart + dividerPlaceholder.length();
+
+                if (dividerStart >= 0 && dividerEnd <= editable.length()) {
+                    editable.setSpan(
+                            new DividerSpan(dividerStyle, 0xFF666666),
+                            dividerStart,
+                            dividerEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+
+                    int newCursorPos = dividerEnd + 1;
+                    if (newCursorPos <= editable.length()) {
+                        noteContent.setSelection(newCursorPos);
+                    } else {
+                        noteContent.setSelection(editable.length());
+                    }
+                }
+
+                applyBookmarksToText();
+
+            } catch (Exception e) {
+                Log.e("NoteActivity", "Error applying divider", e);
+            } finally {
+                isUpdatingText = false;
+            }
         }, 100);
 
-        // Save the divider to Firestore
         saveNoteContentToFirestore(newText);
 
         Toast.makeText(this, "Divider added", Toast.LENGTH_SHORT).show();
@@ -838,7 +1360,6 @@ public class NoteActivity extends AppCompatActivity {
         saveNoteContentToFirestore(updatedText);
         Toast.makeText(this, "Divider duplicated", Toast.LENGTH_SHORT).show();
     }
-
     private void deleteDivider(int dividerPos) {
         String content = noteContent.getText().toString();
         String dividerPlaceholder = "〔DIVIDER〕";
@@ -887,341 +1408,8 @@ public class NoteActivity extends AppCompatActivity {
         });
     }
 
-    private void saveNoteContentDebounced(String content) {
-        // cancel previous pending save
-        if (bookmarkSaveRunnable != null) {
-            bookmarkSaveHandler.removeCallbacks(bookmarkSaveRunnable);
-        }
-
-        bookmarkSaveRunnable = () -> saveNoteContentToFirestore(content);
-        bookmarkSaveHandler.postDelayed(bookmarkSaveRunnable, BOOKMARK_SAVE_DELAY_MS);
-    }
-
-    private void saveNoteContentToFirestore(String content) {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null || noteId == null) return;
-
-        Map<String, String> dividerStylesForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
-            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-        // Add toggle states
-        Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
-            toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-        // ✅ ADD THIS: Save toggle contents
-        Map<String, String> toggleContentsForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
-            toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-
-        Map<String, String> textStylesForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
-            textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("content", content);
-        updates.put("timestamp", System.currentTimeMillis());
-        updates.put("dividerStyles", dividerStylesForFirestore);
-        updates.put("toggleStates", toggleStatesForFirestore);
-        updates.put("toggleContents", toggleContentsForFirestore); // ✅ ADD THIS LINE
-        updates.put("textStyles", textStylesForFirestore); // Add this
-
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .update(updates)
-                .addOnFailureListener(e -> e.printStackTrace());
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        Log.d("IMAGE_DEBUG", "🔄 ===== onResume START =====");
-
-        if (noteId != null) {
-            // ✅ ALWAYS reload
-            loadNote();
-
-            // Only setup listener once
-            if (bookmarkListener == null) {
-                noteContent.postDelayed(() -> setupBookmarkListener(), 800);
-            }
-
-            loadSubpages();
-
-            if (scrollToPosition >= 0) {
-                final int positionToScroll = scrollToPosition;
-                scrollToPosition = -1;
-                noteContent.postDelayed(() -> scrollToBookmark(positionToScroll), 1000);
-            }
-        }
-    }
-    @Override
-    protected void onPause() {
-        super.onPause();
-        autoSaveNote();
-    }
-    private void autoSaveNote() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null || noteId == null) return;
-
-        String title = noteTitle.getText().toString();
-        String content = noteContent.getText().toString();
-
-        // Convert divider styles for Firestore
-        Map<String, String> dividerStylesForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
-            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-        // Convert toggle states for Firestore
-        Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
-            toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-        // ✅ ADD THIS: Convert toggle contents for Firestore
-        Map<String, String> toggleContentsForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
-            toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-        Map<String, Object> noteData = new HashMap<>();
-        noteData.put("title", title);
-        noteData.put("content", content);
-        noteData.put("color", currentNoteColor);
-        noteData.put("timestamp", System.currentTimeMillis());
-        noteData.put("dividerStyles", dividerStylesForFirestore);
-        noteData.put("toggleStates", toggleStatesForFirestore);
-        noteData.put("toggleContents", toggleContentsForFirestore); // ✅ ADD THIS LINE
-
-        db.collection("users").document(user.getUid())
-                .collection("notes")
-                .document(noteId)
-                .set(noteData)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d("NoteActivity", "✅ Auto-saved note");
-                })
-                .addOnFailureListener(e -> {
-                    Log.e("NoteActivity", "❌ Auto-save failed", e);
-                });
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (bookmarkListener != null) bookmarkListener.remove();
-        if (weblinkListener != null) weblinkListener.remove(); // ✅ Add this line
-    }
-    private void setupTextSelection() {
-        noteContent.setOnLongClickListener(v -> {
-            int cursorPos = noteContent.getSelectionStart();
-
-            // ✅ Check if long-press is on a divider
-            String content = noteContent.getText().toString();
-            String dividerPlaceholder = "〔DIVIDER〕";
-
-            int dividerIndex = content.indexOf(dividerPlaceholder);
-            while (dividerIndex != -1) {
-                int dividerEnd = dividerIndex + dividerPlaceholder.length();
-
-                if (cursorPos >= dividerIndex && cursorPos <= dividerEnd) {
-                    // Show divider action menu
-                    showDividerActionMenu(dividerIndex);
-                    return true; // Consume the event
-                }
-
-                dividerIndex = content.indexOf(dividerPlaceholder, dividerEnd);
-            }
-
-            return false; // Let default behavior happen
-        });
-
-        noteContent.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
-            @Override
-            public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-                int start = noteContent.getSelectionStart();
-                int end = noteContent.getSelectionEnd();
-
-                String selectedText = noteContent.getText().toString().substring(start, end);
-
-                // ✅ Check if selection contains divider
-                if (selectedText.contains("〔DIVIDER〕")) {
-                    noteContent.setSelection(start);
-                    return false;
-                }
-
-                // Check if selection is within any bookmark
-                Bookmark selectedBookmark = getBookmarkAtSelection(start, end);
-
-                if (selectedBookmark != null) {
-                    // Selection is within a bookmark - show expand option
-                    menu.clear();
-                    menu.add(0, 1, 0, "Expand Bookmark");
-                    menu.add(0, 2, 0, "Update Color/Style");
-                    menu.add(0, 3, 0, "Delete Bookmark");
-                } else {
-                    // Normal selection - show bookmark option
-                    menu.clear();
-                    menu.add(0, 0, 0, "Bookmark");
-                }
-
-                return true;
-            }
-
-            @Override
-            public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
-                int start = noteContent.getSelectionStart();
-                int end = noteContent.getSelectionEnd();
-
-                switch (item.getItemId()) {
-                    case 0: // Bookmark (new)
-                        String selectedText = noteContent.getText().toString().substring(start, end);
-                        showBookmarkBottomSheet(selectedText, start, end);
-                        mode.finish();
-                        return true;
-
-                    case 1: // Expand Bookmark
-                        Bookmark bookmarkToExpand = getBookmarkAtSelection(start, end);
-                        if (bookmarkToExpand != null) {
-                            expandBookmark(bookmarkToExpand, start, end);
-                        }
-                        mode.finish();
-                        return true;
-
-                    case 2: // Update Color/Style
-                        Bookmark bookmarkToUpdate = getBookmarkAtSelection(start, end);
-                        if (bookmarkToUpdate != null) {
-                            showUpdateBookmarkBottomSheet(bookmarkToUpdate);
-                        }
-                        mode.finish();
-                        return true;
-
-                    case 3: // Delete Bookmark
-                        Bookmark bookmarkToDelete = getBookmarkAtSelection(start, end);
-                        if (bookmarkToDelete != null) {
-                            loadAndDisplayImages();      showDeleteBookmarkConfirmation(bookmarkToDelete);
-                        }
-                        mode.finish();
-                        return true;
-                }
-                return false;
-            }
-
-            @Override
-            public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
-                return false;
-            }
-
-            @Override
-            public void onDestroyActionMode(ActionMode mode) {
-            }
-        });
-    }
-    private void loadNote() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null || noteId == null) return;
-
-        Log.d("IMAGE_DEBUG", "📖 Loading note: " + noteId);
-
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .get()
-                .addOnSuccessListener(doc -> {
-                    if (doc.exists()) {
-                        String title = doc.getString("title");
-                        String content = doc.getString("content");
-
-                        // Load divider styles
-                        Map<String, Object> savedStyles = (Map<String, Object>) doc.get("dividerStyles");
-                        if (savedStyles != null) {
-                            dividerStyles.clear();
-                            for (Map.Entry<String, Object> entry : savedStyles.entrySet()) {
-                                try {
-                                    int position = Integer.parseInt(entry.getKey());
-                                    String style = (String) entry.getValue();
-                                    dividerStyles.put(position, style);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-
-                        // Load toggle states
-                        Map<String, Object> savedToggleStates = (Map<String, Object>) doc.get("toggleStates");
-                        if (savedToggleStates != null) {
-                            toggleStates.clear();
-                            for (Map.Entry<String, Object> entry : savedToggleStates.entrySet()) {
-                                try {
-                                    int position = Integer.parseInt(entry.getKey());
-                                    Boolean state = (Boolean) entry.getValue();
-                                    toggleStates.put(position, state);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-
-                        // Load toggle contents
-                        Map<String, Object> savedToggleContents = (Map<String, Object>) doc.get("toggleContents");
-                        if (savedToggleContents != null) {
-                            toggleContents.clear();
-                            for (Map.Entry<String, Object> entry : savedToggleContents.entrySet()) {
-                                try {
-                                    int position = Integer.parseInt(entry.getKey());
-                                    String toggleContent = (String) entry.getValue();
-                                    toggleContents.put(position, toggleContent);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-
-                        //Headings and fonts
-                        Map<String, Object> savedTextStyles = (Map<String, Object>) doc.get("textStyles");
-                        if (savedTextStyles != null) {
-                            textStyles.clear();
-                            for (Map.Entry<String, Object> entry : savedTextStyles.entrySet()) {
-                                try {
-                                    int position = Integer.parseInt(entry.getKey());
-                                    String style = (String) entry.getValue();
-                                    textStyles.put(position, style);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-
-                        // ✅ SET isUpdatingText BEFORE setText
-                        isUpdatingText = true;
-
-                        if (title != null) noteTitle.setText(title);
-                        if (content != null) {
-                            noteContent.setText(content);
-                            lastSavedContent = content;
-                            Log.d("IMAGE_DEBUG", "✅ Text set, length: " + content.length());
-                        }
-
-                        // ✅ WAIT 100ms for EditText to settle, then load images
-                        noteContent.postDelayed(() -> {
-                            Log.d("IMAGE_DEBUG", "🔸 Starting image load...");
-                            loadAndDisplayImages();
-                            applyTextStyles();
-                        }, 100);
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e("IMAGE_DEBUG", "❌ Error loading note", e);
-                    isUpdatingText = false;
-                });
-    }
-
-    // 3️⃣ ADD THIS NEW METHOD - Main image loading orchestrator
+    //----------------------------------------------------------------//
+    //IMAGES
     private void loadAndDisplayImages() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) {
@@ -1299,7 +1487,6 @@ public class NoteActivity extends AppCompatActivity {
                     finishImageLoading();
                 });
     }
-
     private void finishImageLoading() {
         Log.d("IMAGE_DEBUG", "✅ All images processed!");
 
@@ -1310,8 +1497,6 @@ public class NoteActivity extends AppCompatActivity {
             Log.d("IMAGE_DEBUG", "🎉 LOADING COMPLETE!");
         }, 150);
     }
-
-
     private void loadSubpages() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -1346,40 +1531,9 @@ public class NoteActivity extends AppCompatActivity {
         intent.putExtra("noteId", noteId);
         startActivity(intent);
     }
-    private void saveAndExit() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) {
-            finish();
-            return;
-        }
 
-        String title = noteTitle.getText().toString();
-        String content = noteContent.getText().toString();
 
-        // ✅ Convert Integer keys to String keys for Firestore
-        Map<String, String> dividerStylesForFirestore = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
-            dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-
-        Map<String, Object> noteData = new HashMap<>();
-        noteData.put("title", title);
-        noteData.put("content", content);
-        noteData.put("color", currentNoteColor);
-        noteData.put("timestamp", System.currentTimeMillis());
-        noteData.put("dividerStyles", dividerStylesForFirestore);
-
-        db.collection("users").document(user.getUid())
-                .collection("notes")
-                .document(noteId)
-                .set(noteData)
-                .addOnSuccessListener(aVoid -> finish())
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Error saving note", Toast.LENGTH_SHORT).show();
-                    finish();
-                });
-    }
-
+    //----------------------------------------------------------------//
     //BOOKMARK FUNCTION
     private void updateBookmarkIndices(int changePosition, int lengthDiff) {
         FirebaseUser user = auth.getCurrentUser();
@@ -1596,13 +1750,11 @@ public class NoteActivity extends AppCompatActivity {
         int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
         int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
 
-        // Bounds safety
         if (expandedStart < 0 || expandedEnd > currentText.length() || expandedStart >= expandedEnd) {
             Toast.makeText(this, "Invalid selection range", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Trim outer spaces
         while (expandedStart < expandedEnd && expandedStart < currentText.length()
                 && Character.isWhitespace(currentText.charAt(expandedStart))) {
             expandedStart++;
@@ -1612,32 +1764,28 @@ public class NoteActivity extends AppCompatActivity {
             expandedEnd--;
         }
 
-        // Extract and clean the selected text
-        String expandedText = currentText.substring(expandedStart, expandedEnd);
-        // ✅ ADD THIS CHECK
-        if (expandedText.contains("〔DIVIDER〕")) {
+        final int finalExpandedStart = expandedStart;
+        final int finalExpandedEnd = expandedEnd;
+
+        String expandedText = currentText.substring(finalExpandedStart, finalExpandedEnd);
+
+        if (expandedText.contains("【DIVIDER】")) {
             Toast.makeText(this, "Cannot include dividers in bookmarks", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // ✅ Validate: must contain *at least one visible character*
         if (expandedText.trim().isEmpty()) {
             Toast.makeText(this, "Cannot bookmark empty or blank lines", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // ✅ Ensure no full-line-only newlines
         if (expandedText.replaceAll("[\\n\\r\\s]+", "").isEmpty()) {
             Toast.makeText(this, "Bookmark must contain text, not just blank lines", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // ✅ Create final variables for lambda
-        final int finalExpandedStart = expandedStart;
-        final int finalExpandedEnd = expandedEnd;
         final String finalExpandedText = expandedText;
 
-        // Save update to Firestore
         Map<String, Object> updates = new HashMap<>();
         updates.put("startIndex", finalExpandedStart);
         updates.put("endIndex", finalExpandedEnd);
@@ -1996,7 +2144,6 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 });
     }
-
     private void applyBookmarksToText() {
         isUpdatingText = true;
         String content = noteContent.getText().toString();
@@ -2005,58 +2152,74 @@ public class NoteActivity extends AppCompatActivity {
             return;
         }
 
-        // ✅ FIX: Work directly with Editable instead of creating new SpannableString
         Editable editable = noteContent.getEditableText();
-
         String dividerPlaceholder = "【DIVIDER】";
 
-        // Collect all divider positions first
-        List<int[]> dividerRanges = new ArrayList<>();
-        int dividerIndex = 0;
-        while ((dividerIndex = content.indexOf(dividerPlaceholder, dividerIndex)) != -1) {
-            dividerRanges.add(new int[]{dividerIndex, dividerIndex + dividerPlaceholder.length()});
-            dividerIndex += dividerPlaceholder.length();
+        // ✅ STEP 1: Save ALL spans including heading styles
+        List<SpanInfo> savedHeadingSpans = new ArrayList<>();
+        List<SpanInfo> savedFontSpans = new ArrayList<>();
+
+        // Save heading size spans
+        android.text.style.RelativeSizeSpan[] sizeSpans = editable.getSpans(0, editable.length(), android.text.style.RelativeSizeSpan.class);
+        for (android.text.style.RelativeSizeSpan span : sizeSpans) {
+            savedHeadingSpans.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
         }
 
-        // ✅ Remove OLD divider spans only (keep ImageSpans!)
+        // Save heading/font bold spans
+        android.text.style.StyleSpan[] styleSpans = editable.getSpans(0, editable.length(), android.text.style.StyleSpan.class);
+        for (android.text.style.StyleSpan span : styleSpans) {
+            savedFontSpans.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
+        }
+
+        // Remove old divider spans
         DividerSpan[] oldDividers = editable.getSpans(0, editable.length(), DividerSpan.class);
         for (DividerSpan span : oldDividers) {
             editable.removeSpan(span);
         }
 
-        // Apply all dividers with their saved styles
+        // Apply dividers
         Map<Integer, String> newDividerStyles = new HashMap<>();
-        dividerIndex = 0;
+        int dividerIndex = 0;
         while ((dividerIndex = content.indexOf(dividerPlaceholder, dividerIndex)) != -1) {
             int dividerEnd = dividerIndex + dividerPlaceholder.length();
 
-            String style = "solid";
+            String dividerStyle = "solid";
             for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
                 int savedPos = entry.getKey();
                 if (Math.abs(savedPos - dividerIndex) < 10) {
-                    style = entry.getValue();
+                    dividerStyle = entry.getValue();
                     break;
                 }
             }
 
-            newDividerStyles.put(dividerIndex, style);
+            newDividerStyles.put(dividerIndex, dividerStyle);
 
             editable.setSpan(
-                    new DividerSpan(style, 0xFF666666),
+                    new DividerSpan(dividerStyle, 0xFF666666),
                     dividerIndex,
                     dividerEnd,
-                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
             );
 
             dividerIndex = dividerEnd;
         }
 
         dividerStyles = newDividerStyles;
-        applyCheckboxStyles(editable, content);
 
-        // ✅ ImageSpans are already in editable, we don't touch them!
+        // ✅ STEP 2: Reapply saved heading/font spans
+        for (SpanInfo info : savedHeadingSpans) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
 
-        // Collect IDs of all hidden bookmarks to skip them
+        for (SpanInfo info : savedFontSpans) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        // Apply bookmarks (existing code)
         Set<String> hiddenBookmarkIds = new HashSet<>();
         for (List<Bookmark> hiddenList : hiddenBookmarksByToggle.values()) {
             for (Bookmark hidden : hiddenList) {
@@ -2064,18 +2227,6 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ Remove OLD bookmark spans only
-        android.text.style.BackgroundColorSpan[] oldBgSpans = editable.getSpans(0, editable.length(), android.text.style.BackgroundColorSpan.class);
-        for (android.text.style.BackgroundColorSpan span : oldBgSpans) {
-            editable.removeSpan(span);
-        }
-
-        CustomUnderlineSpan[] oldUnderlines = editable.getSpans(0, editable.length(), CustomUnderlineSpan.class);
-        for (CustomUnderlineSpan span : oldUnderlines) {
-            editable.removeSpan(span);
-        }
-
-        // Apply bookmarks (AVOID divider areas AND skip hidden bookmarks)
         for (Bookmark b : currentBookmarks) {
             if (hiddenBookmarkIds.contains(b.getId())) {
                 continue;
@@ -2084,94 +2235,31 @@ public class NoteActivity extends AppCompatActivity {
             int s = b.getStartIndex();
             int e = b.getEndIndex();
 
-            // Validate bounds
             if (s < 0 || e > content.length() || s >= e) continue;
 
             String bookmarkText = content.substring(s, e);
-
-            // Skip if bookmark contains divider placeholder
             if (bookmarkText.contains(dividerPlaceholder)) continue;
 
-            // Check if bookmark overlaps with any divider range
-            boolean overlaps = false;
-            for (int[] dividerRange : dividerRanges) {
-                int dStart = dividerRange[0];
-                int dEnd = dividerRange[1];
-
-                if ((s >= dStart && s < dEnd) || (e > dStart && e <= dEnd) ||
-                        (s < dStart && e > dEnd)) {
-                    overlaps = true;
-                    break;
-                }
-            }
-
-            if (overlaps) continue;
-
             try {
-                int color = android.graphics.Color.parseColor(b.getColor());
-                if ("highlight".equals(b.getStyle()))
-                    editable.setSpan(new android.text.style.BackgroundColorSpan(color), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                else if ("underline".equals(b.getStyle()))
-                    editable.setSpan(new CustomUnderlineSpan(color, s, e), s, e, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                int color = Color.parseColor(b.getColor());
+                if ("highlight".equals(b.getStyle())) {
+                    editable.setSpan(
+                            new android.text.style.BackgroundColorSpan(color),
+                            s, e,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                } else if ("underline".equals(b.getStyle())) {
+                    editable.setSpan(
+                            new CustomUnderlineSpan(color, s, e),
+                            s, e,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                }
             } catch (Exception ignored) {}
         }
 
-        int sel = noteContent.getSelectionStart();
-        // ✅ DON'T call setText() - we modified editable directly!
-        if (sel >= 0 && sel <= content.length()) noteContent.setSelection(sel);
-
-        lastSavedContent = content;
         isUpdatingText = false;
-
-        // Apply toggle arrow colors based on content
-        String[] lines = content.split("\n");
-        int currentPos = 0;
-
-        for (String line : lines) {
-            if (line.matches("^\\s*[▶▼]\\s.*")) {
-                int arrowPos = currentPos + line.indexOf("▶") >= 0 ?
-                        line.indexOf("▶") : line.indexOf("▼");
-
-                boolean hasContent = false;
-                int nextLinePos = currentPos + line.length() + 1;
-
-                if (nextLinePos < content.length()) {
-                    int nextLineEnd = content.indexOf('\n', nextLinePos);
-                    if (nextLineEnd == -1) nextLineEnd = content.length();
-
-                    if (nextLineEnd > nextLinePos) {
-                        String nextLine = content.substring(nextLinePos, nextLineEnd);
-                        hasContent = nextLine.startsWith("    ") &&
-                                !nextLine.trim().equals("Empty toggle");
-                    }
-                }
-
-                int arrowColor = hasContent ? 0xFF000000 : 0xFF999999;
-
-                // ✅ Remove old arrow color spans first
-                android.text.style.ForegroundColorSpan[] oldArrowSpans = editable.getSpans(
-                        currentPos + arrowPos,
-                        currentPos + arrowPos + 1,
-                        android.text.style.ForegroundColorSpan.class
-                );
-                for (android.text.style.ForegroundColorSpan span : oldArrowSpans) {
-                    editable.removeSpan(span);
-                }
-
-                editable.setSpan(
-                        new android.text.style.ForegroundColorSpan(arrowColor),
-                        currentPos + arrowPos,
-                        currentPos + arrowPos + 1,
-                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-            }
-
-            currentPos += line.length() + 1;
-        }
-        applyTextStyles();
     }
-
-
     private void openBookmarks() {
         Intent i = new Intent(this, BookmarksActivity.class);
         i.putExtra("noteId", noteId);
@@ -2288,7 +2376,7 @@ public class NoteActivity extends AppCompatActivity {
         }
     }
 
-
+    //----------------------------------------------------------------//
     //COLORS
     private void toggleColorPicker() {
         if (colorPickerPanel.getVisibility() == View.VISIBLE) {
@@ -2326,6 +2414,7 @@ public class NoteActivity extends AppCompatActivity {
         noteLayout.setBackgroundColor(Color.parseColor(currentColor));
     }
 
+    //----------------------------------------------------------------//
     // UNIVERSAL INDENT - Works for bullets, numbers, and regular text
     private void indentLine() {
         int cursorPosition = noteContent.getSelectionStart();
@@ -2421,6 +2510,7 @@ public class NoteActivity extends AppCompatActivity {
         noteContent.setSelection(Math.max(lineStart, cursorPosition - removedChars));
     }
 
+    //----------------------------------------------------------------//
     //NUMBERED LIST
     private void insertNumberedList() {
         int cursorPosition = noteContent.getSelectionStart();
@@ -2437,6 +2527,7 @@ public class NoteActivity extends AppCompatActivity {
         // Enable numbered list mode
         isNumberedListMode = true;
     }
+
     private void setupNumberedListWatcher() {
         noteContent.addTextChangedListener(new TextWatcher() {
             private boolean isProcessing = false;
@@ -2447,49 +2538,56 @@ public class NoteActivity extends AppCompatActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (isProcessing || isUpdatingText || isTogglingState) return;
-                //if (isProcessing) return;
 
-                // Check if user pressed Enter (added newline)
                 if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
                     isProcessing = true;
 
-                    // Get the line before the newline
                     String textBeforeNewline = s.toString().substring(0, start);
                     int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
                     String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
 
-                    // Check if the current line is a numbered item (with or without content)
-                    // Updated regex to handle different number formats and indentations
                     if (currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
                             currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
                             currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
 
-                        // Re-enable numbered list mode if it was disabled
                         isNumberedListMode = true;
 
-                        // Check if the current line is an empty numbered item
                         if (currentLine.matches("^\\s*\\d+[.)]*\\s*$") ||
                                 currentLine.matches("^\\s*[a-z][.)]*\\s*$") ||
                                 currentLine.matches("^\\s*[ivx]+[.)]*\\s*$")) {
-                            // Double enter detected - exit numbered list mode
+
                             isNumberedListMode = false;
 
-                            // Remove the empty numbered line
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
+
+                            // ✅ PRESERVE HEADINGS
+                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
+
+                            // ✅ Reapply styles including headings
+                            noteContent.postDelayed(() -> {
+                                applyTextStyles();
+                                isUpdatingText = false;
+                            }, 50);
                         } else {
-                            // Get the next number format based on indentation
                             String nextNumberText = getNextNumberFormat(currentLine);
 
-                            // Add next numbered item with same indentation
                             String newText = s.toString().substring(0, start + 1) +
                                     nextNumberText +
                                     s.toString().substring(start + 1);
 
+                            // ✅ PRESERVE HEADINGS
+                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(start + 1 + nextNumberText.length());
+
+                            // ✅ Reapply styles including headings
+                            noteContent.postDelayed(() -> {
+                                applyTextStyles();
+                                isUpdatingText = false;
+                            }, 50);
                         }
                     }
 
@@ -2501,7 +2599,6 @@ public class NoteActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {}
         });
     }
-
     // Helper method to get the next number format based on current line
     private String getNextNumberFormat(String currentLine) {
         // Level 0: Regular numbers (1. 2. 3.)
@@ -2554,7 +2651,6 @@ public class NoteActivity extends AppCompatActivity {
 
         return "1. ";
     }
-
     // Helper method for roman numeral increment
     private String getNextRoman(String current) {
         String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
@@ -2648,6 +2744,7 @@ public class NoteActivity extends AppCompatActivity {
         return currentLine;
     }
 
+    //----------------------------------------------------------------//
     //BULLET LIST
     private void insertBulletList() {
         int cursorPosition = noteContent.getSelectionStart();
@@ -2674,43 +2771,50 @@ public class NoteActivity extends AppCompatActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (isProcessing || isUpdatingText || isTogglingState) return;
-                //if (isProcessing) return;
 
-                // Check if user pressed Enter (added newline)
                 if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
                     isProcessing = true;
 
-                    // Get the line before the newline
                     String textBeforeNewline = s.toString().substring(0, start);
                     int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
                     String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
 
-                    // Check if the current line is a bullet item
                     if (currentLine.matches("^\\s*[●○■]\\s.*")) {
-                        // Re-enable bullet list mode if it was disabled
                         isBulletListMode = true;
 
-                        // Check if the current line is an empty bullet item
                         if (currentLine.matches("^\\s*[●○■]\\s*$")) {
-                            // Double enter detected - exit bullet list mode
                             isBulletListMode = false;
 
-                            // Remove the empty bullet line
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
+
+                            // ✅ PRESERVE HEADINGS
+                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
+
+                            // ✅ Reapply styles including headings
+                            noteContent.postDelayed(() -> {
+                                applyTextStyles();
+                                isUpdatingText = false;
+                            }, 50);
                         } else {
-                            // Get the indentation and bullet type from current line
                             String indentAndBullet = getBulletWithIndentation(currentLine);
 
-                            // Add next bullet item with same indentation
                             String newText = s.toString().substring(0, start + 1) +
                                     indentAndBullet +
                                     s.toString().substring(start + 1);
 
+                            // ✅ PRESERVE HEADINGS
+                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(start + 1 + indentAndBullet.length());
+
+                            // ✅ Reapply styles including headings
+                            noteContent.postDelayed(() -> {
+                                applyTextStyles();
+                                isUpdatingText = false;
+                            }, 50);
                         }
                     }
 
@@ -2770,6 +2874,7 @@ public class NoteActivity extends AppCompatActivity {
         }
     }
 
+    //----------------------------------------------------------------//
     //TOGGLE LIST
     private static final String CONTENT_PLACEHOLDER = "";
     private void setupToggleListWatcher() {
@@ -2804,8 +2909,17 @@ public class NoteActivity extends AppCompatActivity {
                             // Remove the empty toggle line
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
+
+                            // ✅ PRESERVE HEADINGS
+                            isUpdatingText = true;
                             noteContent.setText(newText);
                             noteContent.setSelection(lastNewlineIndex + 1);
+
+                            // ✅ Reapply styles including headings
+                            noteContent.postDelayed(() -> {
+                                applyTextStyles();
+                                isUpdatingText = false;
+                            }, 50);
                         } else {
                             // ✅ Check if toggle is EXPANDED (▼) or COLLAPSED (▶)
                             boolean isExpanded = currentLine.contains("▼");
@@ -2828,21 +2942,22 @@ public class NoteActivity extends AppCompatActivity {
                                         indent.toString() +
                                         s.toString().substring(start + 1);
 
-                                // ✅ FIX: Update bookmarks BEFORE setting text
                                 // ✅ Temporarily disable bookmark updates
                                 isUpdatingText = true;
 
                                 noteContent.setText(newText);
 
-// ✅ FIX: Update bookmarks AFTER setting text
+                                // ✅ Update bookmarks AFTER setting text
                                 updateBookmarkIndicesForToggleNewline(start + 1, indent.length(), newText);
 
-// ✅ Re-enable and reapply
+                                noteContent.setSelection(start + 1 + indent.length());
+
+                                // ✅ Reapply styles including headings
                                 noteContent.postDelayed(() -> {
+                                    applyTextStyles();
                                     applyBookmarksToText();
                                     isUpdatingText = false;
                                 }, 50);
-                                noteContent.setSelection(start + 1 + indent.length());
                             } else {
                                 // ✅ Toggle is COLLAPSED - create new toggle at SAME level
                                 StringBuilder indent = new StringBuilder();
@@ -2855,8 +2970,16 @@ public class NoteActivity extends AppCompatActivity {
                                         newToggle +
                                         s.toString().substring(start + 1);
 
+                                // ✅ PRESERVE HEADINGS
+                                isUpdatingText = true;
                                 noteContent.setText(newText);
                                 noteContent.setSelection(start + 1 + newToggle.length());
+
+                                // ✅ Reapply styles including headings
+                                noteContent.postDelayed(() -> {
+                                    applyTextStyles();
+                                    isUpdatingText = false;
+                                }, 50);
                             }
                         }
                     }
@@ -2911,17 +3034,17 @@ public class NoteActivity extends AppCompatActivity {
                                             newToggle +
                                             s.toString().substring(start + 1);
 
-// ✅ FIX: Update bookmarks for double-enter parent toggle creation
+                                    // ✅ Update bookmarks for double-enter parent toggle creation
                                     isUpdatingText = true;
 
-// Calculate how much content is being removed and added
+                                    // Calculate how much content is being removed and added
                                     int removeStart = lastNewlineIndex + 1;
                                     int removeEnd = start + 1;
                                     int removedLength = removeEnd - removeStart;
                                     int addedLength = newToggle.length();
                                     int lengthDiff = addedLength - removedLength;
 
-// Update bookmark positions
+                                    // Update bookmark positions
                                     FirebaseUser user = auth.getCurrentUser();
                                     if (user != null) {
                                         for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
@@ -2951,7 +3074,7 @@ public class NoteActivity extends AppCompatActivity {
                                             if (needsUpdate && bStart >= 0 && bEnd <= newText.length() && bStart < bEnd) {
                                                 try {
                                                     String bookmarkText = newText.substring(bStart, bEnd);
-                                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【DIVIDER】")) {
                                                         bookmark.setStartIndex(bStart);
                                                         bookmark.setEndIndex(bEnd);
                                                         bookmark.setText(bookmarkText);
@@ -2967,8 +3090,9 @@ public class NoteActivity extends AppCompatActivity {
                                     noteContent.setText(newText);
                                     noteContent.setSelection(lastNewlineIndex + 1 + newToggle.length());
 
-// ✅ Re-enable and reapply
+                                    // ✅ Reapply styles including headings
                                     noteContent.postDelayed(() -> {
+                                        applyTextStyles();
                                         applyBookmarksToText();
                                         isUpdatingText = false;
                                     }, 50);
@@ -2989,18 +3113,19 @@ public class NoteActivity extends AppCompatActivity {
                                 indent.toString() +
                                 s.toString().substring(start + 1);
 
-// ✅ Temporarily disable bookmark updates
+                        // ✅ Temporarily disable bookmark updates
                         isUpdatingText = true;
 
                         noteContent.setText(newText);
 
-// ✅ FIX: Update bookmarks AFTER setting text
+                        // ✅ Update bookmarks AFTER setting text
                         updateBookmarkIndicesForToggleNewline(start + 1, indent.length(), newText);
 
                         noteContent.setSelection(start + 1 + indent.length());
 
-// ✅ Re-enable and reapply
+                        // ✅ Reapply styles including headings
                         noteContent.postDelayed(() -> {
+                            applyTextStyles();
                             applyBookmarksToText();
                             isUpdatingText = false;
                         }, 50);
@@ -3507,7 +3632,9 @@ public class NoteActivity extends AppCompatActivity {
         });
         isToggleListMode = true;
     }
-    //         INSERT LINK
+
+    //----------------------------------------------------------------//
+    //INSERT LINK
     // Add this after your existing method declarations
     private String selectedLinkCaption = "";
 
@@ -3537,7 +3664,6 @@ public class NoteActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
-
     private void createLinkWebView(String url) {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -3574,7 +3700,6 @@ public class NoteActivity extends AppCompatActivity {
                     });
         }
     }
-
     private String extractTitle(String url) {
         try {
             String domain = url.replace("https://", "").replace("http://", "");
@@ -3593,7 +3718,6 @@ public class NoteActivity extends AppCompatActivity {
             return "Link";
         }
     }
-
     private View createLinkView(LinkWeblink link) {
         View linkView = getLayoutInflater().inflate(R.layout.link_web_view, null);
 
@@ -3638,7 +3762,6 @@ public class NoteActivity extends AppCompatActivity {
 
         return linkView;
     }
-
     private void showLinkActionsSheet(LinkWeblink link, View linkView) {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.link_actions_bottom_sheet, null);
@@ -3665,7 +3788,6 @@ public class NoteActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
-
     private void showLinkColorSheet(LinkWeblink link, View linkView) {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.link_color_bottom_sheet, null);
@@ -3774,7 +3896,6 @@ public class NoteActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
-
     private void updateLinkColor(LinkWeblink link, View linkView, String color) {
         link.setBackgroundColor(color);
 
@@ -3797,7 +3918,6 @@ public class NoteActivity extends AppCompatActivity {
                     });
         }
     }
-
     private void showLinkCaptionSheet(LinkWeblink link, View linkView) {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.link_caption_bottom_sheet, null);
@@ -3822,7 +3942,6 @@ public class NoteActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
-
     private void updateLinkCaption(LinkWeblink link, View linkView, String caption) {
         link.setDescription(caption);
 
@@ -3850,7 +3969,6 @@ public class NoteActivity extends AppCompatActivity {
                     });
         }
     }
-
     private void deleteLinkWebView(LinkWeblink link, View linkView) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Link")
@@ -3884,7 +4002,6 @@ public class NoteActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .show();
     }
-
     private void loadWeblinks() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -3931,7 +4048,9 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 });
     }
-    //     CHECKBOX
+
+    //----------------------------------------------------------------//
+    //CHECKBOX
     private void insertCheckbox() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -4009,6 +4128,7 @@ public class NoteActivity extends AppCompatActivity {
         return "☐ ";
     }
 
+    //----------------------------------------------------------------//
     //TOGGLE AND CHECKBOX WATCHER
     private void setupCheckboxWatcher() {
         noteContent.setOnClickListener(v -> {
@@ -4144,14 +4264,6 @@ public class NoteActivity extends AppCompatActivity {
             currentPos += line.length() + 1; // +1 for newline
         }
     }
-    private void toggleAddMenu() {
-        if (isMenuOpen) {
-            closeAddMenu();
-        } else {
-            openAddMenu();
-        }
-    }
-
     private void applyBookmarksAndDividersToSpannable(android.text.SpannableString spannable, String content) {
         String dividerPlaceholder = "〔DIVIDER〕";
 
@@ -4220,7 +4332,7 @@ public class NoteActivity extends AppCompatActivity {
     }
 
     // Insert Image and Take Photo Workflow
-// =========================================================================
+    // =========================================================================
     private static class SpanInfo {
         Object span;
         int start;
@@ -4351,8 +4463,6 @@ public class NoteActivity extends AppCompatActivity {
     }
 
     // Image Processing and Upload Logic
-// =========================================================================
-
     private void uploadImageToFirebase(Uri imageUri) {
         if (noteId == null) {
             Toast.makeText(this, "Please save the note first", Toast.LENGTH_SHORT).show();
@@ -4439,7 +4549,6 @@ public class NoteActivity extends AppCompatActivity {
             }
         }).start();
     }
-
     private void uploadImageInChunks(String base64Image, int sizeKB, int cursorPosition, Bitmap bitmap) {
         String imageId = System.currentTimeMillis() + "";
         int totalLength = base64Image.length();
@@ -4488,7 +4597,6 @@ public class NoteActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to save large image", Toast.LENGTH_SHORT).show();
                 });
     }
-
     private void insertImageIntoNote(String base64Image, boolean isChunked, int sizeKB, int cursorPosition, Bitmap bitmap) {
         String imageId = System.currentTimeMillis() + "";
 
@@ -4519,10 +4627,7 @@ public class NoteActivity extends AppCompatActivity {
                     });
         }
     }
-
-// Display and Deletion Logic
-// =========================================================================
-
+    // Display and Deletion Logic
     private void insertInlineImage(String imageId, Bitmap bitmap, int cursorPosition) {
         Log.d("IMAGE_DEBUG", "🖼 Inserting image: " + imageId + " at position: " + cursorPosition);
 
@@ -4764,7 +4869,6 @@ public class NoteActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> callback.onComplete());
     }
-
     private void displayImage(String imageId, String base64Data) {
         Log.d("IMAGE_DEBUG", "🎨 displayImage called for: " + imageId);
 
@@ -4879,7 +4983,38 @@ public class NoteActivity extends AppCompatActivity {
             return false;
         });
     }
+    private void activateStyleMode(String styleType) {
+        currentActiveStyle = styleType;
+        isStyleActive = true;
 
+        // Focus on noteContent so user can start typing
+        noteContent.requestFocus();
+
+        // Get current cursor position
+        int cursorPos = noteContent.getSelectionStart();
+        String currentText = noteContent.getText().toString();
+
+        // Find current line
+        int lineStart = currentText.lastIndexOf('\n', cursorPos - 1) + 1;
+        int lineEnd = currentText.indexOf('\n', cursorPos);
+        if (lineEnd == -1) lineEnd = currentText.length();
+
+        String currentLine = currentText.substring(lineStart, lineEnd);
+
+        // ✅ Check if we're on a bullet, number, toggle, or checkbox line
+        boolean isSpecialLine = currentLine.matches("^\\s*[●○■]\\s.*") ||
+                currentLine.matches("^\\s*\\d+[.)]*\\s.*") ||
+                currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
+                currentLine.matches("^\\s*[ivx]+[.)]*\\s.*") ||
+                currentLine.matches("^\\s*[▶▼]\\s.*") ||
+                currentLine.matches("^\\s*[☐☑]\\s.*");
+
+        // ✅ For headings, apply to entire line immediately
+        if (styleType.startsWith("h") && !isSpecialLine) {
+            textStyles.put(lineStart, styleType);
+            applyTextStyles();
+        }
+    }
     private void showDeleteImageDialog(String imageId) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Image")
@@ -4890,7 +5025,6 @@ public class NoteActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .show();
     }
-
     private void deleteInlineImage(String imageId) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -4921,7 +5055,6 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 });
     }
-
     private void deleteImageDocumentInline(String imageId) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -4941,6 +5074,7 @@ public class NoteActivity extends AppCompatActivity {
                 });
     }
 
+    //----------------------------------------------------------------//
     //HEADINGS AND FONTS
     private void showHeadingsAndFontsBottomSheet() {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
@@ -4959,38 +5093,45 @@ public class NoteActivity extends AppCompatActivity {
         LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
 
         heading1.setOnClickListener(v -> {
-            applyHeading("h1");
+            activateStyleMode("h1");
             bottomSheet.dismiss();
+            Toast.makeText(this, "Heading 1 active - start typing", Toast.LENGTH_SHORT).show();
         });
 
         heading2.setOnClickListener(v -> {
-            applyHeading("h2");
+            activateStyleMode("h2");
             bottomSheet.dismiss();
+            Toast.makeText(this, "Heading 2 active - start typing", Toast.LENGTH_SHORT).show();
         });
 
         heading3.setOnClickListener(v -> {
-            applyHeading("h3");
+            activateStyleMode("h3");
             bottomSheet.dismiss();
+            Toast.makeText(this, "Heading 3 active - start typing", Toast.LENGTH_SHORT).show();
         });
 
         boldOption.setOnClickListener(v -> {
-            applyFontStyle("bold");
+            activateStyleMode("bold");
             bottomSheet.dismiss();
+            Toast.makeText(this, "Bold active - start typing", Toast.LENGTH_SHORT).show();
         });
 
         italicOption.setOnClickListener(v -> {
-            applyFontStyle("italic");
+            activateStyleMode("italic");
             bottomSheet.dismiss();
+            Toast.makeText(this, "Italic active - start typing", Toast.LENGTH_SHORT).show();
         });
 
         boldItalicOption.setOnClickListener(v -> {
-            applyFontStyle("bold_italic");
+            activateStyleMode("bold_italic");
             bottomSheet.dismiss();
+            Toast.makeText(this, "Bold Italic active - start typing", Toast.LENGTH_SHORT).show();
         });
 
         normalOption.setOnClickListener(v -> {
-            applyFontStyle("normal");
+            activateStyleMode("normal");
             bottomSheet.dismiss();
+            Toast.makeText(this, "Normal style active", Toast.LENGTH_SHORT).show();
         });
 
         bottomSheet.show();
@@ -4999,50 +5140,42 @@ public class NoteActivity extends AppCompatActivity {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
 
+        // Find current line boundaries
         int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
         int lineEnd = currentText.indexOf('\n', cursorPosition);
         if (lineEnd == -1) lineEnd = currentText.length();
 
         String currentLine = currentText.substring(lineStart, lineEnd);
-        String cleanLine = currentLine.replaceAll("^#{1,3}\\s*", "");
 
-        String newLine;
-        switch (headingType) {
-            case "h1":
-                newLine = "# " + cleanLine;
-                break;
-            case "h2":
-                newLine = "## " + cleanLine;
-                break;
-            case "h3":
-                newLine = "### " + cleanLine;
-                break;
-            default:
-                newLine = cleanLine;
+        // ✅ REMOVED restriction - now allows headings on toggles, bullets, numbers, checkboxes!
+        // Only block dividers and images
+        if (currentLine.contains("【DIVIDER】") || currentLine.contains("【IMAGE:")) {
+            Toast.makeText(this, "Cannot apply heading to dividers or images", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        String newText = currentText.substring(0, lineStart) +
-                newLine +
-                currentText.substring(lineEnd);
-
-        isUpdatingText = true;
-        noteContent.setText(newText);
+        // ✅ Store heading style for THIS line
         textStyles.put(lineStart, headingType);
 
-        int newCursorPos = lineStart + newLine.length();
-        noteContent.setSelection(Math.min(newCursorPos, newText.length()));
+        // ✅ CRITICAL: Set flag BEFORE applying styles
+        isUpdatingText = true;
+        isApplyingStyles = false; // Reset this flag
 
-        // Apply styles after a delay
-        noteContent.postDelayed(() -> {
-            applyTextStyles();
-            isUpdatingText = false;
-        }, 100);
+        // ✅ Apply styles IMMEDIATELY (not in postDelayed)
+        applyTextStyles();
 
-        saveNoteContentToFirestore(newText);
+        // ✅ Reset flag after styles are applied
+        isUpdatingText = false;
+
+        // Move cursor to end of line
+        int newCursorPos = lineStart + currentLine.length();
+        noteContent.setSelection(Math.min(newCursorPos, currentText.length()));
+
+        // ✅ Save with ORIGINAL text (no changes)
+        saveNoteContentToFirestore(currentText);
         Toast.makeText(this, "Heading applied", Toast.LENGTH_SHORT).show();
     }
-
-    private void applyFontStyle(String style) {
+    private void applyFontStyle(String fontStyle) {
         int start = noteContent.getSelectionStart();
         int end = noteContent.getSelectionEnd();
 
@@ -5051,240 +5184,394 @@ public class NoteActivity extends AppCompatActivity {
             return;
         }
 
+        if (start > end) {
+            int temp = start;
+            start = end;
+            end = temp;
+        }
+
         String currentText = noteContent.getText().toString();
         String selectedText = currentText.substring(start, end);
 
-        String styledText;
-        switch (style) {
-            case "bold":
-                styledText = "**" + selectedText + "**";
-                break;
-            case "italic":
-                styledText = "*" + selectedText + "*";
-                break;
-            case "bold_italic":
-                styledText = "***" + selectedText + "***";
-                break;
-            case "normal":
-                styledText = selectedText.replaceAll("\\*+", "");
-                break;
-            default:
-                styledText = selectedText;
+        // ✅ Only block dividers and images
+        if (selectedText.contains("【DIVIDER】") || selectedText.contains("【IMAGE:")) {
+            Toast.makeText(this, "Cannot style dividers or images", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        String newText = currentText.substring(0, start) +
-                styledText +
-                currentText.substring(end);
+        // ✅ Store style information for this range
+        textStyles.put(start, fontStyle);
+        textStyles.put(end, "end_" + fontStyle);
 
+        final int finalStart = start;
+        final int finalEnd = end;
+
+        // ✅ CRITICAL: Set flags and apply immediately
         isUpdatingText = true;
-        noteContent.setText(newText);
-        noteContent.setSelection(start, start + styledText.length());
+        isApplyingStyles = false;
 
-        // Apply styles after a delay
-        noteContent.postDelayed(() -> {
-            applyTextStyles();
-            isUpdatingText = false;
-        }, 100);
+        // ✅ Apply styles IMMEDIATELY
+        applyTextStyles();
 
-        saveNoteContentToFirestore(newText);
+        // ✅ Reset flag
+        isUpdatingText = false;
+
+        // Maintain selection
+        noteContent.setSelection(finalStart, finalEnd);
+
+        saveNoteContentToFirestore(currentText);
         Toast.makeText(this, "Style applied", Toast.LENGTH_SHORT).show();
     }
-
     private void applyTextStyles() {
-        // Prevent recursive calls
-        if (isApplyingStyles || isUpdatingText) return;
+        // ✅ Prevent recursive calls
+        if (isApplyingStyles) {
+            Log.d("NoteActivity", "Already applying styles, skipping...");
+            return;
+        }
 
         isApplyingStyles = true;
+        Log.d("NoteActivity", "🎨 Starting applyTextStyles()");
 
         String content = noteContent.getText().toString();
         Editable editable = noteContent.getEditableText();
 
-        // Remove old style spans first
-        android.text.style.RelativeSizeSpan[] sizeSpans = editable.getSpans(0, editable.length(), android.text.style.RelativeSizeSpan.class);
-        android.text.style.StyleSpan[] styleSpans = editable.getSpans(0, editable.length(), android.text.style.StyleSpan.class);
-        android.text.style.ForegroundColorSpan[] colorSpans = editable.getSpans(0, editable.length(), android.text.style.ForegroundColorSpan.class);
+        // ✅ STEP 1: Save ALL important spans
+        List<SpanInfo> savedImageSpans = new ArrayList<>();
+        List<SpanInfo> savedDividerSpans = new ArrayList<>();
+        List<SpanInfo> savedBookmarkHighlights = new ArrayList<>();
+        List<SpanInfo> savedBookmarkUnderlines = new ArrayList<>();
+        List<SpanInfo> savedCheckboxColors = new ArrayList<>();
+        List<SpanInfo> savedCheckboxStrikes = new ArrayList<>();
 
+        // Save ImageSpans
+        ImageSpan[] imageSpans = editable.getSpans(0, editable.length(), ImageSpan.class);
+        for (ImageSpan span : imageSpans) {
+            savedImageSpans.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
+        }
+
+        // Save DividerSpans
+        DividerSpan[] dividerSpans = editable.getSpans(0, editable.length(), DividerSpan.class);
+        for (DividerSpan span : dividerSpans) {
+            savedDividerSpans.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
+        }
+
+        // Save bookmark BackgroundColorSpans
+        android.text.style.BackgroundColorSpan[] bgSpans = editable.getSpans(0, editable.length(), android.text.style.BackgroundColorSpan.class);
+        for (android.text.style.BackgroundColorSpan span : bgSpans) {
+            savedBookmarkHighlights.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
+        }
+
+        // Save bookmark CustomUnderlineSpans
+        CustomUnderlineSpan[] underlineSpans = editable.getSpans(0, editable.length(), CustomUnderlineSpan.class);
+        for (CustomUnderlineSpan span : underlineSpans) {
+            savedBookmarkUnderlines.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
+        }
+
+        // Save checkbox ForegroundColorSpans
+        android.text.style.ForegroundColorSpan[] colorSpans = editable.getSpans(0, editable.length(), android.text.style.ForegroundColorSpan.class);
+        for (android.text.style.ForegroundColorSpan span : colorSpans) {
+            int spanStart = editable.getSpanStart(span);
+            int spanEnd = editable.getSpanEnd(span);
+            if (spanStart >= 0 && spanEnd <= content.length()) {
+                String spannedText = content.substring(spanStart, spanEnd);
+                if (spannedText.contains("☑")) {
+                    savedCheckboxColors.add(new SpanInfo(span, spanStart, spanEnd));
+                }
+            }
+        }
+
+        // Save checkbox StrikethroughSpans
+        android.text.style.StrikethroughSpan[] strikeSpans = editable.getSpans(0, editable.length(), android.text.style.StrikethroughSpan.class);
+        for (android.text.style.StrikethroughSpan span : strikeSpans) {
+            int spanStart = editable.getSpanStart(span);
+            int spanEnd = editable.getSpanEnd(span);
+            if (spanStart >= 0 && spanEnd <= content.length()) {
+                String spannedText = content.substring(spanStart, spanEnd);
+                if (spannedText.contains("☑")) {
+                    savedCheckboxStrikes.add(new SpanInfo(span, spanStart, spanEnd));
+                }
+            }
+        }
+
+        // ✅ STEP 2: Remove ONLY heading/font style spans
+        android.text.style.RelativeSizeSpan[] sizeSpans = editable.getSpans(0, editable.length(), android.text.style.RelativeSizeSpan.class);
         for (android.text.style.RelativeSizeSpan span : sizeSpans) {
             editable.removeSpan(span);
         }
+
+        android.text.style.StyleSpan[] styleSpans = editable.getSpans(0, editable.length(), android.text.style.StyleSpan.class);
         for (android.text.style.StyleSpan span : styleSpans) {
-            editable.removeSpan(span);
-        }
-        // Only remove transparent color spans (used for hiding markers)
-        for (android.text.style.ForegroundColorSpan span : colorSpans) {
-            if (editable.getSpanStart(span) >= 0) {
-                int spanStart = editable.getSpanStart(span);
-                String spannedText = "";
-                if (spanStart < editable.length()) {
-                    int spanEnd = Math.min(editable.getSpanEnd(span), editable.length());
-                    spannedText = editable.subSequence(spanStart, spanEnd).toString();
-                }
-                // Only remove if it's a marker (contains # or *)
-                if (spannedText.contains("#") || spannedText.contains("*")) {
+            int spanStart = editable.getSpanStart(span);
+            int spanEnd = editable.getSpanEnd(span);
+
+            if (spanStart >= 0 && spanEnd <= content.length()) {
+                String spannedText = content.substring(spanStart, spanEnd);
+                // Keep checkbox spans
+                if (!spannedText.contains("☑")) {
                     editable.removeSpan(span);
                 }
+            } else {
+                editable.removeSpan(span);
             }
         }
 
-        // Apply headings
-        String[] lines = content.split("\n");
-        int currentPos = 0;
+        // ✅ STEP 3: Re-apply ALL saved spans
+        for (SpanInfo info : savedImageSpans) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        for (SpanInfo info : savedDividerSpans) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        for (SpanInfo info : savedBookmarkHighlights) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        for (SpanInfo info : savedBookmarkUnderlines) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        for (SpanInfo info : savedCheckboxColors) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        for (SpanInfo info : savedCheckboxStrikes) {
+            if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
+                editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        // ✅ STEP 4: Apply NEW heading styles (line-based)
+        String[] lines = content.split("\n", -1);
+        int currentLinePos = 0;
+
+        // I-declare ang size at typeface sa labas ng switch para ma-access ng Log.d
+        float size;
+        int typeface;
 
         for (String line : lines) {
-            // H1: # Text
-            if (line.startsWith("# ") && !line.startsWith("## ")) {
-                int textStart = currentPos + 2;
-                int textEnd = currentPos + line.length();
+            int lineStart = currentLinePos;
+            int lineEnd = lineStart + line.length();
 
-                if (textStart < editable.length() && textEnd <= editable.length()) {
-                    editable.setSpan(
-                            new android.text.style.RelativeSizeSpan(1.8f),
-                            textStart, textEnd,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    );
-                    editable.setSpan(
-                            new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
-                            textStart, textEnd,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    );
-                    // Hide the # marker
-                    if (currentPos + 2 <= editable.length()) {
-                        editable.setSpan(
-                                new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                                currentPos, currentPos + 2,
-                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        );
-                    }
+            // Check if this line has a heading style
+            String headingStyle = textStyles.get(lineStart);
+
+            if (headingStyle != null) {
+
+                // --- 1. I-determine ang size at typeface batay sa heading style ---
+                size = 1.0f; // Reset to default
+                typeface = android.graphics.Typeface.NORMAL;
+
+                switch (headingStyle) {
+                    case "h1":
+                        size = 1.8f;
+                        typeface = android.graphics.Typeface.BOLD;
+                        break;
+                    case "h2":
+                        size = 1.6f;
+                        typeface = android.graphics.Typeface.BOLD;
+                        break;
+                    case "h3":
+                        size = 1.4f;
+                        typeface = android.graphics.Typeface.BOLD;
+                        break;
+                    case "h4":
+                        size = 1.2f;
+                        typeface = android.graphics.Typeface.BOLD;
+                        break;
+                    // Idagdag ang iba pang heading styles dito kung mayroon
                 }
-            }
-            // H2: ## Text
-            else if (line.startsWith("## ") && !line.startsWith("### ")) {
-                int textStart = currentPos + 3;
-                int textEnd = currentPos + line.length();
+                // ------------------------------------------------------------------
 
-                if (textStart < editable.length() && textEnd <= editable.length()) {
-                    editable.setSpan(
-                            new android.text.style.RelativeSizeSpan(1.5f),
-                            textStart, textEnd,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    );
-                    editable.setSpan(
-                            new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
-                            textStart, textEnd,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    );
-                    if (currentPos + 3 <= editable.length()) {
-                        editable.setSpan(
-                                new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                                currentPos, currentPos + 3,
-                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        );
-                    }
-                }
-            }
-            // H3: ### Text
-            else if (line.startsWith("### ")) {
-                int textStart = currentPos + 4;
-                int textEnd = currentPos + line.length();
+                // --- 2. Hanapin ang tamang starting index (nag-e-exclude ng list markers) ---
+                int contentStartIndex = findContentStartIndex(line);
+                int spanStart = lineStart + contentStartIndex;
+                int spanEnd = lineEnd; // Apply hanggang sa dulo ng linya
 
-                if (textStart < editable.length() && textEnd <= editable.length()) {
+                // 3. I-check kung may text content na i-a-apply-an ng style
+                if (spanStart < spanEnd) {
+                    Log.d("NoteActivity", "✅ Applying " + headingStyle + " (size: " + size + ") to line at " + lineStart);
+
+                    // Ginamit ang spanStart at spanEnd para sa SPANS
                     editable.setSpan(
-                            new android.text.style.RelativeSizeSpan(1.3f),
-                            textStart, textEnd,
+                            new android.text.style.RelativeSizeSpan(size),
+                            spanStart, spanEnd, // Dito ay ginamit ang spanStart!
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                     );
                     editable.setSpan(
-                            new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
-                            textStart, textEnd,
+                            new android.text.style.StyleSpan(typeface),
+                            spanStart, spanEnd, // Dito ay ginamit ang spanStart!
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                     );
-                    if (currentPos + 4 <= editable.length()) {
-                        editable.setSpan(
-                                new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                                currentPos, currentPos + 4,
-                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        );
-                    }
                 }
             }
 
-            currentPos += line.length() + 1; // +1 for newline
+            currentLinePos = lineEnd + 1;
         }
 
-        // Apply inline styles (bold, italic)
-        applyInlineStyles(editable, content);
+        // ✅ STEP 5: Apply inline font styles (bold, italic, bold_italic)
+        List<Integer> processedPositions = new ArrayList<>();
+
+        for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
+            int position = entry.getKey();
+            String styleType = entry.getValue();
+
+            if (styleType.startsWith("end_") || processedPositions.contains(position)) {
+                continue;
+            }
+
+            if (styleType.equals("bold") || styleType.equals("italic") || styleType.equals("bold_italic")) {
+                Integer endPosition = null;
+                for (Map.Entry<Integer, String> endEntry : textStyles.entrySet()) {
+                    if (endEntry.getValue().equals("end_" + styleType) && endEntry.getKey() > position) {
+                        endPosition = endEntry.getKey();
+                        break;
+                    }
+                }
+
+                if (endPosition != null && position >= 0 && endPosition <= content.length() && position < endPosition) {
+                    int finalTypeface = android.graphics.Typeface.NORMAL;
+                    switch (styleType) {
+                        case "bold": finalTypeface = android.graphics.Typeface.BOLD; break;
+                        case "italic": finalTypeface = android.graphics.Typeface.ITALIC; break;
+                        case "bold_italic": finalTypeface = android.graphics.Typeface.BOLD_ITALIC; break;
+                    }
+
+                    Log.d("NoteActivity", "✅ Applying " + styleType + " from " + position + " to " + endPosition);
+
+                    editable.setSpan(
+                            new android.text.style.StyleSpan(finalTypeface),
+                            position, endPosition,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+
+                    processedPositions.add(position);
+                }
+            }
+        }
+
+        // ✅ Force EditText to refresh
+        noteContent.invalidate();
 
         isApplyingStyles = false;
+        Log.d("NoteActivity", "✅ applyTextStyles() complete");
     }
     private void applyInlineStyles(Editable editable, String content) {
+        // ✅ Define patterns for inline styles
         java.util.regex.Pattern boldItalicPattern = java.util.regex.Pattern.compile("\\*\\*\\*(.+?)\\*\\*\\*");
         java.util.regex.Pattern boldPattern = java.util.regex.Pattern.compile("\\*\\*(.+?)\\*\\*");
-        java.util.regex.Pattern italicPattern = java.util.regex.Pattern.compile("\\*(.+?)\\*");
+        java.util.regex.Pattern italicPattern = java.util.regex.Pattern.compile("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)");
 
-        // Bold + Italic (must check first)
+        // ✅ Bold + Italic (must check first to avoid conflicts)
         java.util.regex.Matcher matcher = boldItalicPattern.matcher(content);
         while (matcher.find()) {
-            if (matcher.start() + 3 < editable.length() && matcher.end() - 3 <= editable.length()) {
+            int contentStart = matcher.start() + 3;
+            int contentEnd = matcher.end() - 3;
+
+            if (contentStart < editable.length() && contentEnd <= editable.length() && contentStart < contentEnd) {
+                // Apply bold+italic to content
                 editable.setSpan(
                         new android.text.style.StyleSpan(android.graphics.Typeface.BOLD_ITALIC),
-                        matcher.start() + 3, matcher.end() - 3,
+                        contentStart, contentEnd,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+                // Hide opening markers ***
+                if (matcher.start() + 3 <= editable.length()) {
+                    editable.setSpan(
+                            new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.start(), matcher.start() + 3,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                }
+                // Hide closing markers ***
+                if (matcher.end() <= editable.length() && matcher.end() - 3 >= 0) {
+                    editable.setSpan(
+                            new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.end() - 3, matcher.end(),
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                }
+            }
+        }
+
+        // ✅ Bold only (skip if part of ***)
+        matcher = boldPattern.matcher(content);
+        while (matcher.find()) {
+            // Skip if this ** is part of ***
+            boolean partOfTriple = false;
+            if (matcher.start() > 0 && content.charAt(matcher.start() - 1) == '*') {
+                partOfTriple = true;
+            }
+            if (matcher.end() < content.length() && content.charAt(matcher.end()) == '*') {
+                partOfTriple = true;
+            }
+
+            if (partOfTriple) continue;
+
+            int contentStart = matcher.start() + 2;
+            int contentEnd = matcher.end() - 2;
+
+            if (contentStart < editable.length() && contentEnd <= editable.length() && contentStart < contentEnd) {
+                editable.setSpan(
+                        new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                        contentStart, contentEnd,
                         Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
                 // Hide markers
-                if (matcher.start() + 3 <= editable.length()) {
-                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                            matcher.start(), matcher.start() + 3, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                }
-                if (matcher.end() <= editable.length()) {
-                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                            matcher.end() - 3, matcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                }
-            }
-        }
-
-        // Bold
-        matcher = boldPattern.matcher(content);
-        while (matcher.find()) {
-            // Skip if part of ***
-            if (matcher.start() > 0 && content.charAt(matcher.start() - 1) == '*') continue;
-
-            if (matcher.start() + 2 < editable.length() && matcher.end() - 2 <= editable.length()) {
-                editable.setSpan(
-                        new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
-                        matcher.start() + 2, matcher.end() - 2,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
                 if (matcher.start() + 2 <= editable.length()) {
-                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                            matcher.start(), matcher.start() + 2, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    editable.setSpan(
+                            new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.start(), matcher.start() + 2,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
                 }
-                if (matcher.end() <= editable.length()) {
-                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                            matcher.end() - 2, matcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                if (matcher.end() <= editable.length() && matcher.end() - 2 >= 0) {
+                    editable.setSpan(
+                            new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.end() - 2, matcher.end(),
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
                 }
             }
         }
 
-        // Italic
+        // ✅ Italic only (skip if part of ** or ***)
         matcher = italicPattern.matcher(content);
         while (matcher.find()) {
-            // Skip if part of ** or ***
-            if (matcher.start() > 0 && content.charAt(matcher.start() - 1) == '*') continue;
-            if (matcher.end() < content.length() && content.charAt(matcher.end()) == '*') continue;
+            int contentStart = matcher.start() + 1;
+            int contentEnd = matcher.end() - 1;
 
-            if (matcher.start() + 1 < editable.length() && matcher.end() - 1 <= editable.length()) {
+            if (contentStart < editable.length() && contentEnd <= editable.length() && contentStart < contentEnd) {
                 editable.setSpan(
                         new android.text.style.StyleSpan(android.graphics.Typeface.ITALIC),
-                        matcher.start() + 1, matcher.end() - 1,
+                        contentStart, contentEnd,
                         Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
+                // Hide markers
                 if (matcher.start() + 1 <= editable.length()) {
-                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                            matcher.start(), matcher.start() + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    editable.setSpan(
+                            new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.start(), matcher.start() + 1,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
                 }
-                if (matcher.end() <= editable.length()) {
-                    editable.setSpan(new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
-                            matcher.end() - 1, matcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                if (matcher.end() <= editable.length() && matcher.end() - 1 >= 0) {
+                    editable.setSpan(
+                            new android.text.style.ForegroundColorSpan(Color.TRANSPARENT),
+                            matcher.end() - 1, matcher.end(),
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
                 }
             }
         }
@@ -5298,83 +5585,712 @@ public class NoteActivity extends AppCompatActivity {
         styleRunnable = () -> applyTextStyles();
         styleHandler.postDelayed(styleRunnable, STYLE_APPLY_DELAY_MS);
     }
+    private void setupStyleWatcher() {
+        noteContent.addTextChangedListener(new TextWatcher() {
+            private int startPos = -1;
 
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                if (isStyleActive && after > 0) {
+                    startPos = start;
+                }
+            }
 
-    // + BUTTON MENU
-    private void setupAddMenuOptions() {
-        //Headings and fonts
-        findViewById(R.id.headingsandfont).setOnClickListener(v -> {
-            showHeadingsAndFontsBottomSheet();
-            closeAddMenu();
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int after) {
+                if (isUpdatingText || isTogglingState) return;
+
+                if (isStyleActive && after > 0 && startPos >= 0) {
+                    String currentText = s.toString();
+
+                    // ✅ Safety check for empty text
+                    if (currentText.isEmpty() || start >= currentText.length()) return;
+
+                    // Find current line boundaries with safety checks
+                    int lineStart = currentText.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+                    int lineEnd = currentText.indexOf('\n', start);
+                    if (lineEnd == -1) lineEnd = currentText.length();
+
+                    // ✅ Ensure valid range
+                    if (lineStart < 0) lineStart = 0;
+                    if (lineEnd > currentText.length()) lineEnd = currentText.length();
+                    if (lineStart >= lineEnd) return;
+
+                    String currentLine = currentText.substring(lineStart, lineEnd);
+
+                    // ✅ REMOVED the check that blocks special lines
+                    // Now headings/fonts can be applied to toggles, bullets, and numbers!
+
+                    // ✅ For HEADINGS: Apply IMMEDIATELY (now works on ALL lines!)
+                    if (currentActiveStyle.startsWith("h")) {
+                        textStyles.put(lineStart, currentActiveStyle);
+                        applyTextStyles(); // Apply immediately
+                    }
+                    // ✅ For INLINE STYLES (bold, italic): Apply IMMEDIATELY
+                    else if (!currentActiveStyle.equals("normal")) {
+                        int endPos = start + after;
+                        textStyles.put(startPos, currentActiveStyle);
+                        textStyles.put(endPos, "end_" + currentActiveStyle);
+                        applyTextStyles(); // ✅ REMOVED postDelayed - apply immediately
+                    }
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // ✅ Reset style mode after newline or when moving to new line
+                if (isStyleActive) {
+                    String text = s.toString();
+                    int cursor = noteContent.getSelectionStart();
+
+                    // Check if user pressed Enter
+                    if (cursor > 0 && cursor <= text.length() && text.charAt(cursor - 1) == '\n') {
+                        // ✅ For headings, deactivate after newline
+                        if (currentActiveStyle.startsWith("h")) {
+                            isStyleActive = false;
+                            currentActiveStyle = "normal";
+                        }
+                        // ✅ For inline styles, keep active for continuous typing
+                    }
+                }
+            }
         });
-        // Subpage
-        findViewById(R.id.addSubpageOption).setOnClickListener(v -> {
-            openSubpage();
-            closeAddMenu();
-        });
+    }
 
-        // Theme
-        findViewById(R.id.addThemeOption).setOnClickListener(v -> {
-            toggleColorPicker();
-            closeAddMenu();
-        });
+    //--------------------------------------------//
+    //INSERT TABLE
+    private void insertTable() {
+        EditText noteContent = findViewById(R.id.noteContent);
+        LinearLayout container = findViewById(R.id.noteContainer);
 
-        // Divider
-        findViewById(R.id.addDividerOption).setOnClickListener(v -> {
-            showDividerBottomSheet();
-            closeAddMenu();
-        });
+        // Get cursor position
+        int cursorPosition = noteContent.getSelectionStart();
+        String fullText = noteContent.getText().toString();
 
-        // Link
-        findViewById(R.id.addLinkOption).setOnClickListener(v -> {
-            insertLink();
-            closeAddMenu();
-        });
+        // Create new table
+        TableView tableView = new TableView(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, dpToPx(8), 0, dpToPx(8));
+        tableView.setLayoutParams(params);
 
-        // Bullet List
-        findViewById(R.id.addBulletListOption).setOnClickListener(v -> {
-            insertBulletList();
-            closeAddMenu();
-        });
+        if (cursorPosition > 0) {
+            // Split text at cursor
+            String beforeCursor = fullText.substring(0, cursorPosition);
+            String afterCursor = fullText.substring(cursorPosition);
 
-        // Numbered List
-        findViewById(R.id.addNumberedListOption).setOnClickListener(v -> {
-            insertNumberedList();
-            closeAddMenu();
-        });
+            // Update noteContent with text before cursor
+            noteContent.setText(beforeCursor);
 
-        // Toggle List
-        findViewById(R.id.addToggleListOption).setOnClickListener(v -> {
-            insertToggleList();
-            closeAddMenu();
-        });
+            // Get index of noteContent
+            int noteContentIndex = container.indexOfChild(noteContent);
 
+            // Insert table after noteContent
+            container.addView(tableView, noteContentIndex + 1);
+
+            // If there's text after cursor, create new EditText
+            if (!afterCursor.isEmpty()) {
+                EditText afterEditText = new EditText(this);
+                LinearLayout.LayoutParams afterParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                afterEditText.setLayoutParams(afterParams);
+                afterEditText.setBackground(null);
+                afterEditText.setGravity(Gravity.TOP);
+                afterEditText.setHint("Start typing your note...");
+                afterEditText.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                        android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+                afterEditText.setMinHeight(dpToPx(200));
+                afterEditText.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
+                afterEditText.setTextColor(Color.parseColor("#333333"));
+                afterEditText.setTextSize(16);
+                afterEditText.setText(afterCursor);
+                afterEditText.setTextIsSelectable(true);
+
+                // Insert after table
+                container.addView(afterEditText, noteContentIndex + 2);
+
+                // Focus on new EditText
+                afterEditText.requestFocus();
+                afterEditText.setSelection(0);
+            }
+        } else {
+            // If cursor at beginning, just insert before noteContent
+            int noteContentIndex = container.indexOfChild(noteContent);
+            container.addView(tableView, noteContentIndex);
+        }
+    }
+    // Helper method to convert dp to pixels
+    private int dpToPx(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
+    //----------------------------------------------------------------//
+    //DRAG FUNCTIONALITY
+    private void setupDragFunctionality() {
+        // Create invisible overlay for drag feedback
+        createDragOverlay();
+
+        noteContent.setOnTouchListener(new View.OnTouchListener() {
+            private GestureDetector gestureDetector = new GestureDetector(NoteActivity.this,
+                    new GestureDetector.SimpleOnGestureListener() {
+                        @Override
+                        public void onLongPress(MotionEvent e) {
+                            if (!isDragging) {
+                                startDragMode(e);
+                            }
+                        }
+                    });
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                // Let gesture detector handle long press
+                gestureDetector.onTouchEvent(event);
+
+                if (isDragging) {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_MOVE:
+                            handleDragMove(event);
+                            return true;
+
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            finishDrag();
+                            return true;
+                    }
+                    return true;
+                }
+
+                return false; // Allow normal EditText behavior when not dragging
+            }
+        });
+    }
+
+    private void createDragOverlay() {
+        // Create overlay container
+        dragOverlayView = new FrameLayout(this);
+        dragOverlayView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        dragOverlayView.setVisibility(View.GONE);
+        dragOverlayView.setElevation(dpToPx(8));
+
+        // Create floating text view
+        dragFloatingText = new TextView(this);
+        dragFloatingText.setBackgroundColor(Color.parseColor("#F0F0F0"));
+        dragFloatingText.setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12));
+        dragFloatingText.setTextColor(Color.parseColor("#333333"));
+        dragFloatingText.setTextSize(16);
+        dragFloatingText.setElevation(dpToPx(4));
+        dragFloatingText.setShadowLayer(8, 0, 4, Color.parseColor("#40000000"));
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor("#FFFFFF"));
+        bg.setCornerRadius(dpToPx(8));
+        bg.setStroke(dpToPx(2), Color.parseColor("#4CAF50"));
+        dragFloatingText.setBackground(bg);
+
+        ((FrameLayout) dragOverlayView).addView(dragFloatingText);
+
+        // Add to root layout
+        ((ViewGroup) findViewById(android.R.id.content)).addView(dragOverlayView);
+    }
+
+    private void startDragMode(MotionEvent e) {
+        String content = noteContent.getText().toString();
+        if (content.isEmpty()) return;
+
+        // Get line at touch position
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        int offset = noteContent.getOffsetForPosition(e.getX(), e.getY());
+        int line = layout.getLineForOffset(offset);
+
+        int lineStart = layout.getLineStart(line);
+        int lineEnd = layout.getLineEnd(line);
+
+        if (lineStart >= content.length()) return;
+
+        String lineText = content.substring(lineStart, Math.min(lineEnd, content.length())).trim();
+
+        // Don't allow dragging empty lines or dividers
+        if (lineText.isEmpty() || lineText.contains("〔DIVIDER〕") || lineText.contains("【IMAGE:")) {
+            return;
+        }
+
+        isDragging = true;
+        dragStartLineIndex = line;
+        dragCurrentLineIndex = line;
+
+        // Calculate touch offset within the line
+        int lineTop = layout.getLineTop(line);
+        dragTouchOffset = (int) (e.getY() - lineTop - noteContent.getScrollY());
+
+        // Show floating text
+        dragFloatingText.setText(lineText);
+        dragFloatingText.setMaxWidth(noteContent.getWidth() - dpToPx(32));
+        dragOverlayView.setVisibility(View.VISIBLE);
+
+        // Position floating text
+        updateFloatingTextPosition(e.getRawY());
+
+        // Highlight source line
+        highlightDragLine(lineStart, lineEnd);
+
+        // Haptic feedback
+        noteContent.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+
+        Toast.makeText(this, "Drag to reorder", Toast.LENGTH_SHORT).show();
+    }
+
+    private void handleDragMove(MotionEvent e) {
+        if (!isDragging) return;
+
+        // Update floating text position
+        updateFloatingTextPosition(e.getRawY());
+
+        // Determine current line under finger
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        // Convert screen Y to EditText coordinates
+        int[] location = new int[2];
+        noteContent.getLocationOnScreen(location);
+        float localY = e.getRawY() - location[1] + noteContent.getScrollY();
+
+        // Find line at this position
+        int currentLine = layout.getLineForVertical((int) localY);
+
+        if (currentLine != dragCurrentLineIndex && currentLine >= 0) {
+            dragCurrentLineIndex = currentLine;
+
+            // Visual feedback - highlight drop target
+            String content = noteContent.getText().toString();
+            int targetStart = layout.getLineStart(currentLine);
+            int targetEnd = layout.getLineEnd(currentLine);
+
+            if (targetStart < content.length()) {
+                highlightDropTarget(targetStart, Math.min(targetEnd, content.length()));
+            }
+
+            // Haptic feedback
+            noteContent.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        }
+    }
+
+    private void updateFloatingTextPosition(float rawY) {
+        int[] location = new int[2];
+        noteContent.getLocationOnScreen(location);
+
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) dragFloatingText.getLayoutParams();
+        params.leftMargin = dpToPx(16);
+        params.topMargin = (int) (rawY - location[1] - dragTouchOffset);
+        params.width = noteContent.getWidth() - dpToPx(32);
+        params.height = FrameLayout.LayoutParams.WRAP_CONTENT;
+
+        dragFloatingText.setLayoutParams(params);
+    }
+
+    private void highlightDragLine(int start, int end) {
+        SpannableString spannable = new SpannableString(noteContent.getText());
+
+        // Add semi-transparent highlight
+        spannable.setSpan(
+                new BackgroundColorSpan(Color.parseColor("#80BBDEFB")),
+                start,
+                end,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+
+        isUpdatingText = true;
+        noteContent.setText(spannable, TextView.BufferType.SPANNABLE);
+        isUpdatingText = false;
+    }
+
+    private void highlightDropTarget(int start, int end) {
+        SpannableString spannable = new SpannableString(noteContent.getText());
+
+        // Add green highlight for drop target
+        spannable.setSpan(
+                new BackgroundColorSpan(Color.parseColor("#80C8E6C9")),
+                start,
+                end,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+
+        isUpdatingText = true;
+        noteContent.setText(spannable, TextView.BufferType.SPANNABLE);
+
+        // Reapply bookmarks after short delay
+        noteContent.postDelayed(() -> {
+            applyBookmarksToText();
+            isUpdatingText = false;
+        }, 50);
+    }
+
+    private void finishDrag() {
+        if (!isDragging) return;
+
+        isDragging = false;
+        dragOverlayView.setVisibility(View.GONE);
+
+        // Perform the reordering
+        if (dragCurrentLineIndex != dragStartLineIndex && dragCurrentLineIndex >= 0) {
+            reorderLines(dragStartLineIndex, dragCurrentLineIndex);
+        } else {
+            // Just remove highlights
+            applyBookmarksToText();
+        }
+
+        dragStartLineIndex = -1;
+        dragCurrentLineIndex = -1;
+
+        // Haptic feedback
+        noteContent.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+    }
+
+    private void reorderLines(int fromLine, int toLine) {
+        String content = noteContent.getText().toString();
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        String[] lines = content.split("\n", -1);
+
+        if (fromLine >= lines.length || toLine >= lines.length) return;
+
+        String draggedLine = lines[fromLine];
+        String targetLine = lines[toLine];
+
+        // Detect line types
+        LineInfo fromInfo = analyzeLineType(draggedLine);
+        LineInfo toInfo = analyzeLineType(targetLine);
+
+        // ✅ KEY FIX: TRUE SWAP - Exchange positions AND formats
+        List<String> linesList = new ArrayList<>(Arrays.asList(lines));
+
+        // Process dragged line to take target's format
+        String processedDraggedLine = processLineForInsertion(draggedLine, fromInfo, toInfo, linesList, toLine);
+
+        // Process target line to take dragged's format (swap!)
+        String processedTargetLine = processLineForInsertion(targetLine, toInfo, fromInfo, linesList, fromLine);
+
+        // Perform the swap
+        linesList.set(fromLine, processedTargetLine);
+        linesList.set(toLine, processedDraggedLine);
+
+        // Renumber affected lists
+        int minLine = Math.min(fromLine, toLine);
+        int maxLine = Math.max(fromLine, toLine);
+        renumberAffectedLists(linesList, minLine, maxLine + 1);
+
+        // Rebuild content
+        StringBuilder newContent = new StringBuilder();
+        for (int i = 0; i < linesList.size(); i++) {
+            newContent.append(linesList.get(i));
+            if (i < linesList.size() - 1) {
+                newContent.append("\n");
+            }
+        }
+
+        // Update bookmarks positions
+        updateBookmarksAfterReorder(content, newContent.toString(), fromLine, toLine);
+
+        // Apply new content
+        isUpdatingText = true;
+        noteContent.setText(newContent.toString());
+
+        // Reapply styling
+        noteContent.postDelayed(() -> {
+            applyBookmarksToText();
+            isUpdatingText = false;
+            saveNoteContentToFirestore(newContent.toString());
+        }, 100);
+
+        Toast.makeText(this, "Lines swapped", Toast.LENGTH_SHORT).show();
+    }
+
+    private LineInfo analyzeLineType(String line) {
+        LineInfo info = new LineInfo();
+
+        // Count leading spaces
+        int indent = 0;
+        for (char c : line.toCharArray()) {
+            if (c == ' ') indent++;
+            else break;
+        }
+        info.indent = indent;
+
+        String trimmed = line.trim();
+
+        // Bullet list
+        if (trimmed.matches("^[●○■]\\s.*")) {
+            info.type = LineType.BULLET;
+            info.bullet = trimmed.charAt(0);
+            info.content = trimmed.substring(2);
+        }
+        // Numbered list
+        else if (trimmed.matches("^\\d+\\.\\s.*")) {
+            info.type = LineType.NUMBERED;
+            info.content = trimmed.replaceFirst("^\\d+\\.\\s", "");
+        }
+        // Lettered list
+        else if (trimmed.matches("^[a-z]\\.\\s.*")) {
+            info.type = LineType.LETTERED;
+            info.content = trimmed.replaceFirst("^[a-z]\\.\\s", "");
+        }
+        // Roman numeral list
+        else if (trimmed.matches("^[ivx]+\\.\\s.*")) {
+            info.type = LineType.ROMAN;
+            info.content = trimmed.replaceFirst("^[ivx]+\\.\\s", "");
+        }
+        // Toggle
+        else if (trimmed.matches("^[▶▼]\\s.*")) {
+            info.type = LineType.TOGGLE;
+            info.content = trimmed.substring(2);
+        }
         // Checkbox
-        findViewById(R.id.addCheckboxOption).setOnClickListener(v -> {
-            insertCheckbox();
-            closeAddMenu();
-        });
+        else if (trimmed.matches("^[☐☑]\\s.*")) {
+            info.type = LineType.CHECKBOX;
+            info.content = trimmed.substring(2);
+        }
+        // Regular text
+        else {
+            info.type = LineType.TEXT;
+            info.content = trimmed;
+        }
 
-        //Insert Image
-        findViewById(R.id.insertImage).setOnClickListener(v -> {
-            showInsertMediaBottomSheet();
-            closeAddMenu();
-        });
+        return info;
     }
 
-    private void openAddMenu() {
-        addOptionsMenu.setVisibility(View.VISIBLE);
-        isMenuOpen = true;
+    private String processLineForInsertion(String originalLine, LineInfo fromInfo, LineInfo toInfo,
+                                           List<String> lines, int insertIndex) {
+        StringBuilder result = new StringBuilder();
 
-        // Rotate the + icon
-        addMenuBtn.animate().rotation(45f).setDuration(200).start();
+        // ✅ KEY FIX: When swapping, the dragged item should TAKE THE EXACT FORMAT of target
+        // Use target indentation
+        int targetIndent = toInfo.indent;
+
+        // Add indentation
+        for (int i = 0; i < targetIndent; i++) {
+            result.append(" ");
+        }
+
+        // ✅ CRITICAL: Use the TARGET'S list format, not the source
+        if (toInfo.type != LineType.TEXT) {
+            // Use the TARGET's list marker
+            switch (toInfo.type) {
+                case BULLET:
+                    result.append(getBulletForIndent(targetIndent)).append(" ");
+                    break;
+                case NUMBERED:
+                    result.append("1. "); // Will be renumbered to target position
+                    break;
+                case LETTERED:
+                    result.append("a. "); // Will be renumbered to target position
+                    break;
+                case ROMAN:
+                    result.append("i. "); // Will be renumbered to target position
+                    break;
+                case TOGGLE:
+                    result.append("▶ ");
+                    break;
+                case CHECKBOX:
+                    result.append("☐ ");
+                    break;
+                default:
+                    result.append(fromInfo.content);
+                    return result.toString();
+            }
+        } else {
+            // If target is plain text, keep original format
+            String trimmed = originalLine.trim();
+            result.append(trimmed);
+            return result.toString();
+        }
+
+        result.append(fromInfo.content);
+        return result.toString();
     }
-    private void closeAddMenu() {
-        addOptionsMenu.setVisibility(View.GONE);
-        isMenuOpen = false;
 
-        // Reset the + icon rotation
-        addMenuBtn.animate().rotation(0f).setDuration(200).start();
+    private char getBulletForIndent(int indent) {
+        if (indent == 0) return '●';
+        if (indent == 4) return '○';
+        return '■';
+    }
+
+    private void renumberAffectedLists(List<String> lines, int startIndex, int endIndex) {
+        // Expand range to include full list blocks
+        int actualStart = findListStart(lines, startIndex);
+        int actualEnd = findListEnd(lines, endIndex);
+
+        for (int i = actualStart; i <= actualEnd && i < lines.size(); i++) {
+            String line = lines.get(i);
+            LineInfo info = analyzeLineType(line);
+
+            if (info.type == LineType.NUMBERED || info.type == LineType.LETTERED || info.type == LineType.ROMAN) {
+                // Find consecutive items at same indentation
+                int number = 1;
+                int currentIndent = info.indent;
+
+                // Count backwards to find starting number
+                for (int j = i - 1; j >= 0; j--) {
+                    LineInfo prevInfo = analyzeLineType(lines.get(j));
+                    if (prevInfo.indent == currentIndent && prevInfo.type == info.type) {
+                        number++;
+                    } else if (prevInfo.indent < currentIndent) {
+                        break;
+                    }
+                }
+
+                // Renumber this item
+                String indent = "";
+                for (int k = 0; k < currentIndent; k++) indent += " ";
+
+                String newLine = indent;
+                switch (info.type) {
+                    case NUMBERED:
+                        newLine += number + ". " + info.content;
+                        break;
+                    case LETTERED:
+                        newLine += ((char)('a' + number - 1)) + ". " + info.content;
+                        break;
+                    case ROMAN:
+                        newLine += convertToRoman(number) + ". " + info.content;
+                        break;
+                }
+
+                lines.set(i, newLine);
+            }
+        }
+    }
+
+    private int findListStart(List<String> lines, int fromIndex) {
+        if (fromIndex <= 0) return 0;
+
+        LineInfo currentInfo = analyzeLineType(lines.get(fromIndex));
+        if (currentInfo.type == LineType.TEXT) return fromIndex;
+
+        for (int i = fromIndex - 1; i >= 0; i--) {
+            LineInfo info = analyzeLineType(lines.get(i));
+            if (info.type != currentInfo.type || info.indent < currentInfo.indent) {
+                return i + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    private int findListEnd(List<String> lines, int fromIndex) {
+        if (fromIndex >= lines.size() - 1) return lines.size() - 1;
+
+        LineInfo currentInfo = analyzeLineType(lines.get(fromIndex));
+        if (currentInfo.type == LineType.TEXT) return fromIndex;
+
+        for (int i = fromIndex + 1; i < lines.size(); i++) {
+            LineInfo info = analyzeLineType(lines.get(i));
+            if (info.type != currentInfo.type || info.indent < currentInfo.indent) {
+                return i - 1;
+            }
+        }
+
+        return lines.size() - 1;
+    }
+
+    private String convertToRoman(int number) {
+        String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
+        if (number > 0 && number <= romans.length) {
+            return romans[number - 1];
+        }
+        return "i";
+    }
+
+    private void updateBookmarksAfterReorder(String oldContent, String newContent, int fromLine, int toLine) {
+        // Calculate position changes
+        Layout layout = noteContent.getLayout();
+        if (layout == null) return;
+
+        String[] oldLines = oldContent.split("\n", -1);
+        String[] newLines = newContent.split("\n", -1);
+
+        // Build position map
+        Map<Integer, Integer> positionMap = new HashMap<>();
+
+        int oldPos = 0;
+        int newPos = 0;
+
+        for (int i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
+            if (i < oldLines.length) {
+                positionMap.put(oldPos, newPos);
+                oldPos += oldLines[i].length() + 1;
+            }
+            if (i < newLines.length) {
+                newPos += newLines[i].length() + 1;
+            }
+        }
+
+        // Update bookmarks
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                int oldStart = bookmark.getStartIndex();
+                int oldEnd = bookmark.getEndIndex();
+
+                // Find closest mapped position
+                Integer newStart = findClosestMappedPosition(positionMap, oldStart);
+                Integer newEnd = findClosestMappedPosition(positionMap, oldEnd);
+
+                if (newStart != null && newEnd != null && newStart < newEnd) {
+                    try {
+                        String bookmarkText = newContent.substring(newStart, Math.min(newEnd, newContent.length()));
+                        if (!bookmarkText.trim().isEmpty()) {
+                            updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText.trim());
+                            bookmark.setStartIndex(newStart);
+                            bookmark.setEndIndex(newEnd);
+                            bookmark.setText(bookmarkText.trim());
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
+
+    private Integer findClosestMappedPosition(Map<Integer, Integer> positionMap, int oldPos) {
+        if (positionMap.containsKey(oldPos)) {
+            return positionMap.get(oldPos);
+        }
+
+        // Find closest position
+        int closest = -1;
+        int minDiff = Integer.MAX_VALUE;
+
+        for (Map.Entry<Integer, Integer> entry : positionMap.entrySet()) {
+            int diff = Math.abs(entry.getKey() - oldPos);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = entry.getValue();
+            }
+        }
+
+        return closest >= 0 ? closest : null;
+    }
+
+    // Helper classes
+    private enum LineType {
+        TEXT, BULLET, NUMBERED, LETTERED, ROMAN, TOGGLE, CHECKBOX
+    }
+
+    private static class LineInfo {
+        LineType type = LineType.TEXT;
+        int indent = 0;
+        String content = "";
+        char bullet = '●';
     }
 
     @Override
@@ -5389,5 +6305,38 @@ public class NoteActivity extends AppCompatActivity {
         Log.d("IMAGE_DEBUG", "⏸️ onStop");
     }
 
+    private int findContentStartIndex(String line) {
+        // 1. Check for Toggle List (▶ or ▼ followed by space)
+        java.util.regex.Matcher toggleMatcher = java.util.regex.Pattern.compile("^\\s*[▶▼]\\s").matcher(line);
+        if (toggleMatcher.find()) {
+            return toggleMatcher.end(); // Index right after the marker and space
+        }
 
+        // 2. Check for Bullet List (●, ○, or ■ followed by space)
+        java.util.regex.Matcher bulletMatcher = java.util.regex.Pattern.compile("^\\s*[●○■]\\s").matcher(line);
+        if (bulletMatcher.find()) {
+            return bulletMatcher.end(); // Index right after the marker and space
+        }
+
+        // 3. Check for Checkbox List (☐ or ☑ followed by space)
+        java.util.regex.Matcher checkboxMatcher = java.util.regex.Pattern.compile("^\\s*[☐☑]\\s").matcher(line);
+        if (checkboxMatcher.find()) {
+            return checkboxMatcher.end(); // Index right after the marker and space
+        }
+
+        // 4. Check for Numbered/Lettered/Roman List (e.g., 1., a., I., followed by space)
+        // Tinitingnan ang number/letter/roman + period/parenthesis + space
+        java.util.regex.Matcher numberedMatcher = java.util.regex.Pattern.compile("^\\s*([0-9a-zA-Zivx]+\\.)\\s").matcher(line);
+        if (numberedMatcher.find()) {
+            return numberedMatcher.end(); // Index right after the list prefix and space
+        }
+
+        // Default: find the first non-whitespace character
+        java.util.regex.Matcher whitespaceMatcher = java.util.regex.Pattern.compile("^\\s*").matcher(line);
+        if (whitespaceMatcher.find()) {
+            return whitespaceMatcher.end();
+        }
+
+        return 0; // Content starts at index 0
+    }
 }

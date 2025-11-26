@@ -7,187 +7,194 @@
     android:layout_height="match_parent"
     android:backgroundTint="@null">
 
-    <!-- FULL-SCREEN fragment container.
-         paddingBottom = height of bottom nav so fragment content won't be hidden behind nav -->
+    <!-- FULL-SCREEN fragment container -->
+    <FrameLayout
+        android:id="@+id/fragmentContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingBottom="70dp" />
+
+    <!-- Dimmed overlay background -->
+    <View
+        android:id="@+id/overlayView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- Extended FABs (above bottom nav) -->
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fabNote"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="99.5dp"
+        app:icon="@drawable/ic_fab_notes"
+        app:iconTint="#ffffff"
+        app:iconGravity="textStart"
+        app:iconSize="30dp"
+        android:contentDescription="Add Note"
+        android:text="Notes"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:backgroundTint="#8daaa6"
+        app:fabSize="mini"
+        android:minWidth="150dp"
+        android:visibility="gone"
+        android:elevation="10dp" />
+
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fabTodo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="160dp"
+        app:icon="@drawable/ic_fab_todo"
+        app:iconTint="#ffffff"
+        app:iconGravity="textStart"
+        app:iconSize="30dp"
+        android:contentDescription="Add Todo"
+        android:text="To-do list"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:backgroundTint="#8daaa6"
+        app:fabSize="mini"
+        android:minWidth="150dp"
+        android:visibility="gone"
+        android:elevation="10dp" />
+
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fabWeekly"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="220dp"
+        app:icon="@drawable/ic_fab_weeklyplanner"
+        app:iconTint="#ffffff"
+        app:iconPadding="6dp"
+        app:iconSize="27dp"
+        app:iconGravity="textStart"
+        android:contentDescription="Add Weekly"
+        android:text="Weekly Planner"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:backgroundTint="#8daaa6"
+        app:fabSize="mini"
+        android:minWidth="150dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone"
+        android:elevation="10dp" />
+
+    <!-- BOTTOM NAV BAR with rounded top corners -->
+    <LinearLayout
+        android:id="@+id/bottomNavRoot"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/nav_background"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:backgroundTint="@null"
+        android:elevation="8dp">
+
+        <!-- Home -->
         <FrameLayout
-            android:id="@+id/fragmentContainer"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:paddingBottom="80dp" />
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/Home"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_gravity="center"
+                android:background="@drawable/circle_bg"
+                android:contentDescription="Nav Home"
+                android:padding="10dp"
+                android:src="@drawable/ic_navbar_home"
+                app:tint="#ffffff"/>
+        </FrameLayout>
 
-        <!-- Dimmed overlay background -->
-        <View
-            android:id="@+id/overlayView"
-            android:layout_width="match_parent"
+        <!-- Calendar -->
+        <FrameLayout
+            android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:background="#80000000"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true" />
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/Calendar"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_gravity="center"
+                android:contentDescription="Nav Calendar"
+                android:padding="10dp"
+                android:elevation="12dp"
+                android:src="@drawable/ic_navbar_calendar"
+                app:tint="#ffffff"/>
+        </FrameLayout>
 
-        <!-- Floating action buttons (above bottom nav) -->
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabMain"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="55dp"
-            android:contentDescription="Add Note"
-            android:src="@drawable/ic_fab_add"
-            app:backgroundTint="#26E9D8"
-            app:tint="#FFFFFF"
-            app:shapeAppearanceOverlay="@style/CircleFAB"
-            app:fabCustomSize="55dp"
-            app:maxImageSize="55dp"/>
+        <!-- Main FAB in center -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
 
-        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/fabNote"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="125dp"
-            app:icon="@drawable/ic_fab_notes"
-            app:iconTint="#ffffff"
-            app:iconGravity="textStart"
-            app:iconSize="30dp"
-            android:contentDescription="Add Note"
-            android:text="Notes"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:backgroundTint="#008f84"
-            app:fabSize="mini"
-            android:minWidth="150dp"
-            android:visibility="gone"
-            android:elevation="10dp" />
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabMain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:contentDescription="Add Note"
+                android:elevation="12dp"
+                android:src="@drawable/ic_fab_add"
+                app:backgroundTint="#f6d5b6"
+                app:fabCustomSize="40dp"
+                app:maxImageSize="30dp"
+                app:tint="#000000" />
+        </FrameLayout>
 
-        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/fabTodo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="187.5dp"
-            app:icon="@drawable/ic_fab_todo"
-            app:iconTint="#ffffff"
-            app:iconGravity="textStart"
-            app:iconSize="30dp"
-            android:contentDescription="Add Todo"
-            android:text="To-do list"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:backgroundTint="#008f84"
-            app:fabSize="mini"
-            android:minWidth="150dp"
-            android:visibility="gone"
-            android:elevation="10dp" />
+        <!-- Notifs -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/Notifs"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_gravity="center"
+                android:contentDescription="Nav Notifications"
+                android:padding="10dp"
+                android:src="@drawable/ic_navbar_notif"
+                app:tint="#ffffff"/>
+        </FrameLayout>
 
-        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/fabWeekly"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="250dp"
-            app:icon="@drawable/ic_fab_weeklyplanner"
-            app:iconTint="#ffffff"
-            app:iconPadding="6dp"
-            app:iconSize="27dp"
-            app:iconGravity="textStart"
-            android:contentDescription="Add Weekly"
-            android:text="Weekly Planner"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:backgroundTint="#008f84"
-            app:fabSize="mini"
-            android:minWidth="150dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:visibility="gone"
-            android:elevation="10dp" />
+        <!-- Settings -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/Settings"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_gravity="center"
+                android:clickable="true"
+                android:contentDescription="Settings"
+                android:focusable="true"
+                android:padding="10dp"
+                android:src="@drawable/ic_navbar_settings"
+                app:tint="#ffffff"/>
+        </FrameLayout>
 
-        <!-- BOTTOM NAV BAR: fixed at bottom -->
-        <LinearLayout
-            android:id="@+id/bottomNavRoot"
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:layout_gravity="bottom"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/curved_navbar"
-            android:paddingStart="30dp"
-            android:paddingEnd="30dp"
-            android:paddingBottom="8dp"
-            android:backgroundTint="@null"
-            android:elevation="4dp">
-
-            <!-- Home -->
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_weight="1"
-                android:layout_marginTop="6dp">
-                <ImageView
-                    android:id="@+id/Home"
-                    android:layout_width="50dp"
-                    android:layout_height="45dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/circle_bg"
-                    android:contentDescription="Nav Home"
-                    android:padding="8dp"
-                    android:src="@drawable/ic_navbar_home" />
-            </FrameLayout>
-
-            <!-- Calendar -->
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_weight="1"
-                android:layout_marginTop="6dp">
-                <ImageView
-                    android:id="@+id/Calendar"
-                    android:layout_width="50dp"
-                    android:layout_height="45dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="Nav Calendar"
-                    android:padding="9dp"
-                    android:src="@drawable/ic_navbar_calendar"/>
-            </FrameLayout>
-
-            <!-- Notifs -->
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_weight="1"
-                android:layout_marginTop="6dp">
-                <ImageView
-                    android:id="@+id/Notifs"
-                    android:layout_width="50dp"
-                    android:layout_height="45dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="Nav Notifications"
-                    android:padding="9dp"
-                    android:src="@drawable/ic_navbar_notif" />
-            </FrameLayout>
-
-            <!-- Settings -->
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_weight="1"
-                android:layout_marginTop="6dp">
-                <ImageView
-                    android:id="@+id/Settings"
-                    android:layout_width="50dp"
-                    android:layout_height="45dp"
-                    android:layout_gravity="center"
-                    android:clickable="true"
-                    android:contentDescription="Settings"
-                    android:focusable="true"
-                    android:padding="9dp"
-                    android:src="@drawable/ic_navbar_settings" />
-            </FrameLayout>
-
-        </LinearLayout>
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

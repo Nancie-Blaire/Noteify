@@ -10,7 +10,7 @@
     app:cardElevation="2dp"
     app:strokeWidth="2dp"
     app:strokeColor="#E0E0E0"
-    app:cardBackgroundColor="@color/calender_hue"
+    app:cardBackgroundColor="#f6d5b6"
     android:clickable="true"
     android:focusable="true">
 
@@ -26,7 +26,7 @@
             android:id="@+id/checkbox"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:buttonTint="#2196F3" />
+            android:buttonTint="#ff9376" />
 
 
 

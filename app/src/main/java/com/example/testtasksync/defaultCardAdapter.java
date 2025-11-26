@@ -18,8 +18,8 @@ public class defaultCardAdapter extends RecyclerView.Adapter<defaultCardAdapter.
     @Override
     public WelcomeViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         int layoutId = isGridLayout ?
-                R.layout.fav_default_notes :
-                R.layout.recent_default_note;
+                R.layout.default_fav_notes :
+                R.layout.default_recent_note;
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(layoutId, parent, false);
         return new WelcomeViewHolder(view);

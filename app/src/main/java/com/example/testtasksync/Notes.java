@@ -11,6 +11,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -189,6 +190,39 @@ public class Notes extends Fragment {
         // Load data from Firebase
         loadNotes(user);
         loadSchedules(user);
+
+
+        // Initialize time card views
+        TextView timeText = view.findViewById(R.id.timeText);
+        TextView amPmText = view.findViewById(R.id.amPmText);
+        TextView dateText = view.findViewById(R.id.dateText);
+
+// Update time and date
+        updateTimeAndDate(timeText, amPmText, dateText);
+    }
+
+    private void updateTimeAndDate(TextView timeText, TextView amPmText, TextView dateText) {
+        java.util.Calendar calendar = java.util.Calendar.getInstance();
+
+        // Format time
+        int hour = calendar.get(java.util.Calendar.HOUR);
+        if (hour == 0) hour = 12; // Convert 0 to 12 for 12-hour format
+        int minute = calendar.get(java.util.Calendar.MINUTE);
+        String time = String.format("%d:%02d", hour, minute);
+        timeText.setText(time);
+
+        // Format AM/PM
+        int hourOfDay = calendar.get(java.util.Calendar.HOUR_OF_DAY);
+        String amPm = hourOfDay < 12 ? "A.M." : "P.M.";
+        amPmText.setText(amPm);
+
+        // Format date
+        String[] months = {"JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+                "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"};
+        int month = calendar.get(java.util.Calendar.MONTH);
+        int day = calendar.get(java.util.Calendar.DAY_OF_MONTH);
+        String date = months[month] + " " + day;
+        dateText.setText(date);
     }
 
     private void showSearchOverlay() {

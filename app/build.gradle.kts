@@ -72,4 +72,9 @@ dependencies {
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
     implementation("com.google.firebase:firebase-storage:20.3.0")
 
+    // For JSON serialization (AccountManager)
+    implementation("com.google.code.gson:gson:2.10.1")
+    // RecyclerView (if not already added)
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+
 }

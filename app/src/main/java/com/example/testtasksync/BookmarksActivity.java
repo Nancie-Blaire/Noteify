@@ -157,12 +157,12 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         // Set initial style selection
         if ("highlight".equals(selectedStyle[0])) {
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#4CAF50"));
+            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange text
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
             styleUnderline.setTextColor(Color.parseColor("#666666"));
         } else {
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#4CAF50"));
+            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange text
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
             styleHighlight.setTextColor(Color.parseColor("#666666"));
         }
@@ -188,7 +188,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         styleHighlight.setOnClickListener(v -> {
             selectedStyle[0] = "highlight";
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#4CAF50"));
+            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
             styleUnderline.setTextColor(Color.parseColor("#666666"));
         });
@@ -196,7 +196,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         styleUnderline.setOnClickListener(v -> {
             selectedStyle[0] = "underline";
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#4CAF50"));
+            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
             styleHighlight.setTextColor(Color.parseColor("#666666"));
         });

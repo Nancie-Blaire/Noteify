@@ -14,9 +14,6 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ScrollView;
-import android.graphics.Rect;
-import android.view.WindowManager;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -50,7 +47,6 @@ public class SignUp extends AppCompatActivity {
     private GoogleSignInClient mGoogleSignInClient;
     private boolean isPasswordVisible = false;
     private boolean isConfirmPasswordVisible = false;
-    private ScrollView scrollView;
     private View dividerLayout;
 
     private Handler verificationCheckHandler;
@@ -77,8 +73,6 @@ public class SignUp extends AppCompatActivity {
                 .build();
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
 
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-
         // Initialize views
         etFullName = findViewById(R.id.etFullName);
         etEmail = findViewById(R.id.etEmail);
@@ -92,7 +86,6 @@ public class SignUp extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
         ivTogglePassword = findViewById(R.id.ivTogglePassword);
         ivToggleConfirmPassword = findViewById(R.id.ivToggleConfirmPassword);
-        scrollView = findViewById(R.id.scrollView);
         dividerLayout = findViewById(R.id.dividerLayout);
 
         // Handle back press with OnBackPressedDispatcher
@@ -171,7 +164,6 @@ public class SignUp extends AppCompatActivity {
         // Setup focus listeners
         etFullName.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                scrollToView(v);
                 nameContainer.setBackgroundResource(R.drawable.input_border_focused);
             } else {
                 nameContainer.setBackgroundResource(R.drawable.input_border_default);
@@ -180,7 +172,6 @@ public class SignUp extends AppCompatActivity {
 
         etEmail.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                scrollToView(v);
                 emailContainer.setBackgroundResource(R.drawable.input_border_focused);
             } else {
                 emailContainer.setBackgroundResource(R.drawable.input_border_default);
@@ -189,7 +180,6 @@ public class SignUp extends AppCompatActivity {
 
         etPassword.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                scrollToView(v);
                 passwordContainer.setBackgroundResource(R.drawable.input_border_focused);
             } else {
                 passwordContainer.setBackgroundResource(R.drawable.input_border_default);
@@ -198,7 +188,6 @@ public class SignUp extends AppCompatActivity {
 
         etConfirmPassword.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                scrollToView(v);
                 confirmContainer.setBackgroundResource(R.drawable.input_border_focused);
             } else {
                 confirmContainer.setBackgroundResource(R.drawable.input_border_default);
@@ -356,18 +345,6 @@ public class SignUp extends AppCompatActivity {
             isConfirmPasswordVisible = true;
         }
         etConfirmPassword.setSelection(etConfirmPassword.getText().length());
-    }
-
-    private void scrollToView(View view) {
-        if (scrollView == null || view == null) return;
-
-        scrollView.post(() -> {
-            Rect rect = new Rect();
-            view.getDrawingRect(rect);
-            scrollView.offsetDescendantRectToMyCoords(view, rect);
-            int extraOffset = 32;
-            scrollView.smoothScrollTo(0, Math.max(0, rect.top - extraOffset));
-        });
     }
 
     private boolean validateInput(String fullName, String email, String password, String confirmPassword) {

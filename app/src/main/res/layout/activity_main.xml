@@ -136,7 +136,6 @@
                 android:layout_gravity="center"
                 android:contentDescription="Nav Calendar"
                 android:padding="10dp"
-                android:elevation="12dp"
                 android:src="@drawable/ic_navbar_calendar"
                 app:tint="#ffffff"/>
         </FrameLayout>

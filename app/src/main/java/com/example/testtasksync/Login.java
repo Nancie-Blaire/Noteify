@@ -13,9 +13,6 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ScrollView;
-import android.graphics.Rect;
-import android.view.WindowManager;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.credentials.CredentialManager;
@@ -26,7 +23,6 @@ import androidx.credentials.exceptions.GetCredentialException;
 
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
-import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -51,7 +47,6 @@ public class Login extends AppCompatActivity {
     private FirebaseFirestore db;
     private CredentialManager credentialManager;
     private boolean isPasswordVisible = false;
-    private ScrollView scrollView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,8 +60,6 @@ public class Login extends AppCompatActivity {
         // Initialize Credential Manager
         credentialManager = CredentialManager.create(this);
 
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-
         // Initialize views
         etEmail = findViewById(R.id.etEmail);
         etPassword = findViewById(R.id.etPassword);
@@ -76,7 +69,17 @@ public class Login extends AppCompatActivity {
         tvSignUpRedirect = findViewById(R.id.tvSignUpRedirect);
         tvForgotPassword = findViewById(R.id.tvForgotPassword);
         progressBar = findViewById(R.id.progressBar);
-        scrollView = findViewById(R.id.scrollView);
+
+        // ✅ CHECK FOR ACCOUNT SWITCH - Auto-fill email
+        Intent intent = getIntent();
+        if (intent != null && intent.hasExtra("SWITCH_ACCOUNT_EMAIL")) {
+            String switchEmail = intent.getStringExtra("SWITCH_ACCOUNT_EMAIL");
+            if (switchEmail != null && !switchEmail.isEmpty()) {
+                etEmail.setText(switchEmail);
+                etPassword.requestFocus();
+                Toast.makeText(this, "Switching to " + switchEmail + ". Please enter your password.", Toast.LENGTH_SHORT).show();
+            }
+        }
 
         if (etEmail == null || etPassword == null || btnLogin == null ||
                 tvSignUpRedirect == null || tvForgotPassword == null || progressBar == null) {
@@ -100,7 +103,6 @@ public class Login extends AppCompatActivity {
         if (etEmail != null) {
             etEmail.setOnFocusChangeListener((v, hasFocus) -> {
                 if (emailContainer != null) {
-                    scrollToView(v);
                     emailContainer.setBackgroundResource(hasFocus ? R.drawable.input_border_focused : R.drawable.input_border_default);
                 }
             });
@@ -109,7 +111,6 @@ public class Login extends AppCompatActivity {
         if (etPassword != null) {
             etPassword.setOnFocusChangeListener((v, hasFocus) -> {
                 if (passwordContainer != null) {
-                    scrollToView(v);
                     passwordContainer.setBackgroundResource(hasFocus ? R.drawable.input_border_focused : R.drawable.input_border_default);
                 }
             });
@@ -212,7 +213,6 @@ public class Login extends AppCompatActivity {
             firebaseAuthWithGoogle(idToken);
 
         } catch (Exception e) {
-            // Handles any parsing or unexpected errors
             runOnUiThread(() -> {
                 if (progressBar != null) progressBar.setVisibility(View.GONE);
                 Log.e(TAG, "Failed to parse Google credentials", e);
@@ -293,18 +293,6 @@ public class Login extends AppCompatActivity {
             isPasswordVisible = true;
         }
         etPassword.setSelection(etPassword.getText().length());
-    }
-
-    private void scrollToView(View view) {
-        if (scrollView == null || view == null) return;
-
-        scrollView.post(() -> {
-            Rect rect = new Rect();
-            view.getDrawingRect(rect);
-            scrollView.offsetDescendantRectToMyCoords(view, rect);
-            int extraOffset = 32;
-            scrollView.smoothScrollTo(0, Math.max(0, rect.top - extraOffset));
-        });
     }
 
     private boolean validateInput(String email, String password) {

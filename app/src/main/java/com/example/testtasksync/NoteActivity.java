@@ -2429,12 +2429,13 @@ public class NoteActivity extends AppCompatActivity {
 
         String currentLine = currentText.substring(lineStart, lineEnd);
         String newLine;
-        //  Check if it's a toggle line
+
+        // Check if it's a toggle line
         if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
             newLine = "    " + currentLine;
         }
         // Check if it's a bullet line
-        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
+        else if (currentLine.matches("^\\s*[●○■]\\s.*")) {
             newLine = indentBulletLine(currentLine);
         }
         // Check if it's a numbered line
@@ -2442,6 +2443,10 @@ public class NoteActivity extends AppCompatActivity {
                 currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
                 currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
             newLine = indentNumberedLine(currentLine);
+        }
+        // Check if it's a checkbox line
+        else if (currentLine.matches("^\\s*[☐☑]\\s.*")) {
+            newLine = "    " + currentLine;
         }
         // Regular text - just add 4 spaces
         else {
@@ -2452,11 +2457,34 @@ public class NoteActivity extends AppCompatActivity {
                 newLine +
                 currentText.substring(lineEnd);
 
-        noteContent.setText(newText);
         int addedChars = newLine.length() - currentLine.length();
+
+        // ✅ CRITICAL: Save ALL spans before setText
+        Editable editable = noteContent.getEditableText();
+        List<SpanInfo> allSpans = saveAllSpans(editable);
+
+        // ✅ Adjust span positions for the added characters
+        for (SpanInfo info : allSpans) {
+            if (info.start >= lineStart) {
+                info.start += addedChars;
+                info.end += addedChars;
+            } else if (info.end > lineStart) {
+                info.end += addedChars;
+            }
+        }
+
+        isUpdatingText = true;
+        noteContent.setText(newText);
+
+        // ✅ Restore ALL spans
+        restoreAllSpans(noteContent.getEditableText(), allSpans);
+
+        isUpdatingText = false;
+
         noteContent.setSelection(cursorPosition + addedChars);
+        saveNoteContentToFirestore(newText);
     }
-    // UNIVERSAL OUTDENT - Works for bullets, numbers, and regular text
+
     private void outdentLine() {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
@@ -2468,6 +2496,7 @@ public class NoteActivity extends AppCompatActivity {
 
         String currentLine = currentText.substring(lineStart, lineEnd);
         String newLine;
+
         // Check if it's a toggle line
         if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
             if (currentLine.startsWith("    ")) {
@@ -2481,7 +2510,7 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
         // Check if it's a bullet line
-        if (currentLine.matches("^\\s*[●○■]\\s.*")) {
+        else if (currentLine.matches("^\\s*[●○■]\\s.*")) {
             newLine = outdentBulletLine(currentLine);
         }
         // Check if it's a numbered line
@@ -2489,6 +2518,18 @@ public class NoteActivity extends AppCompatActivity {
                 currentLine.matches("^\\s*[a-z][.)]*\\s.*") ||
                 currentLine.matches("^\\s*[ivx]+[.)]*\\s.*")) {
             newLine = outdentNumberedLine(currentLine);
+        }
+        // Check if it's a checkbox line
+        else if (currentLine.matches("^\\s*[☐☑]\\s.*")) {
+            if (currentLine.startsWith("    ")) {
+                newLine = currentLine.substring(4);
+            } else if (currentLine.startsWith("  ")) {
+                newLine = currentLine.substring(2);
+            } else if (currentLine.startsWith(" ")) {
+                newLine = currentLine.substring(1);
+            } else {
+                newLine = currentLine;
+            }
         }
         // Regular text - remove 4 spaces if possible
         else {
@@ -2507,9 +2548,32 @@ public class NoteActivity extends AppCompatActivity {
                 newLine +
                 currentText.substring(lineEnd);
 
-        noteContent.setText(newText);
         int removedChars = currentLine.length() - newLine.length();
+
+        // ✅ CRITICAL: Save ALL spans before setText
+        Editable editable = noteContent.getEditableText();
+        List<SpanInfo> allSpans = saveAllSpans(editable);
+
+        // ✅ Adjust span positions for the removed characters
+        for (SpanInfo info : allSpans) {
+            if (info.start >= lineStart) {
+                info.start -= removedChars;
+                info.end -= removedChars;
+            } else if (info.end > lineStart) {
+                info.end -= removedChars;
+            }
+        }
+
+        isUpdatingText = true;
+        noteContent.setText(newText);
+
+        // ✅ Restore ALL spans
+        restoreAllSpans(noteContent.getEditableText(), allSpans);
+
+        isUpdatingText = false;
+
         noteContent.setSelection(Math.max(lineStart, cursorPosition - removedChars));
+        saveNoteContentToFirestore(newText);
     }
 
     //----------------------------------------------------------------//
@@ -4148,39 +4212,29 @@ public class NoteActivity extends AppCompatActivity {
         String[] lines = content.split("\n");
         int currentPos = 0;
 
-        // ✅ Remove old checkbox spans first
-        android.text.style.ForegroundColorSpan[] oldColorSpans = spannable.getSpans(0, spannable.length(), android.text.style.ForegroundColorSpan.class);
-        android.text.style.StrikethroughSpan[] oldStrikeSpans = spannable.getSpans(0, spannable.length(), android.text.style.StrikethroughSpan.class);
-
-        for (android.text.style.ForegroundColorSpan span : oldColorSpans) {
-            spannable.removeSpan(span);
-        }
-        for (android.text.style.StrikethroughSpan span : oldStrikeSpans) {
-            spannable.removeSpan(span);
-        }
+        // ✅ DON'T remove existing spans - just add checkbox styling
 
         for (String line : lines) {
             if (line.contains("☑")) {
-                // Find the checkbox position
                 int checkboxIndex = line.indexOf("☑");
                 int textStart = currentPos + checkboxIndex + 2; // After "☑ "
                 int textEnd = currentPos + line.length();
 
                 if (textStart < textEnd && textEnd <= content.length()) {
-                    // Apply grey color
+                    // Apply grey color (will stack with heading styles)
                     spannable.setSpan(
                             new android.text.style.ForegroundColorSpan(0xFF999999),
                             textStart,
                             textEnd,
-                            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                     );
 
-                    // Apply strike-through
+                    // Apply strike-through (will stack with heading styles)
                     spannable.setSpan(
                             new android.text.style.StrikethroughSpan(),
                             textStart,
                             textEnd,
-                            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                     );
                 }
             }
@@ -4559,7 +4613,7 @@ public class NoteActivity extends AppCompatActivity {
         isTogglingState = true;
 
         String currentText = noteContent.getText().toString();
-        String imagePlaceholder = "【IMAGE:" + imageId + "】";
+        String imagePlaceholder = "〔IMAGE:" + imageId + "〕";
 
         int safeCursorPosition = Math.max(0, Math.min(cursorPosition, currentText.length()));
 
@@ -4573,15 +4627,21 @@ public class NoteActivity extends AppCompatActivity {
 
         int totalInsertedLength = nlBefore.length() + imagePlaceholder.length() + nlAfter.length();
 
-        // ✅ STEP 1: Save all existing ImageSpans and their positions
+        // ✅ STEP 1: Save ALL existing spans
         Editable oldEditable = noteContent.getEditableText();
-        List<SpanInfo> existingImageSpans = new ArrayList<>();
+        List<SpanInfo> allSpans = saveAllSpans(oldEditable);
 
-        ImageSpan[] oldSpans = oldEditable.getSpans(0, oldEditable.length(), ImageSpan.class);
-        for (ImageSpan span : oldSpans) {
-            int spanStart = oldEditable.getSpanStart(span);
-            int spanEnd = oldEditable.getSpanEnd(span);
-            existingImageSpans.add(new SpanInfo(span, spanStart, spanEnd));
+        // ✅ STEP 2: Adjust ALL span positions
+        for (SpanInfo info : allSpans) {
+            int oldStart = info.start;
+            int oldEnd = info.end;
+
+            if (oldStart >= safeCursorPosition) {
+                info.start += totalInsertedLength;
+                info.end += totalInsertedLength;
+            } else if (oldEnd > safeCursorPosition) {
+                info.end += totalInsertedLength;
+            }
         }
 
         // Update bookmarks
@@ -4604,7 +4664,7 @@ public class NoteActivity extends AppCompatActivity {
                 if (needsUpdate && bStart >= 0 && bEnd <= newText.length() && bStart < bEnd) {
                     try {
                         String bookmarkText = newText.substring(bStart, bEnd);
-                        if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【IMAGE:")) {
+                        if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔IMAGE:")) {
                             bookmark.setStartIndex(bStart);
                             bookmark.setEndIndex(bEnd);
                             bookmark.setText(bookmarkText);
@@ -4617,34 +4677,22 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ STEP 2: Create spannable for new text
+        // ✅ STEP 3: Create spannable for new text
         SpannableString spannable = new SpannableString(newText);
 
-        // ✅ STEP 3: Re-apply all existing ImageSpans with adjusted positions
-        for (SpanInfo info : existingImageSpans) {
-            int oldStart = info.start;
-            int oldEnd = info.end;
-            int newStart = oldStart;
-            int newEnd = oldEnd;
-
-            // Adjust positions if the old span was after the insertion point
-            if (oldStart >= safeCursorPosition) {
-                newStart += totalInsertedLength;
-                newEnd += totalInsertedLength;
-            }
-
-            // Ensure bounds are valid
-            if (newStart >= 0 && newEnd <= newText.length() && newStart < newEnd) {
+        // ✅ STEP 4: Restore ALL existing spans with adjusted positions
+        for (SpanInfo info : allSpans) {
+            if (info.start >= 0 && info.end <= newText.length() && info.start < info.end) {
                 spannable.setSpan(
                         info.span,
-                        newStart,
-                        newEnd,
+                        info.start,
+                        info.end,
                         Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
             }
         }
 
-        // ✅ STEP 4: Add the NEW image span
+        // ✅ STEP 5: Add the NEW image span
         int placeholderStart = newText.indexOf(imagePlaceholder, prefix.length());
         int placeholderEnd = placeholderStart + imagePlaceholder.length();
 
@@ -4676,7 +4724,7 @@ public class NoteActivity extends AppCompatActivity {
                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
         );
 
-        // ✅ STEP 5: Set the spannable text
+        // ✅ STEP 6: Set the spannable text
         noteContent.setText(spannable, TextView.BufferType.SPANNABLE);
 
         // Set cursor position
@@ -4687,7 +4735,7 @@ public class NoteActivity extends AppCompatActivity {
             noteContent.setSelection(spannable.length());
         }
 
-        Log.d("IMAGE_DEBUG", "✅ Image inserted successfully, existing images preserved");
+        Log.d("IMAGE_DEBUG", "✅ Image inserted successfully, all spans preserved");
 
         noteContent.postDelayed(() -> {
             isUpdatingText = false;
@@ -5167,7 +5215,7 @@ public class NoteActivity extends AppCompatActivity {
         List<SpanInfo> savedCheckboxColors = new ArrayList<>();
         List<SpanInfo> savedCheckboxStrikes = new ArrayList<>();
 
-        // Save ImageSpans
+        // Save ImageSpans - CRITICAL!
         ImageSpan[] imageSpans = editable.getSpans(0, editable.length(), ImageSpan.class);
         for (ImageSpan span : imageSpans) {
             savedImageSpans.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
@@ -5191,7 +5239,7 @@ public class NoteActivity extends AppCompatActivity {
             savedBookmarkUnderlines.add(new SpanInfo(span, editable.getSpanStart(span), editable.getSpanEnd(span)));
         }
 
-        // Save checkbox ForegroundColorSpans
+        // Save checkbox ForegroundColorSpans (ONLY for checked items)
         android.text.style.ForegroundColorSpan[] colorSpans = editable.getSpans(0, editable.length(), android.text.style.ForegroundColorSpan.class);
         for (android.text.style.ForegroundColorSpan span : colorSpans) {
             int spanStart = editable.getSpanStart(span);
@@ -5204,7 +5252,7 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        // Save checkbox StrikethroughSpans
+        // Save checkbox StrikethroughSpans (ONLY for checked items)
         android.text.style.StrikethroughSpan[] strikeSpans = editable.getSpans(0, editable.length(), android.text.style.StrikethroughSpan.class);
         for (android.text.style.StrikethroughSpan span : strikeSpans) {
             int spanStart = editable.getSpanStart(span);
@@ -5217,7 +5265,7 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ STEP 2: Remove ONLY heading/font style spans
+        // ✅ STEP 2: Remove ONLY heading/font style spans (NOT checkbox styles!)
         android.text.style.RelativeSizeSpan[] sizeSpans = editable.getSpans(0, editable.length(), android.text.style.RelativeSizeSpan.class);
         for (android.text.style.RelativeSizeSpan span : sizeSpans) {
             editable.removeSpan(span);
@@ -5230,7 +5278,8 @@ public class NoteActivity extends AppCompatActivity {
 
             if (spanStart >= 0 && spanEnd <= content.length()) {
                 String spannedText = content.substring(spanStart, spanEnd);
-                // Keep checkbox spans
+                // ✅ CRITICAL: Keep checkbox StyleSpans (grey color from strikethrough)
+                // Only remove heading/font StyleSpans
                 if (!spannedText.contains("☑")) {
                     editable.removeSpan(span);
                 }
@@ -5239,7 +5288,7 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ STEP 3: Re-apply ALL saved spans
+        // ✅ STEP 3: Re-apply ALL saved spans FIRST (images MUST be restored first!)
         for (SpanInfo info : savedImageSpans) {
             if (info.start >= 0 && info.end <= editable.length() && info.start < info.end) {
                 editable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -5280,22 +5329,22 @@ public class NoteActivity extends AppCompatActivity {
         String[] lines = content.split("\n", -1);
         int currentLinePos = 0;
 
-        // I-declare ang size at typeface sa labas ng switch para ma-access ng Log.d
-        float size;
-        int typeface;
-
         for (String line : lines) {
             int lineStart = currentLinePos;
             int lineEnd = lineStart + line.length();
 
+            // ✅ CRITICAL: Skip image lines completely
+            if (line.trim().matches("^〔IMAGE:\\d+〕$")) {
+                currentLinePos = lineEnd + 1;
+                continue;
+            }
+
             // Check if this line has a heading style
             String headingStyle = textStyles.get(lineStart);
 
-            if (headingStyle != null) {
-
-                // --- 1. I-determine ang size at typeface batay sa heading style ---
-                size = 1.0f; // Reset to default
-                typeface = android.graphics.Typeface.NORMAL;
+            if (headingStyle != null && !headingStyle.startsWith("end_")) {
+                float size = 1.0f;
+                int typeface = android.graphics.Typeface.NORMAL;
 
                 switch (headingStyle) {
                     case "h1":
@@ -5314,28 +5363,24 @@ public class NoteActivity extends AppCompatActivity {
                         size = 1.2f;
                         typeface = android.graphics.Typeface.BOLD;
                         break;
-                    // Idagdag ang iba pang heading styles dito kung mayroon
                 }
-                // ------------------------------------------------------------------
 
-                // --- 2. Hanapin ang tamang starting index (nag-e-exclude ng list markers) ---
+                // Find where content actually starts (after markers)
                 int contentStartIndex = findContentStartIndex(line);
                 int spanStart = lineStart + contentStartIndex;
-                int spanEnd = lineEnd; // Apply hanggang sa dulo ng linya
+                int spanEnd = lineEnd;
 
-                // 3. I-check kung may text content na i-a-apply-an ng style
                 if (spanStart < spanEnd) {
                     Log.d("NoteActivity", "✅ Applying " + headingStyle + " (size: " + size + ") to line at " + lineStart);
 
-                    // Ginamit ang spanStart at spanEnd para sa SPANS
                     editable.setSpan(
                             new android.text.style.RelativeSizeSpan(size),
-                            spanStart, spanEnd, // Dito ay ginamit ang spanStart!
+                            spanStart, spanEnd,
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                     );
                     editable.setSpan(
                             new android.text.style.StyleSpan(typeface),
-                            spanStart, spanEnd, // Dito ay ginamit ang spanStart!
+                            spanStart, spanEnd,
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                     );
                 }
@@ -5365,6 +5410,14 @@ public class NoteActivity extends AppCompatActivity {
                 }
 
                 if (endPosition != null && position >= 0 && endPosition <= content.length() && position < endPosition) {
+                    // ✅ Check if range contains image placeholder - skip if it does
+                    String rangeText = content.substring(position, endPosition);
+                    if (rangeText.contains("〔IMAGE:") && rangeText.contains("〕")) {
+                        Log.d("NoteActivity", "⚠️ Skipping style on image placeholder");
+                        processedPositions.add(position);
+                        continue;
+                    }
+
                     int finalTypeface = android.graphics.Typeface.NORMAL;
                     switch (styleType) {
                         case "bold": finalTypeface = android.graphics.Typeface.BOLD; break;
@@ -6241,29 +6294,33 @@ public class NoteActivity extends AppCompatActivity {
     }
 
     private int findContentStartIndex(String line) {
+        // ✅ CRITICAL: Return 0 for image lines - don't process them
+        if (isImageLine(line)) {
+            return 0;
+        }
+
         // 1. Check for Toggle List (▶ or ▼ followed by space)
         java.util.regex.Matcher toggleMatcher = java.util.regex.Pattern.compile("^\\s*[▶▼]\\s").matcher(line);
         if (toggleMatcher.find()) {
-            return toggleMatcher.end(); // Index right after the marker and space
+            return toggleMatcher.end();
         }
 
         // 2. Check for Bullet List (●, ○, or ■ followed by space)
         java.util.regex.Matcher bulletMatcher = java.util.regex.Pattern.compile("^\\s*[●○■]\\s").matcher(line);
         if (bulletMatcher.find()) {
-            return bulletMatcher.end(); // Index right after the marker and space
+            return bulletMatcher.end();
         }
 
         // 3. Check for Checkbox List (☐ or ☑ followed by space)
         java.util.regex.Matcher checkboxMatcher = java.util.regex.Pattern.compile("^\\s*[☐☑]\\s").matcher(line);
         if (checkboxMatcher.find()) {
-            return checkboxMatcher.end(); // Index right after the marker and space
+            return checkboxMatcher.end();
         }
 
-        // 4. Check for Numbered/Lettered/Roman List (e.g., 1., a., I., followed by space)
-        // Tinitingnan ang number/letter/roman + period/parenthesis + space
+        // 4. Check for Numbered/Lettered/Roman List
         java.util.regex.Matcher numberedMatcher = java.util.regex.Pattern.compile("^\\s*([0-9a-zA-Zivx]+\\.)\\s").matcher(line);
         if (numberedMatcher.find()) {
-            return numberedMatcher.end(); // Index right after the list prefix and space
+            return numberedMatcher.end();
         }
 
         // Default: find the first non-whitespace character
@@ -6272,7 +6329,7 @@ public class NoteActivity extends AppCompatActivity {
             return whitespaceMatcher.end();
         }
 
-        return 0; // Content starts at index 0
+        return 0;
     }
 
     // ✅ NEW: Save ALL spans from Editable
@@ -6308,5 +6365,12 @@ public class NoteActivity extends AppCompatActivity {
                 }
             }
         }
+    }
+    private boolean containsImagePlaceholder(String text) {
+        return text.contains("〔IMAGE:") && text.contains("〕");
+    }
+
+    private boolean isImageLine(String line) {
+        return line.trim().matches("^〔IMAGE:\\d+〕$");
     }
 }

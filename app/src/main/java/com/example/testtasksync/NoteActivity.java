@@ -5713,123 +5713,51 @@ public class NoteActivity extends AppCompatActivity {
     //--------------------------------------------//
     //INSERT TABLE
     private void insertTable() {
-        EditText noteContent = findViewById(R.id.noteContent);
-        LinearLayout container = findViewById(R.id.noteContainer);
-
-        // Get cursor position
         int cursorPosition = noteContent.getSelectionStart();
-        Editable editable = noteContent.getEditableText();
+        String currentText = noteContent.getText().toString();
 
-        // ✅ CRITICAL: Save ALL spans BEFORE any modifications
-        List<SpanInfo> allSpans = saveAllSpans(editable);
+        // Create table placeholder
+        String tableId = String.valueOf(System.currentTimeMillis());
+        String tablePlaceholder = "【TABLE:" + tableId + "】";
 
-        String fullText = editable.toString();
-
-        // Create new table
-        TableView tableView = new TableView(this);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        params.setMargins(0, dpToPx(8), 0, dpToPx(8));
-        tableView.setLayoutParams(params);
-
-        if (cursorPosition > 0) {
-            // Split text at cursor
-            String beforeCursor = fullText.substring(0, cursorPosition);
-            String afterCursor = fullText.substring(cursorPosition);
-
-            // ✅ Filter spans for "before" EditText
-            List<SpanInfo> beforeSpans = new ArrayList<>();
-            for (SpanInfo info : allSpans) {
-                if (info.end <= cursorPosition) {
-                    beforeSpans.add(info);
-                } else if (info.start < cursorPosition) {
-                    // Span crosses the split point - truncate it
-                    SpanInfo truncated = new SpanInfo(info.span, info.start, cursorPosition);
-                    beforeSpans.add(truncated);
-                }
-            }
-
-            // ✅ Update noteContent with preserved spans
-            SpannableString beforeSpannable = new SpannableString(beforeCursor);
-            for (SpanInfo info : beforeSpans) {
-                if (info.start >= 0 && info.end <= beforeCursor.length() && info.start < info.end) {
-                    beforeSpannable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                }
-            }
-
-            isUpdatingText = true;
-            noteContent.setText(beforeSpannable, TextView.BufferType.SPANNABLE);
-            isUpdatingText = false;
-
-            // Get index of noteContent
-            int noteContentIndex = container.indexOfChild(noteContent);
-
-            // Insert table after noteContent
-            container.addView(tableView, noteContentIndex + 1);
-
-            // If there's text after cursor, create new EditText with preserved spans
-            if (!afterCursor.isEmpty()) {
-                EditText afterEditText = new EditText(this);
-                LinearLayout.LayoutParams afterParams = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                afterEditText.setLayoutParams(afterParams);
-                afterEditText.setBackground(null);
-                afterEditText.setGravity(Gravity.TOP);
-                afterEditText.setHint("Start typing your note...");
-                afterEditText.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
-                        android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-                afterEditText.setMinHeight(dpToPx(200));
-                afterEditText.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
-                afterEditText.setTextColor(Color.parseColor("#333333"));
-                afterEditText.setTextSize(16);
-                afterEditText.setTextIsSelectable(true);
-
-                // ✅ Filter and adjust spans for "after" EditText
-                List<SpanInfo> afterSpans = new ArrayList<>();
-                for (SpanInfo info : allSpans) {
-                    if (info.start >= cursorPosition) {
-                        // Shift span positions to start from 0
-                        SpanInfo shifted = new SpanInfo(
-                                info.span,
-                                info.start - cursorPosition,
-                                info.end - cursorPosition
-                        );
-                        afterSpans.add(shifted);
-                    } else if (info.end > cursorPosition) {
-                        // Span crosses the split point - keep only the part after cursor
-                        SpanInfo shifted = new SpanInfo(
-                                info.span,
-                                0,
-                                info.end - cursorPosition
-                        );
-                        afterSpans.add(shifted);
-                    }
-                }
-
-                SpannableString afterSpannable = new SpannableString(afterCursor);
-                for (SpanInfo info : afterSpans) {
-                    if (info.start >= 0 && info.end <= afterCursor.length() && info.start < info.end) {
-                        afterSpannable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    }
-                }
-
-                afterEditText.setText(afterSpannable, TextView.BufferType.SPANNABLE);
-
-                // Insert after table
-                container.addView(afterEditText, noteContentIndex + 2);
-
-                // Focus on new EditText
-                afterEditText.requestFocus();
-                afterEditText.setSelection(0);
-            }
+        String newText;
+        if (cursorPosition > 0 && cursorPosition < currentText.length()) {
+            String before = currentText.substring(0, cursorPosition);
+            String after = currentText.substring(cursorPosition);
+            String nlBefore = (!before.endsWith("\n")) ? "\n" : "";
+            String nlAfter = (!after.startsWith("\n")) ? "\n" : "";
+            newText = before + nlBefore + tablePlaceholder + nlAfter + after;
+        } else if (cursorPosition == 0) {
+            newText = tablePlaceholder + "\n" + currentText;
         } else {
-            // If cursor at beginning, just insert before noteContent
-            int noteContentIndex = container.indexOfChild(noteContent);
-            container.addView(tableView, noteContentIndex);
+            newText = currentText + "\n" + tablePlaceholder;
+        }
+
+        // Update text
+        isUpdatingText = true;
+        noteContent.setText(newText);
+        isUpdatingText = false;
+
+        // Create table data with initial 4 rows x 3 columns
+        Table table = new Table(cursorPosition, 4, 3);
+
+        // Save to Firestore
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null && noteId != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("tables")
+                    .document(tableId)
+                    .set(table)
+                    .addOnSuccessListener(aVoid -> {
+                        table.setId(tableId);
+                        tables.add(table);
+                        saveNoteContentToFirestore(newText);
+                        Toast.makeText(this, "Table created", Toast.LENGTH_SHORT).show();
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "Error creating table", Toast.LENGTH_SHORT).show();
+                    });
         }
     }
     // Helper method to convert dp to pixels

@@ -242,7 +242,7 @@ public class NoteActivity extends AppCompatActivity {
             loadWeblinks();
         }
     }
-    
+
     //BUTTONS MENU
     private void setupKeyboardToolbar() {
         final View rootView = findViewById(android.R.id.content);
@@ -4613,7 +4613,7 @@ public class NoteActivity extends AppCompatActivity {
         isTogglingState = true;
 
         String currentText = noteContent.getText().toString();
-        String imagePlaceholder = "〔IMAGE:" + imageId + "〕";
+        String imagePlaceholder = "【IMAGE:" + imageId + "】";
 
         int safeCursorPosition = Math.max(0, Math.min(cursorPosition, currentText.length()));
 
@@ -4627,24 +4627,66 @@ public class NoteActivity extends AppCompatActivity {
 
         int totalInsertedLength = nlBefore.length() + imagePlaceholder.length() + nlAfter.length();
 
-        // ✅ STEP 1: Save ALL existing spans
+        // ✅ STEP 1: Save ALL existing spans (INCLUDING heading/font styles!)
         Editable oldEditable = noteContent.getEditableText();
-        List<SpanInfo> allSpans = saveAllSpans(oldEditable);
 
-        // ✅ STEP 2: Adjust ALL span positions
-        for (SpanInfo info : allSpans) {
-            int oldStart = info.start;
-            int oldEnd = info.end;
+        // Save ALL span types
+        List<SpanInfo> imageSpans = new ArrayList<>();
+        List<SpanInfo> dividerSpans = new ArrayList<>();
+        List<SpanInfo> bookmarkSpans = new ArrayList<>();
+        List<SpanInfo> headingSpans = new ArrayList<>();  // ✅ NEW
+        List<SpanInfo> fontSpans = new ArrayList<>();     // ✅ NEW
+        List<SpanInfo> checkboxSpans = new ArrayList<>();
+        List<SpanInfo> otherSpans = new ArrayList<>();
 
-            if (oldStart >= safeCursorPosition) {
-                info.start += totalInsertedLength;
-                info.end += totalInsertedLength;
-            } else if (oldEnd > safeCursorPosition) {
-                info.end += totalInsertedLength;
+        // Categorize all spans
+        Object[] allSpansArray = oldEditable.getSpans(0, oldEditable.length(), Object.class);
+        for (Object span : allSpansArray) {
+            int start = oldEditable.getSpanStart(span);
+            int end = oldEditable.getSpanEnd(span);
+
+            if (start < 0 || end < 0 || start >= end) continue;
+
+            SpanInfo info = new SpanInfo(span, start, end);
+
+            if (span instanceof ImageSpan) {
+                imageSpans.add(info);
+            } else if (span instanceof DividerSpan) {
+                dividerSpans.add(info);
+            } else if (span instanceof BackgroundColorSpan || span instanceof CustomUnderlineSpan) {
+                bookmarkSpans.add(info);
+            } else if (span instanceof android.text.style.RelativeSizeSpan) {
+                headingSpans.add(info);  // ✅ Preserve heading sizes
+            } else if (span instanceof android.text.style.StyleSpan) {
+                // Check if it's a checkbox style or font style
+                String spannedText = "";
+                try {
+                    spannedText = currentText.substring(start, Math.min(end, currentText.length()));
+                } catch (Exception e) {}
+
+                if (spannedText.contains("☑")) {
+                    checkboxSpans.add(info);
+                } else {
+                    fontSpans.add(info);  // ✅ Preserve font styles (bold/italic)
+                }
+            } else if (span instanceof android.text.style.ForegroundColorSpan ||
+                    span instanceof android.text.style.StrikethroughSpan) {
+                checkboxSpans.add(info);
+            } else {
+                otherSpans.add(info);
             }
         }
 
-        // Update bookmarks
+        // ✅ STEP 2: Adjust ALL span positions for the insertion
+        adjustSpanPositions(imageSpans, safeCursorPosition, totalInsertedLength);
+        adjustSpanPositions(dividerSpans, safeCursorPosition, totalInsertedLength);
+        adjustSpanPositions(bookmarkSpans, safeCursorPosition, totalInsertedLength);
+        adjustSpanPositions(headingSpans, safeCursorPosition, totalInsertedLength);  // ✅ NEW
+        adjustSpanPositions(fontSpans, safeCursorPosition, totalInsertedLength);     // ✅ NEW
+        adjustSpanPositions(checkboxSpans, safeCursorPosition, totalInsertedLength);
+        adjustSpanPositions(otherSpans, safeCursorPosition, totalInsertedLength);
+
+        // Update bookmarks in Firestore
         FirebaseUser user = auth.getCurrentUser();
         if (user != null) {
             for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
@@ -4664,7 +4706,7 @@ public class NoteActivity extends AppCompatActivity {
                 if (needsUpdate && bStart >= 0 && bEnd <= newText.length() && bStart < bEnd) {
                     try {
                         String bookmarkText = newText.substring(bStart, bEnd);
-                        if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔IMAGE:")) {
+                        if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【IMAGE:")) {
                             bookmark.setStartIndex(bStart);
                             bookmark.setEndIndex(bEnd);
                             bookmark.setText(bookmarkText);
@@ -4680,17 +4722,15 @@ public class NoteActivity extends AppCompatActivity {
         // ✅ STEP 3: Create spannable for new text
         SpannableString spannable = new SpannableString(newText);
 
-        // ✅ STEP 4: Restore ALL existing spans with adjusted positions
-        for (SpanInfo info : allSpans) {
-            if (info.start >= 0 && info.end <= newText.length() && info.start < info.end) {
-                spannable.setSpan(
-                        info.span,
-                        info.start,
-                        info.end,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-            }
-        }
+        // ✅ STEP 4: Restore ALL existing spans in correct order
+        // Order matters: images first, then headings, then fonts, then bookmarks, then checkboxes
+        restoreSpans(spannable, imageSpans);
+        restoreSpans(spannable, dividerSpans);
+        restoreSpans(spannable, headingSpans);     // ✅ Restore headings BEFORE other styles
+        restoreSpans(spannable, fontSpans);        // ✅ Restore fonts
+        restoreSpans(spannable, bookmarkSpans);
+        restoreSpans(spannable, checkboxSpans);
+        restoreSpans(spannable, otherSpans);
 
         // ✅ STEP 5: Add the NEW image span
         int placeholderStart = newText.indexOf(imagePlaceholder, prefix.length());
@@ -4745,6 +4785,31 @@ public class NoteActivity extends AppCompatActivity {
 
         saveNoteContentToFirestore(newText);
     }
+
+    private void adjustSpanPositions(List<SpanInfo> spans, int insertPosition, int insertedLength) {
+        for (SpanInfo info : spans) {
+            if (info.start >= insertPosition) {
+                info.start += insertedLength;
+                info.end += insertedLength;
+            } else if (info.end > insertPosition) {
+                info.end += insertedLength;
+            }
+        }
+    }
+
+    // ✅ Helper method to restore spans
+    private void restoreSpans(SpannableString spannable, List<SpanInfo> spans) {
+        for (SpanInfo info : spans) {
+            if (info.start >= 0 && info.end <= spannable.length() && info.start < info.end) {
+                try {
+                    spannable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                } catch (Exception e) {
+                    // Ignore invalid spans
+                }
+            }
+        }
+    }
+
     private void displayImagesInNote() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) {
@@ -5653,7 +5718,12 @@ public class NoteActivity extends AppCompatActivity {
 
         // Get cursor position
         int cursorPosition = noteContent.getSelectionStart();
-        String fullText = noteContent.getText().toString();
+        Editable editable = noteContent.getEditableText();
+
+        // ✅ CRITICAL: Save ALL spans BEFORE any modifications
+        List<SpanInfo> allSpans = saveAllSpans(editable);
+
+        String fullText = editable.toString();
 
         // Create new table
         TableView tableView = new TableView(this);
@@ -5669,8 +5739,29 @@ public class NoteActivity extends AppCompatActivity {
             String beforeCursor = fullText.substring(0, cursorPosition);
             String afterCursor = fullText.substring(cursorPosition);
 
-            // Update noteContent with text before cursor
-            noteContent.setText(beforeCursor);
+            // ✅ Filter spans for "before" EditText
+            List<SpanInfo> beforeSpans = new ArrayList<>();
+            for (SpanInfo info : allSpans) {
+                if (info.end <= cursorPosition) {
+                    beforeSpans.add(info);
+                } else if (info.start < cursorPosition) {
+                    // Span crosses the split point - truncate it
+                    SpanInfo truncated = new SpanInfo(info.span, info.start, cursorPosition);
+                    beforeSpans.add(truncated);
+                }
+            }
+
+            // ✅ Update noteContent with preserved spans
+            SpannableString beforeSpannable = new SpannableString(beforeCursor);
+            for (SpanInfo info : beforeSpans) {
+                if (info.start >= 0 && info.end <= beforeCursor.length() && info.start < info.end) {
+                    beforeSpannable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+
+            isUpdatingText = true;
+            noteContent.setText(beforeSpannable, TextView.BufferType.SPANNABLE);
+            isUpdatingText = false;
 
             // Get index of noteContent
             int noteContentIndex = container.indexOfChild(noteContent);
@@ -5678,7 +5769,7 @@ public class NoteActivity extends AppCompatActivity {
             // Insert table after noteContent
             container.addView(tableView, noteContentIndex + 1);
 
-            // If there's text after cursor, create new EditText
+            // If there's text after cursor, create new EditText with preserved spans
             if (!afterCursor.isEmpty()) {
                 EditText afterEditText = new EditText(this);
                 LinearLayout.LayoutParams afterParams = new LinearLayout.LayoutParams(
@@ -5695,8 +5786,38 @@ public class NoteActivity extends AppCompatActivity {
                 afterEditText.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
                 afterEditText.setTextColor(Color.parseColor("#333333"));
                 afterEditText.setTextSize(16);
-                afterEditText.setText(afterCursor);
                 afterEditText.setTextIsSelectable(true);
+
+                // ✅ Filter and adjust spans for "after" EditText
+                List<SpanInfo> afterSpans = new ArrayList<>();
+                for (SpanInfo info : allSpans) {
+                    if (info.start >= cursorPosition) {
+                        // Shift span positions to start from 0
+                        SpanInfo shifted = new SpanInfo(
+                                info.span,
+                                info.start - cursorPosition,
+                                info.end - cursorPosition
+                        );
+                        afterSpans.add(shifted);
+                    } else if (info.end > cursorPosition) {
+                        // Span crosses the split point - keep only the part after cursor
+                        SpanInfo shifted = new SpanInfo(
+                                info.span,
+                                0,
+                                info.end - cursorPosition
+                        );
+                        afterSpans.add(shifted);
+                    }
+                }
+
+                SpannableString afterSpannable = new SpannableString(afterCursor);
+                for (SpanInfo info : afterSpans) {
+                    if (info.start >= 0 && info.end <= afterCursor.length() && info.start < info.end) {
+                        afterSpannable.setSpan(info.span, info.start, info.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    }
+                }
+
+                afterEditText.setText(afterSpannable, TextView.BufferType.SPANNABLE);
 
                 // Insert after table
                 container.addView(afterEditText, noteContentIndex + 2);

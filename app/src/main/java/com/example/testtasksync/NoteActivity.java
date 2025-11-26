@@ -52,6 +52,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -120,7 +121,11 @@ public class NoteActivity extends AppCompatActivity {
     private Map<Long, View> weblinkViews = new HashMap<>();
     private ListenerRegistration weblinkListener; // ✅ Add this field at the top
 
-
+//toggle
+private Map<String, String> toggleContentsById = new HashMap<>(); // toggleId -> content
+    private Map<String, Boolean> toggleStatesById = new HashMap<>(); // toggleId -> isExpanded
+    private Map<String, List<Bookmark>> hiddenBookmarksByToggleId = new HashMap<>(); // toggleId -> bookmarks
+    private Map<Integer, String> positionToToggleId = new HashMap<>(); // position -> toggleId (for lookup)
     // Para sa Camera at Gallery
     private ActivityResultLauncher<Intent> galleryLauncher;
     private ActivityResultLauncher<Intent> cameraLauncher;
@@ -157,6 +162,9 @@ public class NoteActivity extends AppCompatActivity {
     private ImageView selectedImageView;
     private View currentSelectedTable;
     private boolean isTableFullWidth = false;
+    private List<Table> tables = new ArrayList<>();
+    private Map<String, TableView> tableViews = new HashMap<>();
+    private ListenerRegistration tableListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -310,11 +318,17 @@ public class NoteActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) return;
 
+        // If content is null, collect from all EditTexts
+        if (content == null) {
+            content = collectAllNoteContent();
+        }
+
         Map<String, String> dividerStylesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
             dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
+        // ✅ OLD toggle data (for backward compatibility - will be deprecated)
         Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
             toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
@@ -325,7 +339,6 @@ public class NoteActivity extends AppCompatActivity {
             toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
-        // ✅ SAVE textStyles too!
         Map<String, String> textStylesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
             textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
@@ -337,13 +350,24 @@ public class NoteActivity extends AppCompatActivity {
         updates.put("dividerStyles", dividerStylesForFirestore);
         updates.put("toggleStates", toggleStatesForFirestore);
         updates.put("toggleContents", toggleContentsForFirestore);
-        updates.put("textStyles", textStylesForFirestore); // ✅ Add this line
+        updates.put("textStyles", textStylesForFirestore);
+
+        // ✅ NEW: Save toggle data by ID
+        updates.put("toggleContentsById", toggleContentsById);
+        updates.put("toggleStatesById", toggleStatesById);
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .update(updates)
-                .addOnFailureListener(e -> e.printStackTrace());
+                .addOnSuccessListener(aVoid -> {
+                    Log.d("TOGGLE_DEBUG", "✅ Saved " + toggleContentsById.size() + " toggles by ID");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("TOGGLE_DEBUG", "❌ Error saving toggles", e);
+                    e.printStackTrace();
+                });
     }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -351,9 +375,9 @@ public class NoteActivity extends AppCompatActivity {
 
         if (noteId != null) {
             // ✅ ALWAYS reload
-            loadNote();
+            loadNote(); // This now calls loadTablesInline()
 
-            // Only setup listener once
+            // Only setup listeners once
             if (bookmarkListener == null) {
                 noteContent.postDelayed(() -> setupBookmarkListener(), 800);
             }
@@ -377,27 +401,24 @@ public class NoteActivity extends AppCompatActivity {
         if (user == null || noteId == null) return;
 
         String title = noteTitle.getText().toString();
-        String content = noteContent.getText().toString();
+        String content = collectAllNoteContent();
 
-        // Convert divider styles for Firestore
+        // Convert styles for Firestore
         Map<String, String> dividerStylesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
             dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
-        // Convert toggle states for Firestore
         Map<String, Boolean> toggleStatesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
             toggleStatesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
-        // ✅ Convert toggle contents for Firestore
         Map<String, String> toggleContentsForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
             toggleContentsForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
-        // ✅ ADD THIS: Convert textStyles for Firestore
         Map<String, String> textStylesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
             textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
@@ -411,14 +432,18 @@ public class NoteActivity extends AppCompatActivity {
         noteData.put("dividerStyles", dividerStylesForFirestore);
         noteData.put("toggleStates", toggleStatesForFirestore);
         noteData.put("toggleContents", toggleContentsForFirestore);
-        noteData.put("textStyles", textStylesForFirestore); // ✅ ADD THIS LINE
+        noteData.put("textStyles", textStylesForFirestore);
+
+        // ✅ NEW: Save toggle data by ID
+        noteData.put("toggleContentsById", toggleContentsById);
+        noteData.put("toggleStatesById", toggleStatesById);
 
         db.collection("users").document(user.getUid())
                 .collection("notes")
                 .document(noteId)
                 .set(noteData)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d("NoteActivity", "✅ Auto-saved note");
+                    Log.d("NoteActivity", "✅ Auto-saved note with toggle IDs");
                 })
                 .addOnFailureListener(e -> {
                     Log.e("NoteActivity", "❌ Auto-save failed", e);
@@ -432,15 +457,14 @@ public class NoteActivity extends AppCompatActivity {
         }
 
         String title = noteTitle.getText().toString();
-        String content = noteContent.getText().toString();
+        String content = collectAllNoteContent();
 
-        // ✅ Convert Integer keys to String keys for Firestore
+        // Convert styles for Firestore
         Map<String, String> dividerStylesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : dividerStyles.entrySet()) {
             dividerStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
-        // ✅ ADD THIS: Convert textStyles for Firestore
         Map<String, String> textStylesForFirestore = new HashMap<>();
         for (Map.Entry<Integer, String> entry : textStyles.entrySet()) {
             textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
@@ -452,7 +476,11 @@ public class NoteActivity extends AppCompatActivity {
         noteData.put("color", currentNoteColor);
         noteData.put("timestamp", System.currentTimeMillis());
         noteData.put("dividerStyles", dividerStylesForFirestore);
-        noteData.put("textStyles", textStylesForFirestore); // ✅ ADD THIS LINE
+        noteData.put("textStyles", textStylesForFirestore);
+
+        // ✅ NEW: Save toggle data by ID
+        noteData.put("toggleContentsById", toggleContentsById);
+        noteData.put("toggleStatesById", toggleStatesById);
 
         db.collection("users").document(user.getUid())
                 .collection("notes")
@@ -470,6 +498,7 @@ public class NoteActivity extends AppCompatActivity {
         super.onDestroy();
         if (bookmarkListener != null) bookmarkListener.remove();
         if (weblinkListener != null) weblinkListener.remove(); // ✅ Add this line
+        if (tableListener != null) tableListener.remove(); // ✅ ADD THIS
     }
     private void setupTextSelection() {
         noteContent.setOnLongClickListener(v -> {
@@ -605,11 +634,53 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // Load toggle states
-                        Map<String, Object> savedToggleStates = (Map<String, Object>) doc.get("toggleStates");
+                        // ✅ Load toggle contents by ID
+                        Map<String, Object> savedToggleContents = (Map<String, Object>) doc.get("toggleContentsById");
+                        if (savedToggleContents != null) {
+                            toggleContentsById.clear();
+                            for (Map.Entry<String, Object> entry : savedToggleContents.entrySet()) {
+                                String toggleId = entry.getKey();
+                                String toggleContent = (String) entry.getValue();
+                                toggleContentsById.put(toggleId, toggleContent);
+                                Log.d("TOGGLE_DEBUG", "📦 Loaded content for toggle: " + toggleId);
+                            }
+                        }
+
+                        // ✅ Load toggle states by ID
+                        Map<String, Object> savedToggleStates = (Map<String, Object>) doc.get("toggleStatesById");
                         if (savedToggleStates != null) {
-                            toggleStates.clear();
+                            toggleStatesById.clear();
                             for (Map.Entry<String, Object> entry : savedToggleStates.entrySet()) {
+                                String toggleId = entry.getKey();
+                                Boolean state = (Boolean) entry.getValue();
+                                toggleStatesById.put(toggleId, state);
+                                Log.d("TOGGLE_DEBUG", "🔄 Loaded state for toggle: " + toggleId + " = " + state);
+                            }
+                        }
+
+                        // ✅ Build position-to-ID map from content
+                        if (content != null) {
+                            positionToToggleId.clear();
+                            java.util.regex.Pattern idPattern = java.util.regex.Pattern.compile("〔(toggle_\\d+_\\d+)〕");
+                            java.util.regex.Matcher idMatcher = idPattern.matcher(content);
+
+                            while (idMatcher.find()) {
+                                String toggleId = idMatcher.group(1);
+                                int toggleStart = idMatcher.start();
+
+                                // Find the actual line start (before the arrow)
+                                int lineStart = content.lastIndexOf('\n', toggleStart) + 1;
+                                positionToToggleId.put(lineStart, toggleId);
+
+                                Log.d("TOGGLE_DEBUG", "📍 Mapped position " + lineStart + " → " + toggleId);
+                            }
+                        }
+
+                        // ✅ Load OLD toggle data (for backward compatibility - will be migrated)
+                        Map<String, Object> savedOldToggleStates = (Map<String, Object>) doc.get("toggleStates");
+                        if (savedOldToggleStates != null) {
+                            toggleStates.clear();
+                            for (Map.Entry<String, Object> entry : savedOldToggleStates.entrySet()) {
                                 try {
                                     int position = Integer.parseInt(entry.getKey());
                                     Boolean state = (Boolean) entry.getValue();
@@ -620,11 +691,11 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // Load toggle contents
-                        Map<String, Object> savedToggleContents = (Map<String, Object>) doc.get("toggleContents");
-                        if (savedToggleContents != null) {
+                        // ✅ Load OLD toggle contents (for backward compatibility)
+                        Map<String, Object> savedOldToggleContents = (Map<String, Object>) doc.get("toggleContents");
+                        if (savedOldToggleContents != null) {
                             toggleContents.clear();
-                            for (Map.Entry<String, Object> entry : savedToggleContents.entrySet()) {
+                            for (Map.Entry<String, Object> entry : savedOldToggleContents.entrySet()) {
                                 try {
                                     int position = Integer.parseInt(entry.getKey());
                                     String toggleContent = (String) entry.getValue();
@@ -635,7 +706,7 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        //Headings and fonts
+                        // Load text styles
                         Map<String, Object> savedTextStyles = (Map<String, Object>) doc.get("textStyles");
                         if (savedTextStyles != null) {
                             textStyles.clear();
@@ -660,11 +731,26 @@ public class NoteActivity extends AppCompatActivity {
                             Log.d("IMAGE_DEBUG", "✅ Text set, length: " + content.length());
                         }
 
-                        // ✅ WAIT 100ms for EditText to settle, then load images
+                        // ✅ Load in sequence: images → tables → styles → collapse toggles
                         noteContent.postDelayed(() -> {
-                            Log.d("IMAGE_DEBUG", "🔸 Starting image load...");
+                            Log.d("IMAGE_DEBUG", "🖼️ Starting image load...");
                             loadAndDisplayImages();
-                            applyTextStyles();
+
+                            // ✅ Wait for images to load before tables
+                            noteContent.postDelayed(() -> {
+                                Log.d("TABLE_DEBUG", "📊 Starting table load...");
+                                loadTablesInline();
+
+                                // ✅ Apply styles AFTER tables are inserted
+                                noteContent.postDelayed(() -> {
+                                    applyTextStyles();
+
+                                    // ✅ Collapse toggles that were collapsed before
+                                    collapseTogglesBasedOnSavedState();
+
+                                    isUpdatingText = false;
+                                }, 200);
+                            }, 300);
                         }, 100);
                     }
                 })
@@ -672,6 +758,123 @@ public class NoteActivity extends AppCompatActivity {
                     Log.e("IMAGE_DEBUG", "❌ Error loading note", e);
                     isUpdatingText = false;
                 });
+    }
+    private void collapseTogglesBasedOnSavedState() {
+        Log.d("TOGGLE_DEBUG", "🔽 Collapsing toggles based on saved state...");
+
+        String content = noteContent.getText().toString();
+
+        // Find all toggles in content
+        java.util.regex.Pattern togglePattern = java.util.regex.Pattern.compile("^(\\s*)[▶▼]〔(toggle_\\d+_\\d+)〕\\s", java.util.regex.Pattern.MULTILINE);
+        java.util.regex.Matcher matcher = togglePattern.matcher(content);
+
+        List<ToggleInfo> togglesToCollapse = new ArrayList<>();
+
+        while (matcher.find()) {
+            String toggleId = matcher.group(2);
+            int toggleStart = matcher.start();
+
+            // Check if this toggle should be collapsed
+            Boolean isExpanded = toggleStatesById.get(toggleId);
+            if (isExpanded != null && !isExpanded) {
+                // This toggle should be collapsed
+                String fullLine = content.substring(matcher.start(), content.indexOf('\n', matcher.start()));
+                boolean currentlyExpanded = fullLine.contains("▼");
+
+                if (currentlyExpanded) {
+                    // Need to collapse it
+                    togglesToCollapse.add(new ToggleInfo(toggleId, toggleStart));
+                    Log.d("TOGGLE_DEBUG", "📌 Toggle " + toggleId + " needs collapsing");
+                }
+            }
+        }
+
+        // Collapse toggles (in reverse order to maintain positions)
+        Collections.reverse(togglesToCollapse);
+
+        for (ToggleInfo info : togglesToCollapse) {
+            String currentContent = noteContent.getText().toString();
+
+            // Find current position of this toggle
+            int lineStart = currentContent.lastIndexOf('\n', info.position) + 1;
+            if (lineStart > info.position) lineStart = 0;
+
+            toggleToggleStateById(info.toggleId, lineStart, currentContent);
+        }
+
+        Log.d("TOGGLE_DEBUG", "✅ Collapsed " + togglesToCollapse.size() + " toggles");
+    }
+
+    // Helper class for toggle info
+    private static class ToggleInfo {
+        String toggleId;
+        int position;
+
+        ToggleInfo(String toggleId, int position) {
+            this.toggleId = toggleId;
+            this.position = position;
+        }
+    }
+    private void loadAllStyles(com.google.firebase.firestore.DocumentSnapshot doc) {
+        // Load divider styles
+        Map<String, Object> savedStyles = (Map<String, Object>) doc.get("dividerStyles");
+        if (savedStyles != null) {
+            dividerStyles.clear();
+            for (Map.Entry<String, Object> entry : savedStyles.entrySet()) {
+                try {
+                    int position = Integer.parseInt(entry.getKey());
+                    String style = (String) entry.getValue();
+                    dividerStyles.put(position, style);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        // Load toggle states
+        Map<String, Object> savedToggleStates = (Map<String, Object>) doc.get("toggleStates");
+        if (savedToggleStates != null) {
+            toggleStates.clear();
+            for (Map.Entry<String, Object> entry : savedToggleStates.entrySet()) {
+                try {
+                    int position = Integer.parseInt(entry.getKey());
+                    Boolean state = (Boolean) entry.getValue();
+                    toggleStates.put(position, state);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        // Load toggle contents
+        Map<String, Object> savedToggleContents = (Map<String, Object>) doc.get("toggleContents");
+        if (savedToggleContents != null) {
+            toggleContents.clear();
+            for (Map.Entry<String, Object> entry : savedToggleContents.entrySet()) {
+                try {
+                    int position = Integer.parseInt(entry.getKey());
+                    String toggleContent = (String) entry.getValue();
+                    toggleContents.put(position, toggleContent);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        // Load text styles
+        Map<String, Object> savedTextStyles = (Map<String, Object>) doc.get("textStyles");
+        if (savedTextStyles != null) {
+            textStyles.clear();
+            for (Map.Entry<String, Object> entry : savedTextStyles.entrySet()) {
+                try {
+                    int position = Integer.parseInt(entry.getKey());
+                    String style = (String) entry.getValue();
+                    textStyles.put(position, style);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     //DIVIDER
@@ -1546,6 +1749,10 @@ public class NoteActivity extends AppCompatActivity {
 
         if (currentText.equals(lastSavedContent)) return;
 
+        if (lengthDiff < 0) {
+            checkForDeletedToggles(currentText);
+        }
+
         String dividerPlaceholder = "〔DIVIDER〕";
 
         // ✅ Check if a divider was just inserted
@@ -1658,52 +1865,57 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        if (anyBookmarkUpdated) {
-            // ✅ NEW: Update toggle-related maps when bookmarks shift
-            if (lengthDiff != 0) {
-                // Update hidden bookmarks toggle positions
-                Map<Integer, List<Bookmark>> updatedHiddenBookmarks = new HashMap<>();
-                for (Map.Entry<Integer, List<Bookmark>> entry : hiddenBookmarksByToggle.entrySet()) {
-                    int togglePos = entry.getKey();
-                    List<Bookmark> hiddenList = entry.getValue();
+        // ✅ CRITICAL: Update toggle positions whenever text length changes
+        // This must happen REGARDLESS of bookmark updates
+        if (lengthDiff != 0) {
+            updateTogglePositionsAfterEdit(changePosition, lengthDiff);
+        }
+    }
+    // Add this method after updateBookmarkIndices()
+    private void updateToggleContentPositions(int changePosition, int lengthDiff) {
+        if (lengthDiff == 0) return;
 
-                    if (togglePos >= changePosition) {
-                        updatedHiddenBookmarks.put(togglePos + lengthDiff, hiddenList);
-                    } else {
-                        updatedHiddenBookmarks.put(togglePos, hiddenList);
-                    }
-                }
-                hiddenBookmarksByToggle = updatedHiddenBookmarks;
+        Map<Integer, String> updatedToggleContents = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+            int togglePos = entry.getKey();
+            String content = entry.getValue();
 
-                // Update toggle contents positions
-                Map<Integer, String> updatedToggleContents = new HashMap<>();
-                for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
-                    int togglePos = entry.getKey();
-                    String content = entry.getValue();
-
-                    if (togglePos >= changePosition) {
-                        updatedToggleContents.put(togglePos + lengthDiff, content);
-                    } else {
-                        updatedToggleContents.put(togglePos, content);
-                    }
-                }
-                toggleContents = updatedToggleContents;
-
-                // Update toggle states positions
-                Map<Integer, Boolean> updatedToggleStates = new HashMap<>();
-                for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
-                    int togglePos = entry.getKey();
-                    Boolean state = entry.getValue();
-
-                    if (togglePos >= changePosition) {
-                        updatedToggleStates.put(togglePos + lengthDiff, state);
-                    } else {
-                        updatedToggleStates.put(togglePos, state);
-                    }
-                }
-                toggleStates = updatedToggleStates;
+            // If toggle is after the change, shift its position
+            if (togglePos >= changePosition) {
+                updatedToggleContents.put(togglePos + lengthDiff, content);
+            } else {
+                updatedToggleContents.put(togglePos, content);
             }
         }
+        toggleContents = updatedToggleContents;
+
+        // Also update toggle states
+        Map<Integer, Boolean> updatedToggleStates = new HashMap<>();
+        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
+            int togglePos = entry.getKey();
+            Boolean state = entry.getValue();
+
+            if (togglePos >= changePosition) {
+                updatedToggleStates.put(togglePos + lengthDiff, state);
+            } else {
+                updatedToggleStates.put(togglePos, state);
+            }
+        }
+        toggleStates = updatedToggleStates;
+
+        // Also update hidden bookmarks by toggle
+        Map<Integer, List<Bookmark>> updatedHiddenBookmarks = new HashMap<>();
+        for (Map.Entry<Integer, List<Bookmark>> entry : hiddenBookmarksByToggle.entrySet()) {
+            int togglePos = entry.getKey();
+            List<Bookmark> bookmarks = entry.getValue();
+
+            if (togglePos >= changePosition) {
+                updatedHiddenBookmarks.put(togglePos + lengthDiff, bookmarks);
+            } else {
+                updatedHiddenBookmarks.put(togglePos, bookmarks);
+            }
+        }
+        hiddenBookmarksByToggle = updatedHiddenBookmarks;
     }
     private void updateBookmarkInFirestore(String bookmarkId, int newStart, int newEnd, String newText) {
         FirebaseUser user = auth.getCurrentUser();
@@ -2930,94 +3142,109 @@ public class NoteActivity extends AppCompatActivity {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            public void onTextChanged(CharSequence s, int start, int before, int after) {
                 if (isProcessing || isUpdatingText || isTogglingState) return;
 
-                if (count == 1 && start < s.length() && s.charAt(start) == '\n') {
+                if (after == 1 && start < s.length() && s.charAt(start) == '\n') {
                     isProcessing = true;
 
                     String textBeforeNewline = s.toString().substring(0, start);
                     int lastNewlineIndex = textBeforeNewline.lastIndexOf('\n');
                     String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
 
-                    if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
+                    // ✅ Match toggle lines with ID
+                    if (currentLine.matches("^\\s*[▶▼]〔toggle_\\d+_\\d+〕\\s.*")) {
                         isToggleListMode = true;
 
-                        if (currentLine.matches("^\\s*[▶▼]\\s*$")) {
+                        // ✅ Extract toggle ID from current line
+                        java.util.regex.Pattern idPattern = java.util.regex.Pattern.compile("〔(toggle_\\d+_\\d+)〕");
+                        java.util.regex.Matcher idMatcher = idPattern.matcher(currentLine);
+                        String currentToggleId = null;
+                        if (idMatcher.find()) {
+                            currentToggleId = idMatcher.group(1);
+                        }
+
+                        if (currentLine.matches("^\\s*[▶▼]〔toggle_\\d+_\\d+〕\\s*$")) {
+                            // Empty toggle - delete it
                             isToggleListMode = false;
+                            int toggleLineStart = lastNewlineIndex + 1;
+
+                            if (currentToggleId != null) {
+                                clearToggleDataById(currentToggleId);
+                            }
 
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
 
-                            // ✅ Save ALL spans
                             Editable editable = noteContent.getEditableText();
                             List<SpanInfo> allSpans = saveAllSpans(editable);
 
                             isUpdatingText = true;
                             noteContent.setText(newText);
-                            noteContent.setSelection(lastNewlineIndex + 1);
-
-                            // ✅ Restore spans immediately
                             restoreAllSpans(noteContent.getEditableText(), allSpans);
+                            noteContent.setSelection(lastNewlineIndex + 1);
                             isUpdatingText = false;
+
+                            isProcessing = false;
+                            return;
+
                         } else {
-                            boolean isExpanded = currentLine.contains("▼");
+                            // Continue toggle - create new one
+                            String indentAndToggle = getToggleWithIndentationAndNewId(currentLine);
 
-                            int toggleIndent = 0;
-                            for (char c : currentLine.toCharArray()) {
-                                if (c == ' ') toggleIndent++;
-                                else break;
-                            }
+                            String newText = s.toString().substring(0, start + 1) +
+                                    indentAndToggle +
+                                    s.toString().substring(start + 1);
 
-                            String newText;
-                            int newCursorPos;
+                            int insertedLength = indentAndToggle.length();
+                            int newTogglePos = start + 1;
 
-                            if (isExpanded) {
-                                // Toggle is EXPANDED - create content line
-                                StringBuilder indent = new StringBuilder();
-                                for (int i = 0; i < toggleIndent + 4; i++) {
-                                    indent.append(" ");
-                                }
-
-                                newText = s.toString().substring(0, start + 1) +
-                                        indent.toString() +
-                                        s.toString().substring(start + 1);
-
-                                newCursorPos = start + 1 + indent.length();
-                            } else {
-                                // Toggle is COLLAPSED - create new toggle at SAME level
-                                StringBuilder indent = new StringBuilder();
-                                for (int i = 0; i < toggleIndent; i++) {
-                                    indent.append(" ");
-                                }
-                                String newToggle = indent.toString() + "▶ ";
-
-                                newText = s.toString().substring(0, start + 1) +
-                                        newToggle +
-                                        s.toString().substring(start + 1);
-
-                                newCursorPos = start + 1 + newToggle.length();
-                            }
-
-                            // ✅ Save ALL spans
                             Editable editable = noteContent.getEditableText();
                             List<SpanInfo> allSpans = saveAllSpans(editable);
 
-                            // ✅ CRITICAL: Set BOTH flags to prevent interference
+                            for (SpanInfo info : allSpans) {
+                                if (info.start > start) {
+                                    info.start += insertedLength + 1;
+                                    info.end += insertedLength + 1;
+                                } else if (info.end > start) {
+                                    info.end += insertedLength + 1;
+                                }
+                            }
+
                             isUpdatingText = true;
                             isTogglingState = true;
-
                             noteContent.setText(newText);
-                            noteContent.setSelection(newCursorPos);
-
-                            // ✅ Restore spans immediately
                             restoreAllSpans(noteContent.getEditableText(), allSpans);
+                            noteContent.setSelection(start + 1 + indentAndToggle.length());
+
+                            // ✅ Extract NEW toggle ID and initialize
+                            java.util.regex.Matcher newIdMatcher = idPattern.matcher(indentAndToggle);
+                            if (newIdMatcher.find()) {
+                                String newToggleId = newIdMatcher.group(1);
+
+                                int indentCount = 0;
+                                for (char c : indentAndToggle.toCharArray()) {
+                                    if (c == ' ') indentCount++;
+                                    else break;
+                                }
+
+                                String emptyContent = "";
+                                for (int i = 0; i < indentCount + 4; i++) {
+                                    emptyContent += " ";
+                                }
+
+                                toggleContentsById.put(newToggleId, emptyContent);
+                                toggleStatesById.put(newToggleId, false);
+                                positionToToggleId.put(newTogglePos, newToggleId);
+
+                                Log.d("TOGGLE_DEBUG", "✅ Created continuation toggle: " + newToggleId);
+                            }
 
                             isUpdatingText = false;
                             isTogglingState = false;
                         }
                     }
-                    // ✅ Check if cursor is on ANY indented content
+                    // Content lines handling...
                     else if (currentLine.length() >= 4 && currentLine.substring(0, 4).equals("    ")) {
                         int currentIndent = 0;
                         for (char c : currentLine.toCharArray()) {
@@ -3025,8 +3252,8 @@ public class NoteActivity extends AppCompatActivity {
                             else break;
                         }
 
-                        String trimmedLine = currentLine.trim();
-                        boolean isCurrentEmpty = trimmedLine.isEmpty();
+                        String trimmed = currentLine.trim();
+                        boolean isCurrentEmpty = trimmed.isEmpty();
 
                         if (isCurrentEmpty) {
                             int prevLineStart = textBeforeNewline.lastIndexOf('\n', lastNewlineIndex - 1) + 1;
@@ -3034,7 +3261,6 @@ public class NoteActivity extends AppCompatActivity {
                                 String prevLine = textBeforeNewline.substring(prevLineStart, lastNewlineIndex);
 
                                 if (prevLine.length() >= 4 && prevLine.substring(0, 4).equals("    ") && prevLine.trim().isEmpty()) {
-                                    // Find parent toggle indentation
                                     int parentIndent = 0;
                                     int searchPos = prevLineStart - 1;
 
@@ -3043,7 +3269,7 @@ public class NoteActivity extends AppCompatActivity {
                                         if (searchLineStart < 0) searchLineStart = 0;
                                         String searchLine = textBeforeNewline.substring(searchLineStart, Math.min(searchPos + 1, textBeforeNewline.length()));
 
-                                        if (searchLine.matches("^\\s*[▶▼]\\s.*")) {
+                                        if (searchLine.matches("^\\s*[▶▼]〔toggle_\\d+_\\d+〕\\s.*")) {
                                             for (char c : searchLine.toCharArray()) {
                                                 if (c == ' ') parentIndent++;
                                                 else break;
@@ -3057,23 +3283,31 @@ public class NoteActivity extends AppCompatActivity {
                                     for (int i = 0; i < parentIndent; i++) {
                                         indent.append(" ");
                                     }
-                                    String newToggle = indent.toString() + "▶ ";
+
+                                    String newToggleId = "toggle_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+                                    String newToggle = indent.toString() + "▶〔" + newToggleId + "〕 ";
 
                                     String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                             newToggle +
                                             s.toString().substring(start + 1);
 
-                                    // ✅ Save ALL spans
                                     Editable editable = noteContent.getEditableText();
                                     List<SpanInfo> allSpans = saveAllSpans(editable);
 
                                     isUpdatingText = true;
                                     isTogglingState = true;
-
                                     noteContent.setText(newText);
+                                    restoreAllSpans(noteContent.getEditableText(), allSpans);
                                     noteContent.setSelection(lastNewlineIndex + 1 + newToggle.length());
 
-                                    restoreAllSpans(noteContent.getEditableText(), allSpans);
+                                    // Initialize new toggle
+                                    String emptyContent = "";
+                                    for (int i = 0; i < parentIndent + 4; i++) {
+                                        emptyContent += " ";
+                                    }
+                                    toggleContentsById.put(newToggleId, emptyContent);
+                                    toggleStatesById.put(newToggleId, false);
+                                    positionToToggleId.put(lastNewlineIndex + 1, newToggleId);
 
                                     isUpdatingText = false;
                                     isTogglingState = false;
@@ -3084,7 +3318,6 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
 
-                        // Add new content line with SAME indentation
                         StringBuilder indent = new StringBuilder();
                         for (int i = 0; i < currentIndent; i++) {
                             indent.append(" ");
@@ -3094,18 +3327,14 @@ public class NoteActivity extends AppCompatActivity {
                                 indent.toString() +
                                 s.toString().substring(start + 1);
 
-                        // ✅ Save ALL spans
                         Editable editable = noteContent.getEditableText();
                         List<SpanInfo> allSpans = saveAllSpans(editable);
 
                         isUpdatingText = true;
                         isTogglingState = true;
-
                         noteContent.setText(newText);
-                        noteContent.setSelection(start + 1 + indent.length());
-
                         restoreAllSpans(noteContent.getEditableText(), allSpans);
-
+                        noteContent.setSelection(start + 1 + indent.length());
                         isUpdatingText = false;
                         isTogglingState = false;
                     }
@@ -3118,25 +3347,108 @@ public class NoteActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {}
         });
     }
+    private String getToggleWithIndentationAndNewId(String line) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\s*)[▶▼]〔toggle_\\d+_\\d+〕\\s");
+        java.util.regex.Matcher matcher = pattern.matcher(line);
+
+        if (matcher.find()) {
+            String indentation = matcher.group(1);
+            String newToggleId = "toggle_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+            return indentation + "▶〔" + newToggleId + "〕 ";
+        }
+
+        String newToggleId = "toggle_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+        return "▶〔" + newToggleId + "〕 ";
+    }
+
+    private void clearToggleDataById(String toggleId) {
+        toggleContentsById.remove(toggleId);
+        toggleStatesById.remove(toggleId);
+        hiddenBookmarksByToggleId.remove(toggleId);
+
+        // Remove from position map
+        positionToToggleId.values().removeAll(Collections.singleton(toggleId));
+
+        Log.d("TOGGLE_DEBUG", "✅ Cleared toggle data for: " + toggleId);
+    }
+    private void clearToggleDataAtPosition(int position) {
+        // Remove from exact position
+        toggleContents.remove(position);
+        toggleStates.remove(position);
+        hiddenBookmarksByToggle.remove(position);
+
+        // Also check nearby positions (in case position shifted slightly)
+        List<Integer> keysToRemove = new ArrayList<>();
+
+        // Check toggleContents
+        for (Integer key : toggleContents.keySet()) {
+            if (Math.abs(key - position) <= 10) {
+                keysToRemove.add(key);
+            }
+        }
+        for (Integer key : keysToRemove) {
+            toggleContents.remove(key);
+        }
+
+        keysToRemove.clear();
+
+        // Check toggleStates
+        for (Integer key : toggleStates.keySet()) {
+            if (Math.abs(key - position) <= 10) {
+                keysToRemove.add(key);
+            }
+        }
+        for (Integer key : keysToRemove) {
+            toggleStates.remove(key);
+        }
+
+        keysToRemove.clear();
+
+        // Check hiddenBookmarksByToggle
+        for (Integer key : hiddenBookmarksByToggle.keySet()) {
+            if (Math.abs(key - position) <= 10) {
+                keysToRemove.add(key);
+            }
+        }
+        for (Integer key : keysToRemove) {
+            hiddenBookmarksByToggle.remove(key);
+        }
+
+        Log.d("TOGGLE_DEBUG", "✅ Cleared toggle data at position: " + position);
+    }
+    // ✅ NEW HELPER METHOD: Get toggle with indentation (like bullets)
+    private String getToggleWithIndentation(String line) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\s*)([▶▼])\\s");
+        java.util.regex.Matcher matcher = pattern.matcher(line);
+
+        if (matcher.find()) {
+            String indentation = matcher.group(1);
+            boolean isExpanded = matcher.group(2).equals("▼");
+
+            // ✅ Keep same state (expanded/collapsed) for new toggle
+            String toggleChar = isExpanded ? "▼" : "▶";
+            return indentation + toggleChar + " ";
+        }
+
+        return "▶ ";
+    }
     private void updateBookmarkIndicesForToggleNewline(int insertPosition, int indentLength, String newText) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
         int totalInserted = 1 + indentLength; // +1 for newline, + indentLength for spaces
 
+        // ✅ Update bookmarks
         for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
             int start = bookmark.getStartIndex();
             int end = bookmark.getEndIndex();
             boolean needsUpdate = false;
 
-            // If bookmark starts after insertion point, shift entire bookmark
             if (start >= insertPosition) {
                 start += totalInserted;
                 end += totalInserted;
                 needsUpdate = true;
-            }
-            // If insertion is inside bookmark, extend the end
-            else if (insertPosition > start && insertPosition <= end) {
+            } else if (insertPosition > start && insertPosition <= end) {
                 end += totalInserted;
                 needsUpdate = true;
             }
@@ -3144,7 +3456,7 @@ public class NoteActivity extends AppCompatActivity {
             if (needsUpdate && start >= 0 && end <= newText.length() && start < end) {
                 try {
                     String bookmarkText = newText.substring(start, end);
-                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【DIVIDER】")) {
                         bookmark.setStartIndex(start);
                         bookmark.setEndIndex(end);
                         bookmark.setText(bookmarkText);
@@ -3156,23 +3468,21 @@ public class NoteActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ NEW: Also update hidden bookmarks in collapsed toggles
+        // ✅ Update hidden bookmarks in collapsed toggles
+        Map<Integer, List<Bookmark>> updatedHiddenBookmarks = new HashMap<>();
         for (Map.Entry<Integer, List<Bookmark>> entry : hiddenBookmarksByToggle.entrySet()) {
             int togglePos = entry.getKey();
             List<Bookmark> hiddenBookmarks = entry.getValue();
 
-            // If the toggle position is after the insertion, shift the toggle position
             if (togglePos >= insertPosition) {
-                // Remove old entry
-                hiddenBookmarksByToggle.remove(togglePos);
-
-                // Re-add with updated position
-                int newTogglePos = togglePos + totalInserted;
-                hiddenBookmarksByToggle.put(newTogglePos, hiddenBookmarks);
+                updatedHiddenBookmarks.put(togglePos + totalInserted, hiddenBookmarks);
+            } else {
+                updatedHiddenBookmarks.put(togglePos, hiddenBookmarks);
             }
         }
+        hiddenBookmarksByToggle = updatedHiddenBookmarks;
 
-        // ✅ NEW: Update toggle contents map
+        // ✅ Update toggle contents map
         Map<Integer, String> updatedToggleContents = new HashMap<>();
         for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
             int togglePos = entry.getKey();
@@ -3186,7 +3496,7 @@ public class NoteActivity extends AppCompatActivity {
         }
         toggleContents = updatedToggleContents;
 
-        // ✅ NEW: Update toggle states map
+        // ✅ Update toggle states map
         Map<Integer, Boolean> updatedToggleStates = new HashMap<>();
         for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
             int togglePos = entry.getKey();
@@ -3202,6 +3512,11 @@ public class NoteActivity extends AppCompatActivity {
     }
     // Replace your toggleToggleState method with this fixed version:
     private void toggleToggleState(int togglePosition, String fullContent) {
+        // ✅ ADD THIS DEBUG LOGGING
+        Log.d("TOGGLE_DEBUG", "🔄 Toggle state change at position: " + togglePosition);
+        Log.d("TOGGLE_DEBUG", "📊 Current toggleContents keys: " + toggleContents.keySet());
+        Log.d("TOGGLE_DEBUG", "📊 Current toggleStates keys: " + toggleStates.keySet());
+
         isUpdatingText = true;
         isTogglingState = true;
 
@@ -3274,15 +3589,14 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 }
 
-                // ✅ FIX: Identify bookmarks that need to be hidden (inside content area only)
+                // Identify bookmarks that need to be hidden
                 List<Bookmark> bookmarksToHideNow = new ArrayList<>();
 
                 for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
                     int bStart = bookmark.getStartIndex();
                     int bEnd = bookmark.getEndIndex();
 
-                    // ✅ Only hide bookmarks that are COMPLETELY inside the content area
-                    // Don't hide bookmarks on the toggle line itself or after the content
+                    // Only hide bookmarks that are COMPLETELY inside the content area
                     if (bStart >= contentStart && bEnd <= contentEnd) {
                         // Store relative offset from contentStart
                         int relativeStart = bStart - contentStart;
@@ -3294,7 +3608,7 @@ public class NoteActivity extends AppCompatActivity {
                                 bookmark.getNote(),
                                 bookmark.getColor(),
                                 bookmark.getStyle(),
-                                relativeStart,  // Store relative position
+                                relativeStart,
                                 relativeEnd
                         );
                         hiddenBookmark.setId(bookmark.getId());
@@ -3302,7 +3616,7 @@ public class NoteActivity extends AppCompatActivity {
                     }
                 }
 
-                // ✅ Store hidden bookmarks in map
+                // Store hidden bookmarks in map
                 if (!bookmarksToHideNow.isEmpty()) {
                     hiddenBookmarksByToggle.put(togglePosition, bookmarksToHideNow);
                 }
@@ -3333,7 +3647,6 @@ public class NoteActivity extends AppCompatActivity {
                     result.append("\n");
                 }
 
-
                 toggleStates.put(togglePosition, false);
 
                 final String finalNewContent = result.toString();
@@ -3341,10 +3654,10 @@ public class NoteActivity extends AppCompatActivity {
 
                 int removedLength = contentEnd - (lineEnd + 1);
 
-                // ✅ FIX: Update bookmarks that come AFTER the collapsed content
+                // Update bookmarks that come AFTER the collapsed content
                 FirebaseUser user = auth.getCurrentUser();
                 if (user != null && removedLength > 0) {
-                    // Build set of hidden bookmark IDs for faster lookup
+                    // Build set of hidden bookmark IDs
                     Set<String> hiddenIds = new HashSet<>();
                     for (Bookmark hidden : bookmarksToHideNow) {
                         hiddenIds.add(hidden.getId());
@@ -3356,10 +3669,10 @@ public class NoteActivity extends AppCompatActivity {
 
                         // Skip bookmarks that are now hidden
                         if (hiddenIds.contains(bookmark.getId())) {
-                            continue; // Don't process hidden bookmarks
+                            continue;
                         }
 
-                        // ✅ CRITICAL: Only shift bookmarks AFTER the collapsed content
+                        // Only shift bookmarks AFTER the collapsed content
                         if (oldStart >= contentEnd) {
                             int newStart = oldStart - removedLength;
                             int newEnd = oldEnd - removedLength;
@@ -3367,7 +3680,7 @@ public class NoteActivity extends AppCompatActivity {
                             if (newStart >= 0 && newEnd <= finalNewContent.length() && newStart < newEnd) {
                                 try {
                                     String bookmarkText = finalNewContent.substring(newStart, newEnd);
-                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【DIVIDER】")) {
                                         updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText);
                                         bookmark.setStartIndex(newStart);
                                         bookmark.setEndIndex(newEnd);
@@ -3379,12 +3692,11 @@ public class NoteActivity extends AppCompatActivity {
                             }
                         }
                     }
-                    // ✅ Store hidden bookmarks in map
+
+                    // Store hidden bookmarks and remove from currentBookmarks
                     if (!bookmarksToHideNow.isEmpty()) {
                         hiddenBookmarksByToggle.put(togglePosition, bookmarksToHideNow);
 
-                        // ✅ CRITICAL: Remove hidden bookmarks from currentBookmarks list
-                        // so they don't get processed by other operations
                         Set<String> idsToRemove = new HashSet<>();
                         for (Bookmark hidden : bookmarksToHideNow) {
                             idsToRemove.add(hidden.getId());
@@ -3401,14 +3713,8 @@ public class NoteActivity extends AppCompatActivity {
                 // ========== EXPAND ==========
                 String newToggleLine = toggleLine.replace("▶", "▼");
 
-                // Get saved content
-                String savedContent = toggleContents.get(togglePosition);
-                if (savedContent == null || savedContent.trim().isEmpty()) {
-                    savedContent = "";
-                    for (int i = 0; i < toggleIndent + 4; i++) {
-                        savedContent += " ";
-                    }
-                }
+                // ✅ FIX: Find saved content even if position shifted
+                String savedContent = findToggleContentNearPosition(togglePosition);
 
                 // Build new content
                 StringBuilder result = new StringBuilder();
@@ -3431,12 +3737,12 @@ public class NoteActivity extends AppCompatActivity {
 
                 FirebaseUser user = auth.getCurrentUser();
                 if (user != null) {
-                    // ✅ First, shift all bookmarks that come AFTER the toggle position
+                    // First, shift all bookmarks that come AFTER the toggle position
                     for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
                         int oldStart = bookmark.getStartIndex();
                         int oldEnd = bookmark.getEndIndex();
 
-                        // Only shift bookmarks after the toggle line (not hidden ones)
+                        // Only shift bookmarks after the toggle line
                         if (oldStart > lineEnd) {
                             int newStart = oldStart + addedLength;
                             int newEnd = oldEnd + addedLength;
@@ -3444,7 +3750,7 @@ public class NoteActivity extends AppCompatActivity {
                             if (newStart >= 0 && newEnd <= finalContent.length() && newStart < newEnd) {
                                 try {
                                     String bookmarkText = finalContent.substring(newStart, newEnd);
-                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【DIVIDER】")) {
                                         updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText);
                                         bookmark.setStartIndex(newStart);
                                         bookmark.setEndIndex(newEnd);
@@ -3457,7 +3763,7 @@ public class NoteActivity extends AppCompatActivity {
                         }
                     }
 
-                    // ✅ Now restore hidden bookmarks
+                    // Now restore hidden bookmarks
                     List<Bookmark> hiddenBookmarks = hiddenBookmarksByToggle.get(togglePosition);
 
                     if (hiddenBookmarks != null && !hiddenBookmarks.isEmpty()) {
@@ -3470,12 +3776,11 @@ public class NoteActivity extends AppCompatActivity {
                                 try {
                                     String bookmarkText = finalContent.substring(absoluteStart, absoluteEnd);
 
-                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
-                                        // Check if bookmark still exists in Firestore
+                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("【DIVIDER】")) {
+                                        // Check if bookmark still exists
                                         boolean exists = false;
                                         for (Bookmark existing : currentBookmarks) {
                                             if (existing.getId().equals(hiddenBookmark.getId())) {
-                                                // Update existing bookmark
                                                 updateBookmarkInFirestore(hiddenBookmark.getId(), absoluteStart, absoluteEnd, bookmarkText);
                                                 existing.setStartIndex(absoluteStart);
                                                 existing.setEndIndex(absoluteEnd);
@@ -3485,8 +3790,6 @@ public class NoteActivity extends AppCompatActivity {
                                             }
                                         }
 
-                                        // If bookmark doesn't exist locally, it means it was removed from currentBookmarks during collapse
-                                        // We need to add it back
                                         if (!exists) {
                                             Bookmark restoredBookmark = new Bookmark(
                                                     bookmarkText,
@@ -3498,10 +3801,7 @@ public class NoteActivity extends AppCompatActivity {
                                             );
                                             restoredBookmark.setId(hiddenBookmark.getId());
 
-                                            // Update in Firestore
                                             updateBookmarkInFirestore(hiddenBookmark.getId(), absoluteStart, absoluteEnd, bookmarkText);
-
-                                            // Add to local list
                                             currentBookmarks.add(restoredBookmark);
                                         }
                                     }
@@ -3535,33 +3835,145 @@ public class NoteActivity extends AppCompatActivity {
             }, 100);
         }
     }
+    private String findToggleContentNearPosition(int togglePosition) {
+        Log.d("TOGGLE_DEBUG", "🔍 Finding content for toggle at position: " + togglePosition);
+
+        // First try exact match
+        if (toggleContents.containsKey(togglePosition)) {
+            String content = toggleContents.get(togglePosition);
+            Log.d("TOGGLE_DEBUG", "✅ Found exact match, content length: " + content.length());
+            return content;
+        }
+
+        // Get current text to analyze toggle lines
+        String content = noteContent.getText().toString();
+
+        // Find the toggle line at the given position
+        int currentLineEnd = content.indexOf('\n', togglePosition);
+        if (currentLineEnd == -1) currentLineEnd = content.length();
+
+        if (togglePosition >= 0 && currentLineEnd <= content.length()) {
+            String currentLine = content.substring(togglePosition, currentLineEnd);
+
+            // Get current toggle's indentation
+            int currentIndent = 0;
+            for (char c : currentLine.toCharArray()) {
+                if (c == ' ') currentIndent++;
+                else break;
+            }
+
+            Log.d("TOGGLE_DEBUG", "🔍 Current toggle indent: " + currentIndent);
+
+            // Search for saved content with matching indentation within ±100 characters
+            String bestMatch = null;
+            int bestMatchDistance = Integer.MAX_VALUE;
+
+            for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+                int savedPos = entry.getKey();
+                int distance = Math.abs(savedPos - togglePosition);
+
+                // Only consider positions within reasonable range
+                if (distance <= 100) {
+                    try {
+                        int savedLineEnd = content.indexOf('\n', savedPos);
+                        if (savedLineEnd == -1) savedLineEnd = content.length();
+
+                        if (savedPos >= 0 && savedLineEnd <= content.length()) {
+                            String savedLine = content.substring(savedPos, savedLineEnd);
+
+                            // Get saved toggle's indentation
+                            int savedIndent = 0;
+                            for (char c : savedLine.toCharArray()) {
+                                if (c == ' ') savedIndent++;
+                                else break;
+                            }
+
+                            // Match by indentation level
+                            if (savedIndent == currentIndent) {
+                                if (distance < bestMatchDistance) {
+                                    bestMatch = entry.getValue();
+                                    bestMatchDistance = distance;
+
+                                    Log.d("TOGGLE_DEBUG", "✅ Found potential match at distance " + distance +
+                                            ", indent " + savedIndent);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e("TOGGLE_DEBUG", "❌ Error checking saved position", e);
+                    }
+                }
+            }
+
+            if (bestMatch != null) {
+                // Update the map with the correct position
+                toggleContents.remove(togglePosition + bestMatchDistance);
+                toggleContents.put(togglePosition, bestMatch);
+
+                // Also update states if they exist
+                if (toggleStates.containsKey(togglePosition + bestMatchDistance)) {
+                    Boolean state = toggleStates.get(togglePosition + bestMatchDistance);
+                    toggleStates.remove(togglePosition + bestMatchDistance);
+                    toggleStates.put(togglePosition, state);
+                }
+
+                // Also update hidden bookmarks if they exist
+                if (hiddenBookmarksByToggle.containsKey(togglePosition + bestMatchDistance)) {
+                    List<Bookmark> bookmarks = hiddenBookmarksByToggle.get(togglePosition + bestMatchDistance);
+                    hiddenBookmarksByToggle.remove(togglePosition + bestMatchDistance);
+                    hiddenBookmarksByToggle.put(togglePosition, bookmarks);
+                }
+
+                Log.d("TOGGLE_DEBUG", "✅ Remapped content to correct position");
+                return bestMatch;
+            }
+        }
+
+        // Return empty content with proper indentation
+        int lineEnd = content.indexOf('\n', togglePosition);
+        if (lineEnd == -1) lineEnd = content.length();
+
+        if (togglePosition >= 0 && lineEnd <= content.length()) {
+            String toggleLine = content.substring(togglePosition, lineEnd);
+
+            int toggleIndent = 0;
+            for (char c : toggleLine.toCharArray()) {
+                if (c == ' ') toggleIndent++;
+                else break;
+            }
+
+            String emptyContent = "";
+            for (int i = 0; i < toggleIndent + 4; i++) {
+                emptyContent += " ";
+            }
+
+            Log.d("TOGGLE_DEBUG", "⚠️ No match found, returning empty content");
+            return emptyContent;
+        }
+
+        return "    ";
+    }
     private void insertToggleList() {
         String currentText = noteContent.getText().toString();
         int cursorPosition = noteContent.getSelectionStart();
 
-        // Safety check
         if (cursorPosition < 0) cursorPosition = 0;
         if (cursorPosition > currentText.length()) cursorPosition = currentText.length();
 
-        // ✅ Detect if we're inside a toggle's content
         int lineStart = currentText.lastIndexOf('\n', cursorPosition - 1) + 1;
         int lineEnd = currentText.indexOf('\n', cursorPosition);
         if (lineEnd == -1) lineEnd = currentText.length();
 
         String currentLine = currentText.substring(lineStart, lineEnd);
 
-        // Count current indentation
         int currentIndent = 0;
         for (char c : currentLine.toCharArray()) {
             if (c == ' ') currentIndent++;
             else break;
         }
 
-        // ✅ FIXED: If we're inside content (4+ spaces), nested toggle should be at content level + 4
-        // If we're at root level (0 spaces), stay at root
         int toggleIndent = 0;
         if (currentIndent >= 4) {
-            // We're inside a toggle's content, nest deeper
             toggleIndent = currentIndent;
         }
 
@@ -3570,26 +3982,29 @@ public class NoteActivity extends AppCompatActivity {
             indent += " ";
         }
 
-        // Check if we need a leading newline
+        // ✅ CREATE UNIQUE ID for this toggle
+        String toggleId = "toggle_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+
         String toggleItem;
         if (cursorPosition > 0 && currentText.charAt(cursorPosition - 1) != '\n') {
-            toggleItem = "\n" + indent + "▶ ";
+            toggleItem = "\n" + indent + "▶〔" + toggleId + "〕 ";
         } else {
-            toggleItem = indent + "▶ ";
+            toggleItem = indent + "▶〔" + toggleId + "〕 ";
         }
 
-        // Build new text
         String newText = currentText.substring(0, cursorPosition) +
                 toggleItem +
                 currentText.substring(cursorPosition);
 
-        // Calculate final cursor position BEFORE setting text
         final int finalCursorPos = cursorPosition + toggleItem.length();
 
-        // Set text
+        int newToggleStart = cursorPosition;
+        if (toggleItem.startsWith("\n")) {
+            newToggleStart = cursorPosition + 1;
+        }
+
         noteContent.setText(newText);
 
-        // Set cursor in post() with safety checks
         noteContent.post(new Runnable() {
             @Override
             public void run() {
@@ -3609,9 +4024,110 @@ public class NoteActivity extends AppCompatActivity {
                 }
             }
         });
+
+        // ✅ Initialize NEW toggle with UNIQUE ID
+        String emptyContent = "";
+        for (int i = 0; i < toggleIndent + 4; i++) {
+            emptyContent += " ";
+        }
+
+        toggleContentsById.put(toggleId, emptyContent);
+        toggleStatesById.put(toggleId, false);
+        positionToToggleId.put(newToggleStart, toggleId);
+
+        Log.d("TOGGLE_DEBUG", "✅ Created new toggle: " + toggleId + " at position: " + newToggleStart);
+
         isToggleListMode = true;
     }
+    private void checkForDeletedToggles(String currentText) {
+        // Check each saved toggle position
+        List<Integer> positionsToRemove = new ArrayList<>();
 
+        for (Integer togglePos : new ArrayList<>(toggleContents.keySet())) {
+            // Check if toggle still exists at this position
+            if (togglePos >= currentText.length()) {
+                positionsToRemove.add(togglePos);
+                continue;
+            }
+
+            try {
+                int lineEnd = currentText.indexOf('\n', togglePos);
+                if (lineEnd == -1) lineEnd = currentText.length();
+
+                if (togglePos >= 0 && lineEnd <= currentText.length()) {
+                    String line = currentText.substring(togglePos, lineEnd);
+
+                    // If line no longer contains toggle arrow, it was deleted
+                    if (!line.contains("▶") && !line.contains("▼")) {
+                        positionsToRemove.add(togglePos);
+                    }
+                }
+            } catch (Exception e) {
+                positionsToRemove.add(togglePos);
+            }
+        }
+
+        // Clear data for deleted toggles
+        for (Integer pos : positionsToRemove) {
+            toggleContents.remove(pos);
+            toggleStates.remove(pos);
+            hiddenBookmarksByToggle.remove(pos);
+            Log.d("TOGGLE_DEBUG", "🗑️ Detected deleted toggle at position: " + pos);
+        }
+    }
+    private void updateTogglePositionsAfterEdit(int changePosition, int lengthDiff) {
+        if (lengthDiff == 0) return;
+
+        Log.d("TOGGLE_DEBUG", "Updating toggle positions: changePos=" + changePosition + ", diff=" + lengthDiff);
+
+        // ✅ Update toggle contents
+        Map<Integer, String> updatedToggleContents = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : toggleContents.entrySet()) {
+            int oldPos = entry.getKey();
+            String content = entry.getValue();
+
+            if (oldPos >= changePosition) {
+                int newPos = oldPos + lengthDiff;
+                updatedToggleContents.put(newPos, content);
+                Log.d("TOGGLE_DEBUG", "  📦 Moved toggle content: " + oldPos + " → " + newPos);
+            } else {
+                updatedToggleContents.put(oldPos, content);
+            }
+        }
+        toggleContents = updatedToggleContents;
+
+        // ✅ Update toggle states
+        Map<Integer, Boolean> updatedToggleStates = new HashMap<>();
+        for (Map.Entry<Integer, Boolean> entry : toggleStates.entrySet()) {
+            int oldPos = entry.getKey();
+            Boolean state = entry.getValue();
+
+            if (oldPos >= changePosition) {
+                int newPos = oldPos + lengthDiff;
+                updatedToggleStates.put(newPos, state);
+                Log.d("TOGGLE_DEBUG", "  🔄 Moved toggle state: " + oldPos + " → " + newPos);
+            } else {
+                updatedToggleStates.put(oldPos, state);
+            }
+        }
+        toggleStates = updatedToggleStates;
+
+        // ✅ Update hidden bookmarks by toggle
+        Map<Integer, List<Bookmark>> updatedHiddenBookmarks = new HashMap<>();
+        for (Map.Entry<Integer, List<Bookmark>> entry : hiddenBookmarksByToggle.entrySet()) {
+            int oldPos = entry.getKey();
+            List<Bookmark> bookmarks = entry.getValue();
+
+            if (oldPos >= changePosition) {
+                int newPos = oldPos + lengthDiff;
+                updatedHiddenBookmarks.put(newPos, bookmarks);
+                Log.d("TOGGLE_DEBUG", "  📚 Moved hidden bookmarks: " + oldPos + " → " + newPos);
+            } else {
+                updatedHiddenBookmarks.put(oldPos, bookmarks);
+            }
+        }
+        hiddenBookmarksByToggle = updatedHiddenBookmarks;
+    }
     //----------------------------------------------------------------//
     //INSERT LINK
     // Add this after your existing method declarations
@@ -4061,36 +4577,57 @@ public class NoteActivity extends AppCompatActivity {
                     String currentLine = textBeforeNewline.substring(lastNewlineIndex + 1);
 
                     if (currentLine.matches("^\\s*[☐☑]\\s.*")) {
+                        // ✅ If empty checkbox line, stop checkbox mode
                         if (currentLine.matches("^\\s*[☐☑]\\s*$")) {
                             String newText = s.toString().substring(0, lastNewlineIndex + 1) +
                                     s.toString().substring(start + 1);
 
-                            // ✅ Save ALL spans
+                            // ✅ Save ALL spans BEFORE setText
                             Editable editable = noteContent.getEditableText();
                             List<SpanInfo> allSpans = saveAllSpans(editable);
 
                             isUpdatingText = true;
                             noteContent.setText(newText);
-                            noteContent.setSelection(lastNewlineIndex + 1);
 
+                            // ✅ Restore spans AFTER setText
                             restoreAllSpans(noteContent.getEditableText(), allSpans);
+
+                            noteContent.setSelection(lastNewlineIndex + 1);
                             isUpdatingText = false;
+
+                            isProcessing = false;
+                            return; // ✅ EXIT - Stop checkbox mode
                         } else {
+                            // Continue checkbox mode - add new checkbox
                             String indentAndCheckbox = getCheckboxWithIndentation(currentLine);
 
                             String newText = s.toString().substring(0, start + 1) +
                                     indentAndCheckbox +
                                     s.toString().substring(start + 1);
 
-                            // ✅ Save ALL spans
+                            int insertedLength = indentAndCheckbox.length();
+
+                            // ✅ Save ALL spans BEFORE setText
                             Editable editable = noteContent.getEditableText();
                             List<SpanInfo> allSpans = saveAllSpans(editable);
 
+                            // ✅ Adjust span positions for the inserted text
+                            for (SpanInfo info : allSpans) {
+                                if (info.start > start) {
+                                    info.start += insertedLength + 1; // +1 for newline
+                                    info.end += insertedLength + 1;
+                                } else if (info.end > start) {
+                                    info.end += insertedLength + 1;
+                                }
+                            }
+
                             isUpdatingText = true;
                             noteContent.setText(newText);
-                            noteContent.setSelection(start + 1 + indentAndCheckbox.length());
 
+                            // ✅ Restore adjusted spans AFTER setText
                             restoreAllSpans(noteContent.getEditableText(), allSpans);
+
+                            noteContent.setSelection(start + 1 + indentAndCheckbox.length());
                             isUpdatingText = false;
                         }
                     }
@@ -4123,35 +4660,35 @@ public class NoteActivity extends AppCompatActivity {
             int cursorPos = noteContent.getSelectionStart();
             String content = noteContent.getText().toString();
 
-            // Find current line boundaries
             int lineStart = content.lastIndexOf('\n', cursorPos - 1) + 1;
             int lineEnd = content.indexOf('\n', cursorPos);
             if (lineEnd == -1) lineEnd = content.length();
 
             String currentLine = content.substring(lineStart, lineEnd);
 
-            // ✅ FIRST: Check if line contains toggle arrow
-            if (currentLine.matches("^\\s*[▶▼]\\s.*")) {
-                // Find the position of the arrow in the line
-                int arrowPos = -1;
-                for (int i = 0; i < currentLine.length(); i++) {
-                    char c = currentLine.charAt(i);
-                    if (c == '▶' || c == '▼') {
-                        arrowPos = lineStart + i;
-                        break;
-                    }
-                }
+            // ✅ Check if line contains toggle arrow WITH ID
+            if (currentLine.matches("^\\s*[▶▼]〔toggle_\\d+_\\d+〕\\s.*")) {
+                // Extract toggle ID
+                java.util.regex.Pattern idPattern = java.util.regex.Pattern.compile("〔(toggle_\\d+_\\d+)〕");
+                java.util.regex.Matcher idMatcher = idPattern.matcher(currentLine);
 
-                // Only toggle if cursor is EXACTLY on the arrow (within 1 character)
-                if (arrowPos != -1 && Math.abs(cursorPos - arrowPos) <= 1) {
-                    toggleToggleState(lineStart, content);
-                    return; // Exit after handling toggle
+                if (idMatcher.find()) {
+                    String toggleId = idMatcher.group(1);
+                    int arrowPos = currentLine.indexOf('▶');
+                    if (arrowPos == -1) arrowPos = currentLine.indexOf('▼');
+
+                    if (arrowPos != -1) {
+                        int absoluteArrowPos = lineStart + arrowPos;
+                        if (Math.abs(cursorPos - absoluteArrowPos) <= 1) {
+                            toggleToggleStateById(toggleId, lineStart, content);
+                            return;
+                        }
+                    }
                 }
             }
 
-            // ✅ SECOND: Check if line contains checkbox
+            // Checkbox handling...
             if (currentLine.contains("☐") || currentLine.contains("☑")) {
-                // Find the position of the checkbox in the line
                 int checkboxPos = -1;
                 boolean isChecked = false;
 
@@ -4163,12 +4700,313 @@ public class NoteActivity extends AppCompatActivity {
                     isChecked = true;
                 }
 
-                // Only toggle if cursor is near the checkbox (within 3 characters)
                 if (checkboxPos != -1 && Math.abs(cursorPos - checkboxPos) <= 3) {
                     toggleCheckbox(lineStart, lineEnd, isChecked);
                 }
             }
         });
+    }
+    private void toggleToggleStateById(String toggleId, int togglePosition, String fullContent) {
+        Log.d("TOGGLE_DEBUG", "🔄 Toggling by ID: " + toggleId + " at position: " + togglePosition);
+
+        isUpdatingText = true;
+        isTogglingState = true;
+
+        try {
+            int lineEnd = fullContent.indexOf('\n', togglePosition);
+            if (lineEnd == -1) lineEnd = fullContent.length();
+
+            String toggleLine = fullContent.substring(togglePosition, lineEnd);
+            boolean isExpanded = toggleLine.contains("▼");
+
+            int toggleIndent = 0;
+            for (char c : toggleLine.toCharArray()) {
+                if (c == ' ') toggleIndent++;
+                else break;
+            }
+
+            if (isExpanded) {
+                // ========== COLLAPSE ==========
+                String newToggleLine = toggleLine.replace("▼", "▶");
+
+                int contentStart = lineEnd + 1;
+                int contentEnd = contentStart;
+                StringBuilder savedContent = new StringBuilder();
+
+                while (contentEnd < fullContent.length()) {
+                    int nextLineEnd = fullContent.indexOf('\n', contentEnd);
+                    if (nextLineEnd == -1) nextLineEnd = fullContent.length();
+
+                    String nextLine = fullContent.substring(contentEnd, nextLineEnd);
+
+                    int lineIndent = 0;
+                    for (char c : nextLine.toCharArray()) {
+                        if (c == ' ') lineIndent++;
+                        else break;
+                    }
+
+                    if (lineIndent > toggleIndent) {
+                        if (savedContent.length() > 0) savedContent.append("\n");
+                        savedContent.append(nextLine);
+                        contentEnd = nextLineEnd + 1;
+                    } else if (nextLine.trim().isEmpty() && contentEnd < fullContent.length() - 1) {
+                        int peekPos = nextLineEnd + 1;
+                        if (peekPos < fullContent.length()) {
+                            int peekEnd = fullContent.indexOf('\n', peekPos);
+                            if (peekEnd == -1) peekEnd = fullContent.length();
+
+                            if (peekPos < peekEnd) {
+                                String peekLine = fullContent.substring(peekPos, peekEnd);
+                                int peekIndent = 0;
+                                for (char c : peekLine.toCharArray()) {
+                                    if (c == ' ') peekIndent++;
+                                    else break;
+                                }
+
+                                if (peekIndent > toggleIndent) {
+                                    if (savedContent.length() > 0) savedContent.append("\n");
+                                    savedContent.append(nextLine);
+                                    contentEnd = nextLineEnd + 1;
+                                    continue;
+                                }
+                            }
+                        }
+                        contentEnd = nextLineEnd + 1;
+                        break;
+                    } else {
+                        break;
+                    }
+                }
+
+                // Save bookmarks for THIS toggle only
+                List<Bookmark> bookmarksToHideNow = new ArrayList<>();
+                for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                    int bStart = bookmark.getStartIndex();
+                    int bEnd = bookmark.getEndIndex();
+
+                    if (bStart >= contentStart && bEnd <= contentEnd) {
+                        int relativeStart = bStart - contentStart;
+                        int relativeEnd = bEnd - contentStart;
+
+                        Bookmark hiddenBookmark = new Bookmark(
+                                bookmark.getText(),
+                                bookmark.getNote(),
+                                bookmark.getColor(),
+                                bookmark.getStyle(),
+                                relativeStart,
+                                relativeEnd
+                        );
+                        hiddenBookmark.setId(bookmark.getId());
+                        bookmarksToHideNow.add(hiddenBookmark);
+                    }
+                }
+
+                if (!bookmarksToHideNow.isEmpty()) {
+                    hiddenBookmarksByToggleId.put(toggleId, bookmarksToHideNow);
+                }
+
+                // Save content for THIS toggle
+                if (savedContent.length() > 0) {
+                    toggleContentsById.put(toggleId, savedContent.toString());
+                }
+
+                StringBuilder result = new StringBuilder();
+                result.append(fullContent.substring(0, togglePosition));
+                result.append(newToggleLine);
+
+                if (contentEnd < fullContent.length()) {
+                    String afterContent = fullContent.substring(contentEnd);
+                    if (!afterContent.startsWith("\n")) {
+                        result.append("\n");
+                    }
+                    result.append(afterContent);
+                } else if (savedContent.length() > 0) {
+                    result.append("\n");
+                }
+
+                toggleStatesById.put(toggleId, false);
+
+                String finalNewContent = result.toString();
+                int finalCursor = Math.min(togglePosition + newToggleLine.length(), finalNewContent.length());
+
+                int removedLength = contentEnd - (lineEnd + 1);
+
+                // Update OTHER bookmarks (not the hidden ones)
+                FirebaseUser user = auth.getCurrentUser();
+                if (user != null && removedLength > 0) {
+                    Set<String> hiddenIds = new HashSet<>();
+                    for (Bookmark hidden : bookmarksToHideNow) {
+                        hiddenIds.add(hidden.getId());
+                    }
+
+                    for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                        int oldStart = bookmark.getStartIndex();
+                        int oldEnd = bookmark.getEndIndex();
+
+                        if (hiddenIds.contains(bookmark.getId())) {
+                            continue;
+                        }
+
+                        if (oldStart >= contentEnd) {
+                            int newStart = oldStart - removedLength;
+                            int newEnd = oldEnd - removedLength;
+
+                            if (newStart >= 0 && newEnd <= finalNewContent.length() && newStart < newEnd) {
+                                try {
+                                    String bookmarkText = finalNewContent.substring(newStart, newEnd);
+                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                                        updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText);
+                                        bookmark.setStartIndex(newStart);
+                                        bookmark.setEndIndex(newEnd);
+                                        bookmark.setText(bookmarkText);
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+                    }
+
+                    // Remove hidden bookmarks from visible list
+                    if (!bookmarksToHideNow.isEmpty()) {
+                        Set<String> idsToRemove = new HashSet<>();
+                        for (Bookmark hidden : bookmarksToHideNow) {
+                            idsToRemove.add(hidden.getId());
+                        }
+                        currentBookmarks.removeIf(bookmark -> idsToRemove.contains(bookmark.getId()));
+                    }
+                }
+
+                noteContent.setText(finalNewContent);
+                noteContent.setSelection(finalCursor);
+
+            } else {
+                // ========== EXPAND ==========
+                String newToggleLine = toggleLine.replace("▶", "▼");
+
+                // Get saved content for THIS toggle ONLY
+                String savedContent = toggleContentsById.get(toggleId);
+                if (savedContent == null) {
+                    savedContent = "";
+                    for (int i = 0; i < toggleIndent + 4; i++) {
+                        savedContent += " ";
+                    }
+                }
+
+                StringBuilder result = new StringBuilder();
+                result.append(fullContent.substring(0, togglePosition));
+                result.append(newToggleLine);
+                result.append("\n");
+                result.append(savedContent);
+
+                if (lineEnd < fullContent.length()) {
+                    result.append(fullContent.substring(lineEnd));
+                }
+
+                toggleStatesById.put(toggleId, true);
+
+                String finalContent = result.toString();
+                int contentLineStart = togglePosition + newToggleLine.length() + 1;
+                int finalCursor = Math.min(contentLineStart + savedContent.length(), finalContent.length());
+
+                int addedLength = savedContent.length() + 1;
+
+                // Update OTHER bookmarks
+                FirebaseUser user = auth.getCurrentUser();
+                if (user != null) {
+                    for (Bookmark bookmark : new ArrayList<>(currentBookmarks)) {
+                        int oldStart = bookmark.getStartIndex();
+                        int oldEnd = bookmark.getEndIndex();
+
+                        if (oldStart > lineEnd) {
+                            int newStart = oldStart + addedLength;
+                            int newEnd = oldEnd + addedLength;
+
+                            if (newStart >= 0 && newEnd <= finalContent.length() && newStart < newEnd) {
+                                try {
+                                    String bookmarkText = finalContent.substring(newStart, newEnd);
+                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                                        updateBookmarkInFirestore(bookmark.getId(), newStart, newEnd, bookmarkText);
+                                        bookmark.setStartIndex(newStart);
+                                        bookmark.setEndIndex(newEnd);
+                                        bookmark.setText(bookmarkText);
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+                    }
+
+                    // Restore hidden bookmarks for THIS toggle ONLY
+                    List<Bookmark> hiddenBookmarks = hiddenBookmarksByToggleId.get(toggleId);
+
+                    if (hiddenBookmarks != null && !hiddenBookmarks.isEmpty()) {
+                        for (Bookmark hiddenBookmark : hiddenBookmarks) {
+                            int absoluteStart = contentLineStart + hiddenBookmark.getStartIndex();
+                            int absoluteEnd = contentLineStart + hiddenBookmark.getEndIndex();
+
+                            if (absoluteStart >= 0 && absoluteEnd <= finalContent.length() && absoluteStart < absoluteEnd) {
+                                try {
+                                    String bookmarkText = finalContent.substring(absoluteStart, absoluteEnd);
+
+                                    if (!bookmarkText.trim().isEmpty() && !bookmarkText.contains("〔DIVIDER〕")) {
+                                        boolean exists = false;
+                                        for (Bookmark existing : currentBookmarks) {
+                                            if (existing.getId().equals(hiddenBookmark.getId())) {
+                                                updateBookmarkInFirestore(hiddenBookmark.getId(), absoluteStart, absoluteEnd, bookmarkText);
+                                                existing.setStartIndex(absoluteStart);
+                                                existing.setEndIndex(absoluteEnd);
+                                                existing.setText(bookmarkText);
+                                                exists = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (!exists) {
+                                            Bookmark restoredBookmark = new Bookmark(
+                                                    bookmarkText,
+                                                    hiddenBookmark.getNote(),
+                                                    hiddenBookmark.getColor(),
+                                                    hiddenBookmark.getStyle(),
+                                                    absoluteStart,
+                                                    absoluteEnd
+                                            );
+                                            restoredBookmark.setId(hiddenBookmark.getId());
+
+                                            updateBookmarkInFirestore(hiddenBookmark.getId(), absoluteStart, absoluteEnd, bookmarkText);
+                                            currentBookmarks.add(restoredBookmark);
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        hiddenBookmarksByToggleId.remove(toggleId);
+                    }
+                }
+
+                noteContent.setText(finalContent);
+                noteContent.setSelection(finalCursor);
+            }
+
+            saveNoteContentToFirestore(noteContent.getText().toString());
+
+        } catch (Exception e) {
+            Log.e("TOGGLE_DEBUG", "❌ Error toggling", e);
+            e.printStackTrace();
+        } finally {
+            noteContent.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    applyBookmarksToText();
+                    isUpdatingText = false;
+                    isTogglingState = false;
+                }
+            }, 100);
+        }
     }
     private void toggleCheckbox(int lineStart, int lineEnd, boolean currentlyChecked) {
         isUpdatingText = true;
@@ -4994,8 +5832,8 @@ public class NoteActivity extends AppCompatActivity {
         });
     }
     private interface ImageLoadCallback {
-    void onComplete();
-}
+        void onComplete();
+    }
     private void setupImageDeletion() {
         noteContent.setOnLongClickListener(v -> {
             int cursorPos = noteContent.getSelectionStart();
@@ -5716,50 +6554,593 @@ public class NoteActivity extends AppCompatActivity {
         int cursorPosition = noteContent.getSelectionStart();
         String currentText = noteContent.getText().toString();
 
-        // Create table placeholder
-        String tableId = String.valueOf(System.currentTimeMillis());
-        String tablePlaceholder = "【TABLE:" + tableId + "】";
+        // Create unique table ID
+        String tableId = System.currentTimeMillis() + "";
 
-        String newText;
-        if (cursorPosition > 0 && cursorPosition < currentText.length()) {
-            String before = currentText.substring(0, cursorPosition);
-            String after = currentText.substring(cursorPosition);
-            String nlBefore = (!before.endsWith("\n")) ? "\n" : "";
-            String nlAfter = (!after.startsWith("\n")) ? "\n" : "";
-            newText = before + nlBefore + tablePlaceholder + nlAfter + after;
-        } else if (cursorPosition == 0) {
-            newText = tablePlaceholder + "\n" + currentText;
-        } else {
-            newText = currentText + "\n" + tablePlaceholder;
-        }
-
-        // Update text
-        isUpdatingText = true;
-        noteContent.setText(newText);
-        isUpdatingText = false;
-
-        // Create table data with initial 4 rows x 3 columns
-        Table table = new Table(cursorPosition, 4, 3);
-
-        // Save to Firestore
+        // Save table to Firestore first
         FirebaseUser user = auth.getCurrentUser();
-        if (user != null && noteId != null) {
+        if (user != null) {
+            Table table = new Table(cursorPosition, 4, 3);
+            table.setId(tableId);
+
+            Map<String, Object> tableData = new HashMap<>();
+            tableData.put("tableId", tableId);
+            tableData.put("rowCount", table.getRowCount());
+            tableData.put("columnCount", table.getColumnCount());
+            tableData.put("cellContents", table.getCellContents());
+            tableData.put("cellColors", table.getCellColors());
+            tableData.put("position", cursorPosition);
+            tableData.put("timestamp", System.currentTimeMillis());
+
             db.collection("users").document(user.getUid())
                     .collection("notes").document(noteId)
-                    .collection("tables")
-                    .document(tableId)
-                    .set(table)
+                    .collection("tables").document(tableId)
+                    .set(tableData)
                     .addOnSuccessListener(aVoid -> {
-                        table.setId(tableId);
-                        tables.add(table);
-                        saveNoteContentToFirestore(newText);
-                        Toast.makeText(this, "Table created", Toast.LENGTH_SHORT).show();
+                        Log.d("TABLE_DEBUG", "✅ Table saved to Firestore");
+
+                        // Insert table view directly into layout
+                        insertTableViewInline(tableId, table, cursorPosition);
+
+                        // ✅ NEW: Save note content with table placeholder
+                        noteContent.postDelayed(() -> {
+                            String fullContent = collectAllNoteContent();
+                            saveNoteContentToFirestore(fullContent);
+                        }, 500);
+
+                        Toast.makeText(this, "Table inserted - tap cells to edit", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> {
+                        Log.e("TABLE_DEBUG", "❌ Error saving table", e);
                         Toast.makeText(this, "Error creating table", Toast.LENGTH_SHORT).show();
                     });
         }
     }
+
+
+    // ============================================================
+// NEW METHOD: Insert table directly into note container
+// ============================================================
+    private void insertTableViewInline(String tableId, Table tableData, int cursorPosition) {
+        Log.d("TABLE_DEBUG", "📊 Inserting table inline at position: " + cursorPosition);
+
+        try {
+            LinearLayout noteContainer = findViewById(R.id.noteContainer);
+
+            // Get EDITABLE, not just string
+            Editable currentEditable = noteContent.getEditableText();
+            String currentText = currentEditable.toString();
+
+            // Save ALL existing spans BEFORE any modifications
+            List<SpanInfo> allSavedSpans = saveAllSpansFromEditable(currentEditable);
+            Log.d("TABLE_DEBUG", "💾 Saved " + allSavedSpans.size() + " spans before table insertion");
+
+            // Split text at cursor position
+            String beforeCursor = currentText.substring(0, cursorPosition);
+            String afterCursor = currentText.substring(cursorPosition);
+
+            // Update noteContent with spans preserved
+            isUpdatingText = true;
+
+            // Set text for before cursor
+            noteContent.setText(beforeCursor);
+
+            // Restore all spans that fall within beforeCursor range
+            Editable beforeEditable = noteContent.getEditableText();
+            for (SpanInfo info : allSavedSpans) {
+                if (info.start >= 0 && info.end <= beforeCursor.length() && info.start < info.end) {
+                    try {
+                        beforeEditable.setSpan(
+                                info.span,
+                                info.start,
+                                info.end,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        );
+                    } catch (Exception e) {
+                        Log.e("TABLE_DEBUG", "❌ Error restoring span", e);
+                    }
+                }
+            }
+
+            isUpdatingText = false;
+
+            // Create TableView
+            TableView tableView = new TableView(this);
+            tableView.setTableData(tableData);
+
+            // Set up auto-save listener
+            tableView.setOnTableChangeListener(table -> {
+                saveTableToFirestore(table);
+            });
+
+            // Set layout params
+            LinearLayout.LayoutParams tableParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            tableParams.setMargins(0, dpToPx(2), 0, dpToPx(2));
+            tableView.setLayoutParams(tableParams);
+            tableView.setId(View.generateViewId());
+            tableView.setTag(tableId);
+
+            // Get index of noteContent in container
+            int noteContentIndex = noteContainer.indexOfChild(noteContent);
+
+            // Insert table after noteContent
+            noteContainer.addView(tableView, noteContentIndex + 1);
+
+            // Store reference
+            tableViews.put(tableId, tableView);
+
+            // ✅ ALWAYS create an EditText after the table
+            EditText afterEditText = createEditTextForNote();
+
+            if (!afterCursor.isEmpty()) {
+                // If there's content after cursor, restore it with spans
+                SpannableString afterSpannable = new SpannableString(afterCursor);
+
+                // Restore spans that fall within afterCursor range
+                for (SpanInfo info : allSavedSpans) {
+                    if (info.start >= cursorPosition && info.end <= currentText.length()) {
+                        int newStart = info.start - cursorPosition;
+                        int newEnd = info.end - cursorPosition;
+
+                        if (newStart >= 0 && newEnd <= afterCursor.length() && newStart < newEnd) {
+                            try {
+                                afterSpannable.setSpan(
+                                        info.span,
+                                        newStart,
+                                        newEnd,
+                                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                                );
+                            } catch (Exception e) {
+                                Log.e("TABLE_DEBUG", "❌ Error restoring after span", e);
+                            }
+                        }
+                    }
+                }
+
+                afterEditText.setText(afterSpannable, TextView.BufferType.SPANNABLE);
+            } else {
+                // ✅ Even if empty, create EditText for user to type
+                afterEditText.setText("");
+                afterEditText.setHint("Continue typing...");
+            }
+
+            // Setup listeners
+            setupEditTextListeners(afterEditText);
+
+            // Insert after table
+            noteContainer.addView(afterEditText, noteContentIndex + 2);
+
+            // ✅ Focus on the new EditText so user can type immediately
+            afterEditText.requestFocus();
+            afterEditText.setSelection(0);
+
+            Log.d("TABLE_DEBUG", "✅ Table inserted inline with all spans preserved");
+
+        } catch (Exception e) {
+            Log.e("TABLE_DEBUG", "❌ Error inserting table inline", e);
+            e.printStackTrace();
+        }
+    }
+
+    // ============================================================
+// NEW METHOD: Create EditText with proper styling
+// ============================================================
+    private EditText createEditTextForNote() {
+        EditText editText = new EditText(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        editText.setLayoutParams(params);
+        editText.setBackground(null);
+        editText.setGravity(Gravity.TOP);
+        editText.setHint("Continue typing...");
+        editText.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        editText.setMinHeight(dpToPx(200));
+        editText.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
+        editText.setTextColor(Color.parseColor("#333333"));
+        editText.setTextSize(16);
+        editText.setTextIsSelectable(true);
+
+        return editText;
+    }
+
+    // ============================================================
+// NEW METHOD: Setup listeners for additional EditTexts
+// ============================================================
+    private void setupEditTextListeners(EditText editText) {
+        // Add text watcher for auto-save
+        editText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int after) {
+                if (!isUpdatingText) {
+                    // Trigger auto-save with debounce
+                    saveNoteContentDebounced(collectAllNoteContent());
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+    }
+
+    // ============================================================
+// NEW METHOD: Collect content from all EditTexts and TableViews
+// ============================================================
+    private String collectAllNoteContent() {
+        LinearLayout noteContainer = findViewById(R.id.noteContainer);
+        StringBuilder fullContent = new StringBuilder();
+
+        for (int i = 0; i < noteContainer.getChildCount(); i++) {
+            View child = noteContainer.getChildAt(i);
+
+            if (child instanceof EditText) {
+                EditText editText = (EditText) child;
+                String text = editText.getText().toString();
+
+                // ✅ Include empty sections too (might have user input later)
+                if (!text.isEmpty()) {
+                    if (fullContent.length() > 0 && !fullContent.toString().endsWith("\n")) {
+                        fullContent.append("\n");
+                    }
+                    fullContent.append(text);
+                }
+            } else if (child instanceof TableView) {
+                TableView tableView = (TableView) child;
+                String tableId = (String) tableView.getTag();
+                if (tableId != null) {
+                    if (fullContent.length() > 0 && !fullContent.toString().endsWith("\n")) {
+                        fullContent.append("\n");
+                    }
+                    fullContent.append("【TABLE:").append(tableId).append("】");
+                    fullContent.append("\n");
+                }
+            }
+        }
+
+        return fullContent.toString();
+    }
+
+    private void saveTableToFirestore(Table table) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null || table.getId() == null) return;
+
+        Log.d("TABLE_DEBUG", "💾 Saving table: " + table.getId());
+
+        Map<String, Object> tableData = new HashMap<>();
+        tableData.put("rowCount", table.getRowCount());
+        tableData.put("columnCount", table.getColumnCount());
+        tableData.put("cellContents", table.getCellContents());
+        tableData.put("cellColors", table.getCellColors());
+        tableData.put("timestamp", System.currentTimeMillis());
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("tables").document(table.getId())
+                .update(tableData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d("TABLE_DEBUG", "✅ Table saved successfully");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("TABLE_DEBUG", "❌ Error saving table", e);
+                });
+    }
+
+    // ============================================================
+// NEW METHOD: Load tables and reconstruct note layout
+// ============================================================
+    private void loadTablesInline() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) {
+            Log.e("TABLE_DEBUG", "❌ User or noteId is null");
+            return;
+        }
+
+        Log.d("TABLE_DEBUG", "📖 Loading tables for note: " + noteId);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("tables")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    Log.d("TABLE_DEBUG", "✅ Found " + querySnapshot.size() + " tables");
+
+                    Map<String, Table> tablesMap = new HashMap<>();
+
+                    for (QueryDocumentSnapshot doc : querySnapshot) {
+                        String tableId = doc.getString("tableId");
+                        if (tableId != null) {
+                            Table table = new Table();
+                            table.setId(tableId);
+                            table.setRowCount(doc.getLong("rowCount").intValue());
+                            table.setColumnCount(doc.getLong("columnCount").intValue());
+
+                            // Load cell contents
+                            Map<String, Object> contents = (Map<String, Object>) doc.get("cellContents");
+                            if (contents != null) {
+                                Map<String, String> cellContents = new HashMap<>();
+                                for (Map.Entry<String, Object> entry : contents.entrySet()) {
+                                    cellContents.put(entry.getKey(), (String) entry.getValue());
+                                }
+                                table.setCellContents(cellContents);
+                            }
+
+                            // Load cell colors
+                            Map<String, Object> colors = (Map<String, Object>) doc.get("cellColors");
+                            if (colors != null) {
+                                Map<String, Integer> cellColors = new HashMap<>();
+                                for (Map.Entry<String, Object> entry : colors.entrySet()) {
+                                    cellColors.put(entry.getKey(), ((Long) entry.getValue()).intValue());
+                                }
+                                table.setCellColors(cellColors);
+                            }
+
+                            tablesMap.put(tableId, table);
+                            Log.d("TABLE_DEBUG", "📊 Table loaded: " + tableId);
+                        }
+                    }
+
+                    // Reconstruct layout with tables
+                    reconstructNoteLayout(tablesMap);
+
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("TABLE_DEBUG", "❌ Error loading tables", e);
+                });
+    }
+
+    // ============================================================
+// NEW METHOD: Reconstruct note layout with tables inline
+// ============================================================
+    private void reconstructNoteLayout(Map<String, Table> tablesMap) {
+        if (tablesMap.isEmpty()) {
+            Log.d("TABLE_DEBUG", "No tables to display");
+            return;
+        }
+
+        String fullContent = noteContent.getText().toString();
+
+        if (!fullContent.contains("【TABLE:")) {
+            Log.d("TABLE_DEBUG", "No table placeholders found in content");
+            return;
+        }
+
+        LinearLayout noteContainer = findViewById(R.id.noteContainer);
+
+        String pattern = "【TABLE:(\\d+)】";
+        java.util.regex.Pattern tablePattern = java.util.regex.Pattern.compile(pattern);
+        java.util.regex.Matcher matcher = tablePattern.matcher(fullContent);
+
+        List<TablePosition> tablePositions = new ArrayList<>();
+
+        while (matcher.find()) {
+            String tableId = matcher.group(1);
+            int start = matcher.start();
+            int end = matcher.end();
+
+            if (tablesMap.containsKey(tableId)) {
+                tablePositions.add(new TablePosition(tableId, start, end));
+            }
+        }
+
+        if (tablePositions.isEmpty()) {
+            return;
+        }
+
+        Collections.sort(tablePositions, (a, b) -> Integer.compare(a.start, b.start));
+
+        Editable originalEditable = noteContent.getEditableText();
+        List<SpanInfo> savedSpans = saveAllSpansFromEditable(originalEditable);
+
+        int noteContentIndex = noteContainer.indexOfChild(noteContent);
+        for (int i = noteContainer.getChildCount() - 1; i > noteContentIndex; i--) {
+            noteContainer.removeViewAt(i);
+        }
+
+        TablePosition firstTable = tablePositions.get(0);
+        String beforeFirstTable = fullContent.substring(0, firstTable.start);
+
+        isUpdatingText = true;
+        noteContent.setText(beforeFirstTable);
+        restoreSpansForSection(noteContent.getEditableText(), savedSpans, 0, firstTable.start);
+        isUpdatingText = false;
+
+        for (int i = 0; i < tablePositions.size(); i++) {
+            TablePosition pos = tablePositions.get(i);
+            Table table = tablesMap.get(pos.tableId);
+
+            // Insert table
+            TableView tableView = new TableView(this);
+            tableView.setTableData(table);
+            tableView.setOnTableChangeListener(t -> saveTableToFirestore(t));
+
+            LinearLayout.LayoutParams tableParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            tableParams.setMargins(0, dpToPx(8), 0, dpToPx(8));
+            tableView.setLayoutParams(tableParams);
+            tableView.setTag(pos.tableId);
+
+            noteContainer.addView(tableView);
+            tableViews.put(pos.tableId, tableView);
+
+            // ✅ ALWAYS add EditText after table
+            EditText afterTableEdit = createEditTextForNote();
+
+            if (i < tablePositions.size() - 1) {
+                // Content between this table and next table
+                TablePosition nextPos = tablePositions.get(i + 1);
+                String betweenContent = fullContent.substring(pos.end, nextPos.start);
+
+                afterTableEdit.setText(betweenContent);
+                restoreSpansForSection(afterTableEdit.getEditableText(), savedSpans, pos.end, nextPos.start);
+            } else {
+                // Content after last table
+                String afterContent = fullContent.substring(pos.end);
+
+                if (!afterContent.trim().isEmpty()) {
+                    afterTableEdit.setText(afterContent);
+                    restoreSpansForSection(afterTableEdit.getEditableText(), savedSpans, pos.end, fullContent.length());
+                } else {
+                    // ✅ Even if empty, add EditText for typing
+                    afterTableEdit.setText("");
+                    afterTableEdit.setHint("");
+                }
+            }
+
+            setupEditTextListeners(afterTableEdit);
+            noteContainer.addView(afterTableEdit);
+        }
+
+        Log.d("TABLE_DEBUG", "✅ Layout reconstructed with EditTexts after each table");
+    }
+
+    // ============================================================
+// ✅ NEW METHOD: Save all spans from Editable
+// ============================================================
+    private List<SpanInfo> saveAllSpansFromEditable(Editable editable) {
+        List<SpanInfo> allSpans = new ArrayList<>();
+
+        Object[] spans = editable.getSpans(0, editable.length(), Object.class);
+        for (Object span : spans) {
+            int start = editable.getSpanStart(span);
+            int end = editable.getSpanEnd(span);
+
+            if (start >= 0 && end >= start) {
+                allSpans.add(new SpanInfo(span, start, end));
+            }
+        }
+
+        Log.d("TABLE_DEBUG", "💾 Saved " + allSpans.size() + " spans");
+        return allSpans;
+    }
+    // ============================================================
+// ✅ NEW METHOD: Restore spans for a specific text section
+// ============================================================
+    private void restoreSpansForSection(Editable editable, List<SpanInfo> savedSpans,
+                                        int sectionStart, int sectionEnd) {
+        int sectionLength = sectionEnd - sectionStart;
+
+        for (SpanInfo info : savedSpans) {
+            // Check if this span falls within the section
+            if (info.start >= sectionStart && info.end <= sectionEnd) {
+                // Adjust positions relative to new section
+                int newStart = info.start - sectionStart;
+                int newEnd = info.end - sectionStart;
+
+                // Validate bounds
+                if (newStart >= 0 && newEnd <= editable.length() && newStart < newEnd) {
+                    try {
+                        editable.setSpan(
+                                info.span,
+                                newStart,
+                                newEnd,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        );
+                        Log.d("TABLE_DEBUG", "✅ Restored span at " + newStart + "-" + newEnd);
+                    } catch (Exception e) {
+                        Log.e("TABLE_DEBUG", "❌ Error restoring span", e);
+                    }
+                }
+            }
+        }
+    }
+    private static class TablePosition {
+        String tableId;
+        int start;
+        int end;
+
+        TablePosition(String tableId, int start, int end) {
+            this.tableId = tableId;
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+
+
+    private void setupTableListener() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        if (tableListener != null) {
+            tableListener.remove();
+        }
+
+        tableListener = db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("tables")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Log.e("TABLE_DEBUG", "❌ Table listener error", error);
+                        return;
+                    }
+
+                    if (value != null) {
+                        for (QueryDocumentSnapshot doc : value) {
+                            String tableId = doc.getString("tableId");
+                            if (tableId != null) {
+                                // Update existing table view
+                                TableView existingView = tableViews.get(tableId);
+                                if (existingView != null) {
+                                    Table table = new Table();
+                                    table.setId(tableId);
+                                    table.setRowCount(doc.getLong("rowCount").intValue());
+                                    table.setColumnCount(doc.getLong("columnCount").intValue());
+
+                                    Map<String, Object> contents = (Map<String, Object>) doc.get("cellContents");
+                                    if (contents != null) {
+                                        Map<String, String> cellContents = new HashMap<>();
+                                        for (Map.Entry<String, Object> entry : contents.entrySet()) {
+                                            cellContents.put(entry.getKey(), (String) entry.getValue());
+                                        }
+                                        table.setCellContents(cellContents);
+                                    }
+
+                                    existingView.setTableData(table);
+                                }
+                            }
+                        }
+                    }
+                });
+    }
+
+    private void deleteTable(String tableId) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Table")
+                .setMessage("Remove this table from the note?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    FirebaseUser user = auth.getCurrentUser();
+                    if (user != null) {
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("tables").document(tableId)
+                                .delete()
+                                .addOnSuccessListener(aVoid -> {
+                                    // Remove from content
+                                    String content = noteContent.getText().toString();
+                                    String placeholder = "\n【TABLE:" + tableId + "】\n";
+                                    String newContent = content.replace(placeholder, "\n");
+
+                                    noteContent.setText(newContent);
+                                    tableViews.remove(tableId);
+
+                                    Toast.makeText(this, "Table deleted", Toast.LENGTH_SHORT).show();
+                                });
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     // Helper method to convert dp to pixels
     private int dpToPx(int dp) {
         return (int) (dp * getResources().getDisplayMetrics().density);

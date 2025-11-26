@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.LayoutInflater;
@@ -28,7 +29,7 @@ public class TableView extends FrameLayout {
     private LinearLayout toolbarContainer;
     private ImageView moreIcon;
     private boolean isExpanded = false;
-    private int rows = 4;
+    private int rows = 3;
     private int columns = 3;
 
     // Store current active dots
@@ -36,6 +37,9 @@ public class TableView extends FrameLayout {
     private ImageView currentTopDots;
     private Table tableData;
     private OnTableChangeListener changeListener;
+
+
+
 
     public interface OnTableChangeListener {
         void onTableChanged(Table table);
@@ -61,7 +65,7 @@ public class TableView extends FrameLayout {
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT
         );
-        tableParams.topMargin = dpToPx(40);
+        tableParams.topMargin = dpToPx(0);
         tableContainer.setLayoutParams(tableParams);
         tableContainer.setBackgroundColor(Color.TRANSPARENT);
 
@@ -77,7 +81,7 @@ public class TableView extends FrameLayout {
 
         GradientDrawable toolbarBg = new GradientDrawable();
         toolbarBg.setColor(Color.WHITE);
-        toolbarBg.setCornerRadius(dpToPx(18));
+        toolbarBg.setCornerRadius(dpToPx(-40));
         toolbarContainer.setBackground(toolbarBg);
         toolbarContainer.setElevation(dpToPx(4));
         toolbarContainer.setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6));
@@ -118,7 +122,7 @@ public class TableView extends FrameLayout {
                 LayoutParams.WRAP_CONTENT
         );
         gridParams.leftMargin = dpToPx(20); // Space for left dots
-        gridParams.topMargin = dpToPx(20);  // Space for top dots
+        gridParams.topMargin = dpToPx(0);  // Space for top dots
         tableGrid.setLayoutParams(gridParams);
 
         for (int i = 0; i < rows; i++) {
@@ -152,7 +156,7 @@ public class TableView extends FrameLayout {
         );
         leftParams.gravity = Gravity.START | Gravity.TOP;
         leftParams.leftMargin = -dpToPx(4);
-        leftParams.topMargin = dpToPx(30);
+        leftParams.topMargin = dpToPx(4);
         currentLeftDots.setLayoutParams(leftParams);
 
         // No background, just black icon
@@ -174,7 +178,7 @@ public class TableView extends FrameLayout {
         );
         topParams.gravity = Gravity.TOP | Gravity.START;
         topParams.leftMargin = dpToPx(30);
-        topParams.topMargin = -dpToPx(4);
+        topParams.topMargin = -dpToPx(-28);
         currentTopDots.setLayoutParams(topParams);
 
         // No background, just black icon
@@ -197,7 +201,7 @@ public class TableView extends FrameLayout {
         FrameLayout cellContainer = new FrameLayout(getContext());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 0,
-                dpToPx(50)
+                LayoutParams.WRAP_CONTENT
         );
         params.weight = 1;
         cellContainer.setLayoutParams(params);
@@ -213,12 +217,13 @@ public class TableView extends FrameLayout {
         editText.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
         editText.setTextSize(14);
         editText.setTextColor(Color.BLACK);
+        editText.setMinHeight(dpToPx(36));
         editText.setLayoutParams(new FrameLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT,
-                LayoutParams.MATCH_PARENT
+                LayoutParams.WRAP_CONTENT
         ));
 
-        // ✅ ADD: Auto-save on text change
+        // ✅ CRITICAL: Auto-save on text change
         editText.addTextChangedListener(new android.text.TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -228,25 +233,15 @@ public class TableView extends FrameLayout {
 
             @Override
             public void afterTextChanged(android.text.Editable s) {
-                // Notify parent that table has changed
-                notifyTableChanged();
+                // ✅ Save cell content to table data
+                if (tableData != null) {
+                    tableData.setCellContent(rowIndex, colIndex, s.toString());
+                    notifyTableChanged(); // This triggers Firestore save
+                }
             }
         });
 
         cellContainer.addView(editText);
-
-        editText.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                showDots();
-            } else {
-                hideDots();
-            }
-        });
-
-        cellContainer.setOnClickListener(v -> {
-            showDots();
-            editText.requestFocus();
-        });
 
         return cellContainer;
     }
@@ -458,6 +453,7 @@ public class TableView extends FrameLayout {
     private void duplicateRow(int rowIndex) {
         rows++;
         createTable();
+        notifyTableChanged();
     }
 
     private void clearRowContents(int rowIndex) {
@@ -482,7 +478,8 @@ public class TableView extends FrameLayout {
                 cellBorder.setColor(color);
                 cellBorder.setStroke(dpToPx(1), Color.parseColor("#E0E0E0"));
                 cell.setBackground(cellBorder);
-                // ✅ ADD: Save color to table data
+
+                // ✅ ADD: Save color
                 if (tableData != null) {
                     tableData.getCellColors().put(rowIndex + "-" + i, color);
                 }
@@ -490,7 +487,6 @@ public class TableView extends FrameLayout {
         }
         notifyTableChanged(); // ✅ ADD
     }
-
     // Column operations
     private void insertColumnAt(int position) {
         columns++;
@@ -509,6 +505,7 @@ public class TableView extends FrameLayout {
     private void duplicateColumn(int colIndex) {
         columns++;
         createTable();
+        notifyTableChanged();
     }
 
     private void clearColumnContents(int colIndex) {
@@ -533,7 +530,8 @@ public class TableView extends FrameLayout {
                 cellBorder.setColor(color);
                 cellBorder.setStroke(dpToPx(1), Color.parseColor("#E0E0E0"));
                 cell.setBackground(cellBorder);
-                // ✅ ADD: Save color to table data
+
+                // ✅ ADD: Save color
                 if (tableData != null) {
                     tableData.getCellColors().put(i + "-" + colIndex, color);
                 }
@@ -541,7 +539,6 @@ public class TableView extends FrameLayout {
         }
         notifyTableChanged(); // ✅ ADD
     }
-
     // Table operations
     private void duplicateTable() {
         ViewGroup parent = (ViewGroup) getParent();
@@ -578,9 +575,13 @@ public class TableView extends FrameLayout {
             this.rows = table.getRowCount();
             this.columns = table.getColumnCount();
             createTable();
-            loadTableData();
+
+            // Load data after a short delay to ensure table is created
+            postDelayed(() -> loadTableData(), 100);
         }
     }
+
+
 
     public Table getTableData() {
         if (tableData == null) {
@@ -589,7 +590,6 @@ public class TableView extends FrameLayout {
         saveCurrentTableData();
         return tableData;
     }
-
     public void setOnTableChangeListener(OnTableChangeListener listener) {
         this.changeListener = listener;
     }
@@ -604,62 +604,80 @@ public class TableView extends FrameLayout {
     private void saveCurrentTableData() {
         if (tableData == null) return;
 
-        // Update row and column counts
         tableData.setRowCount(rows);
         tableData.setColumnCount(columns);
 
-        // Save cell contents and colors
-        List<List<String>> contents = new ArrayList<>();
+        // ✅ Use Map instead of List<List<String>>
+        Map<String, String> contents = new HashMap<>();
         Map<String, Integer> colors = new HashMap<>();
 
-        LinearLayout tableGrid = (LinearLayout) ((FrameLayout) tableContainer.getChildAt(0)).getChildAt(0);
-
-        for (int i = 0; i < tableGrid.getChildCount(); i++) {
-            LinearLayout row = (LinearLayout) tableGrid.getChildAt(i);
-            List<String> rowContents = new ArrayList<>();
-
-            for (int j = 0; j < row.getChildCount(); j++) {
-                FrameLayout cell = (FrameLayout) row.getChildAt(j);
-                EditText editText = (EditText) cell.getChildAt(0);
-
-                // Save content
-                String content = editText.getText().toString();
-                rowContents.add(content);
-
-                // Save color (extract from background)
-                GradientDrawable bg = (GradientDrawable) cell.getBackground();
-                // We'll store the color if it's not default (white)
-                // This is a simplified approach - you might need to track colors differently
+        try {
+            if (tableContainer.getChildCount() == 0) {
+                Log.w("TableView", "No children in tableContainer");
+                return;
             }
 
-            contents.add(rowContents);
-        }
+            FrameLayout tableWrapper = (FrameLayout) tableContainer.getChildAt(0);
+            if (tableWrapper.getChildCount() == 0) {
+                Log.w("TableView", "No children in tableWrapper");
+                return;
+            }
 
-        tableData.setCellContents(contents);
-        tableData.setCellColors(colors);
+            LinearLayout tableGrid = (LinearLayout) tableWrapper.getChildAt(0);
+
+            for (int i = 0; i < tableGrid.getChildCount(); i++) {
+                View rowView = tableGrid.getChildAt(i);
+                if (!(rowView instanceof LinearLayout)) continue;
+
+                LinearLayout row = (LinearLayout) rowView;
+
+                for (int j = 0; j < row.getChildCount(); j++) {
+                    View cellView = row.getChildAt(j);
+                    if (!(cellView instanceof FrameLayout)) continue;
+
+                    FrameLayout cell = (FrameLayout) cellView;
+                    if (cell.getChildCount() == 0) continue;
+
+                    View childView = cell.getChildAt(0);
+                    if (!(childView instanceof EditText)) continue;
+
+                    EditText editText = (EditText) childView;
+                    String content = editText.getText().toString();
+
+                    // ✅ Save with "row-col" key format
+                    contents.put(i + "-" + j, content);
+                }
+            }
+
+            tableData.setCellContents(contents);
+            tableData.setCellColors(colors);
+
+        } catch (Exception e) {
+            Log.e("TableView", "Error saving table data", e);
+            e.printStackTrace();
+        }
     }
 
     private void loadTableData() {
         if (tableData == null || tableData.getCellContents() == null) return;
 
-        postDelayed(() -> {
+        try {
             LinearLayout tableGrid = (LinearLayout) ((FrameLayout) tableContainer.getChildAt(0)).getChildAt(0);
-            List<List<String>> contents = tableData.getCellContents();
+            Map<String, String> contents = tableData.getCellContents();
             Map<String, Integer> colors = tableData.getCellColors();
 
-            for (int i = 0; i < Math.min(tableGrid.getChildCount(), contents.size()); i++) {
+            for (int i = 0; i < tableGrid.getChildCount(); i++) {
                 LinearLayout row = (LinearLayout) tableGrid.getChildAt(i);
-                List<String> rowContents = contents.get(i);
 
-                for (int j = 0; j < Math.min(row.getChildCount(), rowContents.size()); j++) {
+                for (int j = 0; j < row.getChildCount(); j++) {
                     FrameLayout cell = (FrameLayout) row.getChildAt(j);
                     EditText editText = (EditText) cell.getChildAt(0);
 
-                    // Load content
-                    editText.setText(rowContents.get(j));
-
-                    // Load color
+                    // ✅ Load using "row-col" key format
                     String key = i + "-" + j;
+                    String content = contents.getOrDefault(key, "");
+                    editText.setText(content);
+
                     if (colors.containsKey(key)) {
                         Integer color = colors.get(key);
                         GradientDrawable cellBorder = new GradientDrawable();
@@ -669,7 +687,11 @@ public class TableView extends FrameLayout {
                     }
                 }
             }
-        }, 100);
+        } catch (Exception e) {
+            Log.e("TableView", "Error loading table data", e);
+            e.printStackTrace();
+        }
     }
+
 
 }

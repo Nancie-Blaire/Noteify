@@ -1,21 +1,19 @@
 package com.example.testtasksync;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class Table {
     private String id;
     private int position;
-    private List<List<String>> cellContents; // Cell text content
+    private Map<String, String> cellContents; // "row-col" -> content
     private Map<String, Integer> cellColors; // "row-col" -> color
     private int columnCount;
     private int rowCount;
     private long timestamp;
 
     public Table() {
-        this.cellContents = new ArrayList<>();
+        this.cellContents = new HashMap<>();
         this.cellColors = new HashMap<>();
         this.columnCount = 3;
         this.rowCount = 4;
@@ -26,18 +24,25 @@ public class Table {
         this.position = position;
         this.rowCount = rows;
         this.columnCount = cols;
-        this.cellContents = new ArrayList<>();
+        this.cellContents = new HashMap<>();
         this.cellColors = new HashMap<>();
         this.timestamp = System.currentTimeMillis();
+    }
 
-        // Initialize empty cells
-        for (int i = 0; i < rows; i++) {
-            List<String> row = new ArrayList<>();
-            for (int j = 0; j < cols; j++) {
-                row.add("");
-            }
-            cellContents.add(row);
+    // ✅ NEW: Method to set cell content by row/col
+    public void setCellContent(int row, int col, String content) {
+        String key = row + "-" + col;
+        if (content != null && !content.trim().isEmpty()) {
+            cellContents.put(key, content);
+        } else {
+            cellContents.remove(key);
         }
+    }
+
+    // ✅ NEW: Method to get cell content by row/col
+    public String getCellContent(int row, int col) {
+        String key = row + "-" + col;
+        return cellContents.getOrDefault(key, "");
     }
 
     // Getters and Setters
@@ -47,11 +52,15 @@ public class Table {
     public int getPosition() { return position; }
     public void setPosition(int position) { this.position = position; }
 
-    public List<List<String>> getCellContents() { return cellContents; }
-    public void setCellContents(List<List<String>> cellContents) { this.cellContents = cellContents; }
+    public Map<String, String> getCellContents() { return cellContents; }
+    public void setCellContents(Map<String, String> cellContents) {
+        this.cellContents = cellContents != null ? cellContents : new HashMap<>();
+    }
 
     public Map<String, Integer> getCellColors() { return cellColors; }
-    public void setCellColors(Map<String, Integer> cellColors) { this.cellColors = cellColors; }
+    public void setCellColors(Map<String, Integer> cellColors) {
+        this.cellColors = cellColors != null ? cellColors : new HashMap<>();
+    }
 
     public int getColumnCount() { return columnCount; }
     public void setColumnCount(int columnCount) { this.columnCount = columnCount; }

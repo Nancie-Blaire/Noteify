@@ -1851,12 +1851,12 @@ public class NoteActivity extends AppCompatActivity {
         // Set initial style selection
         if ("highlight".equals(selectedStyle[0])) {
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#4CAF50"));
+            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
             styleUnderline.setTextColor(Color.parseColor("#666666"));
         } else {
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#4CAF50"));
+            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
             styleHighlight.setTextColor(Color.parseColor("#666666"));
         }
@@ -1882,7 +1882,7 @@ public class NoteActivity extends AppCompatActivity {
         styleHighlight.setOnClickListener(v -> {
             selectedStyle[0] = "highlight";
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#4CAF50"));
+            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
             styleUnderline.setTextColor(Color.parseColor("#666666"));
         });
@@ -1890,7 +1890,7 @@ public class NoteActivity extends AppCompatActivity {
         styleUnderline.setOnClickListener(v -> {
             selectedStyle[0] = "underline";
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#4CAF50"));
+            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
             styleHighlight.setTextColor(Color.parseColor("#666666"));
         });
@@ -2008,7 +2008,7 @@ public class NoteActivity extends AppCompatActivity {
         colorViolet.setScaleX(1.2f);
         colorViolet.setScaleY(1.2f);
         styleHighlight.setBackgroundResource(R.drawable.style_selected);
-        styleHighlight.setTextColor(Color.parseColor("#4CAF50"));
+        styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange text
 
         View.OnClickListener colorListener = v -> {
             resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen, colorBlue, colorOrange, colorRed, colorCyan);
@@ -2029,7 +2029,7 @@ public class NoteActivity extends AppCompatActivity {
         styleHighlight.setOnClickListener(v -> {
             selectedStyle[0] = "highlight";
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#4CAF50"));
+            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
             styleUnderline.setTextColor(Color.parseColor("#666666"));
         });
@@ -2037,7 +2037,7 @@ public class NoteActivity extends AppCompatActivity {
         styleUnderline.setOnClickListener(v -> {
             selectedStyle[0] = "underline";
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#4CAF50"));
+            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
             styleHighlight.setTextColor(Color.parseColor("#666666"));
         });
@@ -5779,7 +5779,7 @@ public class NoteActivity extends AppCompatActivity {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.parseColor("#FFFFFF"));
         bg.setCornerRadius(dpToPx(8));
-        bg.setStroke(dpToPx(2), Color.parseColor("#4CAF50"));
+        bg.setStroke(dpToPx(2), Color.parseColor("#ff9376")); // pastel orange
         dragFloatingText.setBackground(bg);
 
         ((FrameLayout) dragOverlayView).addView(dragFloatingText);

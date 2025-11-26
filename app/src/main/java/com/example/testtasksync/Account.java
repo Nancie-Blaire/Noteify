@@ -1,34 +1,41 @@
 package com.example.testtasksync;
 
-import android.content.DialogInterface; // Idagdag ito
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AlertDialog; // Idagdag ito
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.util.List;
+
 public class Account extends AppCompatActivity {
 
     private static final String TAG = "AccountActivity";
 
-    private TextView btnLogout, btnEditProfile, tvChangePassword, tvDeleteAccount;
+    private TextView btnLogout, btnEditProfile, tvChangePassword, tvDeleteAccount, tvSwitchAccount;
     private ImageView ivProfilePicture;
     private TextView tvUserName, tvUserEmail;
     private FirebaseAuth auth;
     private FirebaseFirestore db;
+    private AccountManager accountManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +50,7 @@ public class Account extends AppCompatActivity {
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+        accountManager = new AccountManager(this);
 
         // Initialize views
         ivProfilePicture = findViewById(R.id.ivProfilePicture);
@@ -52,6 +60,7 @@ public class Account extends AppCompatActivity {
         btnEditProfile = findViewById(R.id.btnEditProfile);
         tvChangePassword = findViewById(R.id.tvChangePassword);
         tvDeleteAccount = findViewById(R.id.tvDeleteAccount);
+        tvSwitchAccount = findViewById(R.id.tvSwitchAccount);
 
         // Load user profile
         loadUserProfile();
@@ -60,7 +69,6 @@ public class Account extends AppCompatActivity {
         btnLogout.setOnClickListener(v -> {
             FirebaseAuth.getInstance().signOut();
 
-            // ✅ Clear the activity stack and start fresh
             Intent intent = new Intent(Account.this, Login.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
@@ -81,7 +89,12 @@ public class Account extends AppCompatActivity {
 
         // Delete Account Button
         tvDeleteAccount.setOnClickListener(v -> {
-            showDeleteConfirmationDialog(); // Tatawagin ang confirmation dialog
+            showDeleteConfirmationDialog();
+        });
+
+        // Switch Account Button
+        tvSwitchAccount.setOnClickListener(v -> {
+            showAccountSwitchDialog();
         });
     }
 
@@ -98,7 +111,7 @@ public class Account extends AppCompatActivity {
             return;
         }
 
-        // Show email (always available)
+        // Show email
         tvUserEmail.setText(user.getEmail());
 
         // Load profile data from Firestore
@@ -107,7 +120,6 @@ public class Account extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
-                        // Get display name
                         String displayName = documentSnapshot.getString("displayName");
                         String authProvider = documentSnapshot.getString("authProvider");
                         String photoUrl = documentSnapshot.getString("photoUrl");
@@ -116,7 +128,6 @@ public class Account extends AppCompatActivity {
                         if (displayName != null && !displayName.isEmpty()) {
                             tvUserName.setText(displayName);
                         } else {
-                            // Fallback: Use email username
                             String email = user.getEmail();
                             if (email != null && email.contains("@")) {
                                 tvUserName.setText(email.split("@")[0]);
@@ -127,14 +138,14 @@ public class Account extends AppCompatActivity {
 
                         // Profile Picture
                         if (photoUrl != null && !photoUrl.isEmpty()) {
-                            // Load Google profile picture with Glide
                             loadProfileImage(photoUrl);
                         } else {
-                            // Show default avatar
                             showDefaultAvatar(displayName != null ? displayName : "User");
                         }
+
+                        // Save account to AccountManager
+                        accountManager.saveAccount(user.getEmail(), user.getUid(), displayName, photoUrl);
                     } else {
-                        // No profile data - show defaults
                         String email = user.getEmail();
                         if (email != null && email.contains("@")) {
                             tvUserName.setText(email.split("@")[0]);
@@ -142,6 +153,10 @@ public class Account extends AppCompatActivity {
                             tvUserName.setText("User");
                         }
                         showDefaultAvatar(tvUserName.getText().toString());
+
+                        // Save account even without profile data
+                        accountManager.saveAccount(user.getEmail(), user.getUid(),
+                                tvUserName.getText().toString(), null);
                     }
                 })
                 .addOnFailureListener(e -> {
@@ -157,7 +172,6 @@ public class Account extends AppCompatActivity {
     }
 
     private void loadProfileImage(String photoUrl) {
-        // Load image with Glide (circular crop)
         Glide.with(this)
                 .load(photoUrl)
                 .circleCrop()
@@ -167,33 +181,97 @@ public class Account extends AppCompatActivity {
     }
 
     private void showDefaultAvatar(String name) {
-        // Show default icon
-        // TODO: You can create a custom drawable with first letter + colored circle
-        // For now, just show default icon
         ivProfilePicture.setImageResource(R.drawable.ic_settings_account);
     }
 
     /**
-     * Ipinapakita ang confirmation dialog bago i-delete ang account.
+     * Show dialog to switch between saved accounts
      */
+    private void showAccountSwitchDialog() {
+        List<AccountManager.SavedAccount> accounts = accountManager.getSavedAccounts();
+
+        if (accounts.isEmpty()) {
+            Toast.makeText(this, "No saved accounts found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Create dialog
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Switch Account");
+
+        // Inflate custom layout with RecyclerView
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_account_switch, null);
+        RecyclerView recyclerView = dialogView.findViewById(R.id.rvAccounts);
+        TextView tvAddAccount = dialogView.findViewById(R.id.tvAddAccount);
+
+        // Setup RecyclerView
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        AccountSwitchAdapter adapter = new AccountSwitchAdapter(
+                this,
+                accounts,
+                accountManager.getCurrentAccountEmail(),
+                account -> {
+                    // Handle account switch
+                    switchToAccount(account);
+                }
+        );
+        recyclerView.setAdapter(adapter);
+
+        // Add Account button
+        tvAddAccount.setOnClickListener(v -> {
+            // Sign out and go to login
+            FirebaseAuth.getInstance().signOut();
+            Intent intent = new Intent(Account.this, Login.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        });
+
+        builder.setView(dialogView);
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    /**
+     * Switch to a different saved account
+     */
+    private void switchToAccount(AccountManager.SavedAccount account) {
+        FirebaseUser currentUser = auth.getCurrentUser();
+
+        // Check if already on this account
+        if (currentUser != null && currentUser.getEmail().equals(account.getEmail())) {
+            Toast.makeText(this, "Already using this account", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Sign out current user
+        auth.signOut();
+
+        // Set this as current account
+        accountManager.setCurrentAccount(account.getEmail());
+
+        // Redirect to login with pre-filled email
+        Intent intent = new Intent(Account.this, Login.class);
+        intent.putExtra("SWITCH_ACCOUNT_EMAIL", account.getEmail());
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+    }
+
     private void showDeleteConfirmationDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Account")
                 .setMessage("Are you sure you want to permanently delete your account? All your data will be lost.")
                 .setPositiveButton("Delete", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        // Kung pinindot ang "Delete", tawagin ang actual delete function
                         deleteUserAccount();
                     }
                 })
-                .setNegativeButton(android.R.string.cancel, null) // Walang gagawin kapag pinindot ang Cancel
+                .setNegativeButton(android.R.string.cancel, null)
                 .setIcon(android.R.drawable.ic_dialog_alert)
                 .show();
     }
 
-    /**
-     * Handles the user account deletion process, including Firestore data cleanup.
-     */
     private void deleteUserAccount() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
@@ -201,25 +279,29 @@ public class Account extends AppCompatActivity {
             return;
         }
 
-        // 1. Delete user data from Firestore first
+        String userEmail = user.getEmail();
+
+        // Delete user data from Firestore first
         db.collection("users").document(user.getUid())
                 .delete()
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "User data successfully deleted from Firestore!");
-                    // 2. Then, delete the Firebase Auth user account
+
+                    // Delete from AccountManager
+                    accountManager.removeAccount(userEmail);
+
+                    // Delete the Firebase Auth user account
                     user.delete()
                             .addOnCompleteListener(task -> {
                                 if (task.isSuccessful()) {
                                     Log.d(TAG, "User account deleted.");
                                     Toast.makeText(Account.this, "Account deleted successfully.", Toast.LENGTH_LONG).show();
 
-                                    // Redirect to Login screen
                                     Intent intent = new Intent(Account.this, Login.class);
                                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                                     startActivity(intent);
                                     finish();
                                 } else {
-                                    // Handle failure. Needs re-authentication if the user's login session is too old.
                                     Log.w(TAG, "Failed to delete user account: " + task.getException());
                                     Toast.makeText(Account.this, "Failed to delete account. Please log out and log in again, then try deleting.", Toast.LENGTH_LONG).show();
                                 }

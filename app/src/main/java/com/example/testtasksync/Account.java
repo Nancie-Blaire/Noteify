@@ -6,6 +6,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -197,12 +199,13 @@ public class Account extends AppCompatActivity {
 
         // Create dialog
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Switch Account");
+        // REMOVED: builder.setTitle("Switch Account"); - title is now in the layout
 
         // Inflate custom layout with RecyclerView
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_account_switch, null);
         RecyclerView recyclerView = dialogView.findViewById(R.id.rvAccounts);
         TextView tvAddAccount = dialogView.findViewById(R.id.tvAddAccount);
+        TextView btnCancel = dialogView.findViewById(R.id.btnCancel);  // Changed from setNegativeButton
 
         // Setup RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -217,8 +220,14 @@ public class Account extends AppCompatActivity {
         );
         recyclerView.setAdapter(adapter);
 
+        builder.setView(dialogView);
+        // REMOVED: builder.setNegativeButton("Cancel", null); - cancel button is now in the layout
+
+        AlertDialog dialog = builder.create();
+
         // Add Account button
         tvAddAccount.setOnClickListener(v -> {
+            dialog.dismiss();
             // Sign out and go to login
             FirebaseAuth.getInstance().signOut();
             Intent intent = new Intent(Account.this, Login.class);
@@ -227,9 +236,10 @@ public class Account extends AppCompatActivity {
             finish();
         });
 
-        builder.setView(dialogView);
-        builder.setNegativeButton("Cancel", null);
-        builder.show();
+        // Cancel button
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
     }
 
     /**
@@ -244,18 +254,126 @@ public class Account extends AppCompatActivity {
             return;
         }
 
-        // Sign out current user
-        auth.signOut();
+        // Show password confirmation dialog
+        showPasswordConfirmationDialog(account);
+    }
 
-        // Set this as current account
-        accountManager.setCurrentAccount(account.getEmail());
+    /**
+     * Show password confirmation dialog for account switching
+     */
+    private void showPasswordConfirmationDialog(AccountManager.SavedAccount account) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_account_switch_password_confirm, null);
 
-        // Redirect to login with pre-filled email
-        Intent intent = new Intent(Account.this, Login.class);
-        intent.putExtra("SWITCH_ACCOUNT_EMAIL", account.getEmail());
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(intent);
-        finish();
+        // Get dialog views
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tvDialogTitle);
+        EditText etDialogPassword = dialogView.findViewById(R.id.etDialogPassword);
+        ImageView ivDialogTogglePassword = dialogView.findViewById(R.id.ivDialogTogglePassword);
+        TextView tvDialogForgotPassword = dialogView.findViewById(R.id.tvDialogForgotPassword);
+        Button btnDialogCancel = dialogView.findViewById(R.id.btnDialogCancel);
+        Button btnDialogContinue = dialogView.findViewById(R.id.btnDialogContinue);
+
+        // Set title with account name
+        String displayName = account.getDisplayName() != null && !account.getDisplayName().isEmpty()
+                ? account.getDisplayName()
+                : account.getEmail().split("@")[0];
+        tvDialogTitle.setText("Continue as " + displayName);
+
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        // Password visibility toggle
+        final boolean[] isPasswordVisible = {false};
+        ivDialogTogglePassword.setOnClickListener(v -> {
+            if (isPasswordVisible[0]) {
+                etDialogPassword.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                ivDialogTogglePassword.setImageResource(R.drawable.ic_password_eye_off);
+                isPasswordVisible[0] = false;
+            } else {
+                etDialogPassword.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+                ivDialogTogglePassword.setImageResource(R.drawable.ic_password_eye_on);
+                isPasswordVisible[0] = true;
+            }
+            etDialogPassword.setSelection(etDialogPassword.getText().length());
+        });
+
+        // Forgot password
+        tvDialogForgotPassword.setOnClickListener(v -> {
+            dialog.dismiss();
+            // Send password reset email
+            auth.sendPasswordResetEmail(account.getEmail())
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(Account.this,
+                                "Password reset email sent to " + account.getEmail(),
+                                Toast.LENGTH_LONG).show();
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(Account.this,
+                                "Failed to send reset email: " + e.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                    });
+        });
+
+        // Cancel button
+        btnDialogCancel.setOnClickListener(v -> dialog.dismiss());
+
+        // Continue button
+        btnDialogContinue.setOnClickListener(v -> {
+            String password = etDialogPassword.getText().toString().trim();
+
+            if (password.isEmpty()) {
+                etDialogPassword.setError("Password is required");
+                etDialogPassword.requestFocus();
+                return;
+            }
+
+            // Disable button and show progress
+            btnDialogContinue.setEnabled(false);
+            btnDialogContinue.setText("Signing in...");
+
+            // Sign out current user first
+            auth.signOut();
+
+            // Sign in with the selected account
+            auth.signInWithEmailAndPassword(account.getEmail(), password)
+                    .addOnSuccessListener(authResult -> {
+                        // Set as current account
+                        accountManager.setCurrentAccount(account.getEmail());
+
+                        dialog.dismiss();
+                        Toast.makeText(Account.this,
+                                "Switched to " + account.getEmail(),
+                                Toast.LENGTH_SHORT).show();
+
+                        // Reload the activity to show new account
+                        Intent intent = new Intent(Account.this, MainActivity.class);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(intent);
+                        finish();
+                    })
+                    .addOnFailureListener(e -> {
+                        btnDialogContinue.setEnabled(true);
+                        btnDialogContinue.setText("CONTINUE");
+
+                        String errorMessage = "Incorrect password";
+                        if (e.getMessage() != null) {
+                            if (e.getMessage().contains("network")) {
+                                errorMessage = "Network error. Please check your connection.";
+                            } else if (e.getMessage().contains("user-not-found")) {
+                                errorMessage = "Account not found. Please sign up again.";
+                            }
+                        }
+
+                        etDialogPassword.setError(errorMessage);
+                        etDialogPassword.requestFocus();
+                        Toast.makeText(Account.this, errorMessage, Toast.LENGTH_SHORT).show();
+                    });
+        });
+
+        dialog.show();
+
+        // Auto-focus on password field
+        etDialogPassword.requestFocus();
     }
 
     private void showDeleteConfirmationDialog() {

@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -18,12 +19,24 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.tasks.Task;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.List;
@@ -31,9 +44,11 @@ import java.util.List;
 public class Account extends AppCompatActivity {
 
     private static final String TAG = "AccountActivity";
+    private static final int RC_GOOGLE_SIGN_IN_ADD_ACCOUNT = 9002;
+    private static final String SECONDARY_APP_NAME = "SecondaryApp";
 
     private TextView btnLogout, btnEditProfile, tvChangePassword, tvDeleteAccount, tvSwitchAccount;
-    private ImageView ivProfilePicture;
+    private ImageView ivProfilePicture, ivBack;
     private TextView tvUserName, tvUserEmail;
     private FirebaseAuth auth;
     private FirebaseFirestore db;
@@ -56,6 +71,7 @@ public class Account extends AppCompatActivity {
 
         // Initialize views
         ivProfilePicture = findViewById(R.id.ivProfilePicture);
+        ivBack = findViewById(R.id.ivBack);
         tvUserName = findViewById(R.id.tvUserName);
         tvUserEmail = findViewById(R.id.tvUserEmail);
         btnLogout = findViewById(R.id.btnLogout);
@@ -66,6 +82,8 @@ public class Account extends AppCompatActivity {
 
         // Load user profile
         loadUserProfile();
+        // Back Button
+        ivBack.setOnClickListener(v -> finish());
 
         // Logout Button
         btnLogout.setOnClickListener(v -> {
@@ -104,6 +122,24 @@ public class Account extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadUserProfile();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == RC_GOOGLE_SIGN_IN_ADD_ACCOUNT) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                GoogleSignInAccount account = task.getResult(ApiException.class);
+                if (account != null) {
+                    firebaseAuthWithGoogle(account);
+                }
+            } catch (ApiException e) {
+                Log.w(TAG, "Google sign in failed", e);
+                Toast.makeText(this, "Google sign in cancelled or failed", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private void loadUserProfile() {
@@ -187,6 +223,27 @@ public class Account extends AppCompatActivity {
     }
 
     /**
+     * Get or create a secondary FirebaseAuth instance for testing credentials
+     */
+    private FirebaseAuth getSecondaryAuth() {
+        try {
+            FirebaseApp secondaryApp = FirebaseApp.getInstance(SECONDARY_APP_NAME);
+            return FirebaseAuth.getInstance(secondaryApp);
+        } catch (IllegalStateException e) {
+            // Secondary app doesn't exist, create it
+            FirebaseOptions primaryOptions = FirebaseApp.getInstance().getOptions();
+            FirebaseOptions secondaryOptions = new FirebaseOptions.Builder()
+                    .setApiKey(primaryOptions.getApiKey())
+                    .setApplicationId(primaryOptions.getApplicationId())
+                    .setProjectId(primaryOptions.getProjectId())
+                    .build();
+
+            FirebaseApp secondaryApp = FirebaseApp.initializeApp(this, secondaryOptions, SECONDARY_APP_NAME);
+            return FirebaseAuth.getInstance(secondaryApp);
+        }
+    }
+
+    /**
      * Show dialog to switch between saved accounts
      */
     private void showAccountSwitchDialog() {
@@ -199,13 +256,12 @@ public class Account extends AppCompatActivity {
 
         // Create dialog
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        // REMOVED: builder.setTitle("Switch Account"); - title is now in the layout
 
         // Inflate custom layout with RecyclerView
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_account_switch, null);
         RecyclerView recyclerView = dialogView.findViewById(R.id.rvAccounts);
         TextView tvAddAccount = dialogView.findViewById(R.id.tvAddAccount);
-        TextView btnCancel = dialogView.findViewById(R.id.btnCancel);  // Changed from setNegativeButton
+        TextView btnCancel = dialogView.findViewById(R.id.btnCancel);
 
         // Setup RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -221,25 +277,266 @@ public class Account extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
 
         builder.setView(dialogView);
-        // REMOVED: builder.setNegativeButton("Cancel", null); - cancel button is now in the layout
-
         AlertDialog dialog = builder.create();
 
-        // Add Account button
+        // Add swipe-to-delete functionality
+        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
+            @Override
+            public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, RecyclerView.ViewHolder target) {
+                return false;
+            }
+
+            @Override
+            public void onSwiped(RecyclerView.ViewHolder viewHolder, int direction) {
+                int position = viewHolder.getAdapterPosition();
+                AccountManager.SavedAccount accountToDelete = accounts.get(position);
+
+                // Show confirmation dialog before deleting
+                showDeleteAccountConfirmationDialog(accountToDelete, position, adapter, accounts);
+            }
+        });
+        itemTouchHelper.attachToRecyclerView(recyclerView);
+
+        // Add Account button - Now shows bottom sheet
         tvAddAccount.setOnClickListener(v -> {
             dialog.dismiss();
-            // Sign out and go to login
-            FirebaseAuth.getInstance().signOut();
-            Intent intent = new Intent(Account.this, Login.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
+            showAddAccountBottomSheet();
         });
 
         // Cancel button
         btnCancel.setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
+    }
+
+    /**
+     * Show confirmation dialog before deleting account from list
+     */
+    private void showDeleteAccountConfirmationDialog(AccountManager.SavedAccount account, int position,
+                                                     AccountSwitchAdapter adapter, List<AccountManager.SavedAccount> accounts) {
+        new AlertDialog.Builder(this)
+                .setTitle("Remove Account")
+                .setMessage("Remove " + account.getEmail() + " from saved accounts?")
+                .setPositiveButton("Remove", (dialog, which) -> {
+                    // Remove from AccountManager
+                    accountManager.removeAccount(account.getEmail());
+
+                    // Remove from list
+                    accounts.remove(position);
+                    adapter.notifyItemRemoved(position);
+
+                    Toast.makeText(Account.this, "Account removed", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> {
+                    // Restore the item in the adapter
+                    adapter.notifyItemChanged(position);
+                })
+                .setOnCancelListener(dialog -> {
+                    // Restore the item if dialog is cancelled
+                    adapter.notifyItemChanged(position);
+                })
+                .show();
+    }
+
+    /**
+     * Show bottom sheet for adding a new account
+     */
+    private void showAddAccountBottomSheet() {
+        BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(this);
+        View bottomSheetView = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_add_account, null);
+        bottomSheetDialog.setContentView(bottomSheetView);
+
+        // Initialize views
+        EditText etBottomSheetEmail = bottomSheetView.findViewById(R.id.etBottomSheetEmail);
+        EditText etBottomSheetPassword = bottomSheetView.findViewById(R.id.etBottomSheetPassword);
+        ImageView ivBottomSheetTogglePassword = bottomSheetView.findViewById(R.id.ivBottomSheetTogglePassword);
+        ImageView ivCloseBottomSheet = bottomSheetView.findViewById(R.id.ivCloseBottomSheet);
+        Button btnBottomSheetSignIn = bottomSheetView.findViewById(R.id.btnBottomSheetSignIn);
+        Button btnBottomSheetGoogleSignIn = bottomSheetView.findViewById(R.id.btnBottomSheetGoogleSignIn);
+        ProgressBar progressBarBottomSheet = bottomSheetView.findViewById(R.id.progressBarBottomSheet);
+
+        // Close button
+        ivCloseBottomSheet.setOnClickListener(v -> bottomSheetDialog.dismiss());
+
+        // Password visibility toggle
+        final boolean[] isPasswordVisible = {false};
+        ivBottomSheetTogglePassword.setOnClickListener(v -> {
+            if (isPasswordVisible[0]) {
+                etBottomSheetPassword.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                ivBottomSheetTogglePassword.setImageResource(R.drawable.ic_password_eye_off);
+                isPasswordVisible[0] = false;
+            } else {
+                etBottomSheetPassword.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+                ivBottomSheetTogglePassword.setImageResource(R.drawable.ic_password_eye_on);
+                isPasswordVisible[0] = true;
+            }
+            etBottomSheetPassword.setSelection(etBottomSheetPassword.getText().length());
+        });
+
+        // Email/Password Sign In
+        btnBottomSheetSignIn.setOnClickListener(v -> {
+            String email = etBottomSheetEmail.getText().toString().trim();
+            String password = etBottomSheetPassword.getText().toString().trim();
+
+            // Validation
+            if (email.isEmpty()) {
+                etBottomSheetEmail.setError("Email is required");
+                etBottomSheetEmail.requestFocus();
+                return;
+            }
+
+            if (password.isEmpty()) {
+                etBottomSheetPassword.setError("Password is required");
+                etBottomSheetPassword.requestFocus();
+                return;
+            }
+
+            // Check if trying to add the same account
+            FirebaseUser currentUser = auth.getCurrentUser();
+            if (currentUser != null && email.equals(currentUser.getEmail())) {
+                Toast.makeText(Account.this, "You are already signed in with this account", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Show progress
+            progressBarBottomSheet.setVisibility(View.VISIBLE);
+            btnBottomSheetSignIn.setEnabled(false);
+            btnBottomSheetGoogleSignIn.setEnabled(false);
+
+            // Use secondary auth instance to verify credentials WITHOUT signing out the current user
+            FirebaseAuth secondaryAuth = getSecondaryAuth();
+
+            // Try to sign in with the new account using secondary auth instance
+            secondaryAuth.signInWithEmailAndPassword(email, password)
+                    .addOnSuccessListener(authResult -> {
+                        // Credentials are valid! Now we can safely switch accounts
+                        // Get the user info before signing out from secondary
+                        FirebaseUser newUser = authResult.getUser();
+
+                        // Sign out from secondary instance
+                        secondaryAuth.signOut();
+
+                        // Now sign out from primary and sign in with the new account
+                        auth.signOut();
+
+                        auth.signInWithEmailAndPassword(email, password)
+                                .addOnSuccessListener(authResult2 -> {
+                                    if (newUser != null) {
+                                        // Set as current account
+                                        accountManager.setCurrentAccount(email);
+
+                                        bottomSheetDialog.dismiss();
+                                        Toast.makeText(Account.this,
+                                                "Signed in as " + email,
+                                                Toast.LENGTH_SHORT).show();
+
+                                        // Reload the activity
+                                        Intent intent = new Intent(Account.this, MainActivity.class);
+                                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                        startActivity(intent);
+                                        finish();
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    // This shouldn't happen since we verified credentials, but handle it anyway
+                                    progressBarBottomSheet.setVisibility(View.GONE);
+                                    btnBottomSheetSignIn.setEnabled(true);
+                                    btnBottomSheetGoogleSignIn.setEnabled(true);
+                                    Toast.makeText(Account.this, "Failed to switch accounts", Toast.LENGTH_SHORT).show();
+                                });
+                    })
+                    .addOnFailureListener(e -> {
+                        // Invalid credentials - show error but DON'T affect current session
+                        progressBarBottomSheet.setVisibility(View.GONE);
+                        btnBottomSheetSignIn.setEnabled(true);
+                        btnBottomSheetGoogleSignIn.setEnabled(true);
+
+                        // Sign out from secondary instance to clean up
+                        secondaryAuth.signOut();
+
+                        String errorMessage = "Authentication failed";
+                        if (e.getMessage() != null) {
+                            if (e.getMessage().contains("password") || e.getMessage().contains("INVALID_LOGIN_CREDENTIALS")) {
+                                errorMessage = "Incorrect email or password";
+                            } else if (e.getMessage().contains("user-not-found")) {
+                                errorMessage = "No account found with this email";
+                            } else if (e.getMessage().contains("network")) {
+                                errorMessage = "Network error. Please check your connection.";
+                            } else if (e.getMessage().contains("invalid-email")) {
+                                errorMessage = "Invalid email format";
+                            }
+                        }
+
+                        Toast.makeText(Account.this, errorMessage, Toast.LENGTH_LONG).show();
+
+                        // Current user remains logged in - no action needed!
+                        Log.d(TAG, "Failed to add account, current user still logged in");
+                    });
+        });
+
+        // Google Sign In
+        btnBottomSheetGoogleSignIn.setOnClickListener(v -> {
+            // Show progress
+            progressBarBottomSheet.setVisibility(View.VISIBLE);
+            btnBottomSheetSignIn.setEnabled(false);
+            btnBottomSheetGoogleSignIn.setEnabled(false);
+
+            // Configure Google Sign In
+            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(getString(R.string.default_web_client_id))
+                    .requestEmail()
+                    .build();
+
+            GoogleSignInClient googleSignInClient = GoogleSignIn.getClient(this, gso);
+
+            // Sign out from Google (not Firebase) to allow account selection
+            googleSignInClient.signOut().addOnCompleteListener(task -> {
+                Intent signInIntent = googleSignInClient.getSignInIntent();
+                startActivityForResult(signInIntent, RC_GOOGLE_SIGN_IN_ADD_ACCOUNT);
+                bottomSheetDialog.dismiss();
+            });
+        });
+
+        bottomSheetDialog.show();
+    }
+
+    /**
+     * Helper method for Google Sign In authentication
+     */
+    private void firebaseAuthWithGoogle(GoogleSignInAccount account) {
+        // Check if trying to add the same account
+        FirebaseUser currentUser = auth.getCurrentUser();
+        if (currentUser != null && account.getEmail().equals(currentUser.getEmail())) {
+            Toast.makeText(this, "You are already signed in with this account", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Sign out current user and sign in with Google account
+        auth.signOut();
+
+        AuthCredential credential = GoogleAuthProvider.getCredential(account.getIdToken(), null);
+        auth.signInWithCredential(credential)
+                .addOnSuccessListener(authResult -> {
+                    FirebaseUser newUser = authResult.getUser();
+                    if (newUser != null) {
+                        accountManager.setCurrentAccount(newUser.getEmail());
+
+                        Toast.makeText(Account.this,
+                                "Signed in with Google",
+                                Toast.LENGTH_SHORT).show();
+
+                        // Reload the activity
+                        Intent intent = new Intent(Account.this, MainActivity.class);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(intent);
+                        finish();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(Account.this,
+                            "Authentication failed: " + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                });
     }
 
     /**

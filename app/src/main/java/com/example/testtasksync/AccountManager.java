@@ -22,6 +22,7 @@ public class AccountManager {
     public AccountManager(Context context) {
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         gson = new Gson();
+
     }
 
     /**
@@ -149,5 +150,19 @@ public class AccountManager {
         public void setUserId(String userId) {
             this.userId = userId;
         }
+    }
+
+
+    /**
+     * Get a specific saved account by email
+     */
+    public SavedAccount getSavedAccount(String email) {
+        List<SavedAccount> accounts = getSavedAccounts();
+        for (SavedAccount account : accounts) {
+            if (account.getEmail().equals(email)) {
+                return account;
+            }
+        }
+        return null;
     }
 }

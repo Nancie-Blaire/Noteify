@@ -78,6 +78,8 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
 
 
 public class NoteActivity extends AppCompatActivity {
@@ -121,8 +123,8 @@ public class NoteActivity extends AppCompatActivity {
     private Map<Long, View> weblinkViews = new HashMap<>();
     private ListenerRegistration weblinkListener; // ✅ Add this field at the top
 
-//toggle
-private Map<String, String> toggleContentsById = new HashMap<>(); // toggleId -> content
+    //toggle
+    private Map<String, String> toggleContentsById = new HashMap<>(); // toggleId -> content
     private Map<String, Boolean> toggleStatesById = new HashMap<>(); // toggleId -> isExpanded
     private Map<String, List<Bookmark>> hiddenBookmarksByToggleId = new HashMap<>(); // toggleId -> bookmarks
     private Map<Integer, String> positionToToggleId = new HashMap<>(); // position -> toggleId (for lookup)
@@ -878,6 +880,48 @@ private Map<String, String> toggleContentsById = new HashMap<>(); // toggleId ->
     }
 
     //DIVIDER
+    private void hideKeyboard() {
+        View view = this.getCurrentFocus();
+        if (view != null) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        }
+    }
+    private void setupDividerClickListener() {
+        noteContent.setOnTouchListener(new View.OnTouchListener() {
+            private GestureDetector gestureDetector = new GestureDetector(NoteActivity.this,
+                    new GestureDetector.SimpleOnGestureListener() {
+                        @Override
+                        public boolean onSingleTapUp(MotionEvent e) {
+                            int cursorPos = noteContent.getSelectionStart();
+                            String content = noteContent.getText().toString();
+                            String dividerPlaceholder = "【DIVIDER】";
+
+                            // Find all dividers and check if cursor is on one
+                            int dividerIndex = content.indexOf(dividerPlaceholder);
+                            while (dividerIndex != -1) {
+                                int dividerEnd = dividerIndex + dividerPlaceholder.length();
+
+                                // If cursor is within divider range
+                                if (cursorPos >= dividerIndex && cursorPos <= dividerEnd) {
+                                    hideKeyboard();
+                                    showDividerActionMenu(dividerIndex);
+                                    return true; // Consume the event
+                                }
+
+                                dividerIndex = content.indexOf(dividerPlaceholder, dividerEnd);
+                            }
+                            return false;
+                        }
+                    });
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                gestureDetector.onTouchEvent(event);
+                return false; // Allow EditText to handle normally
+            }
+        });
+    }
     private void setupTextWatcher() {
         final String dividerPlaceholder = "〔DIVIDER〕";
 
@@ -1249,6 +1293,7 @@ private Map<String, String> toggleContentsById = new HashMap<>(); // toggleId ->
 
         bottomSheet.show();
     }
+
     private void rebuildDividerStyles(String content) {
         String dividerPlaceholder = "〔DIVIDER〕";
 
@@ -7155,6 +7200,31 @@ private Map<String, String> toggleContentsById = new HashMap<>(); // toggleId ->
         noteContent.setOnTouchListener(new View.OnTouchListener() {
             private GestureDetector gestureDetector = new GestureDetector(NoteActivity.this,
                     new GestureDetector.SimpleOnGestureListener() {
+
+                        // ✅ Handle single tap for dividers
+                        @Override
+                        public boolean onSingleTapConfirmed(MotionEvent e) {
+                            int cursorPos = noteContent.getSelectionStart();
+                            String content = noteContent.getText().toString();
+                            String dividerPlaceholder = "【DIVIDER】";
+
+                            // Find all dividers and check if cursor is on one
+                            int dividerIndex = content.indexOf(dividerPlaceholder);
+                            while (dividerIndex != -1) {
+                                int dividerEnd = dividerIndex + dividerPlaceholder.length();
+
+                                if (cursorPos >= dividerIndex && cursorPos <= dividerEnd) {
+                                    hideKeyboard();
+                                    showDividerActionMenu(dividerIndex);
+                                    return true;
+                                }
+
+                                dividerIndex = content.indexOf(dividerPlaceholder, dividerEnd);
+                            }
+                            return false;
+                        }
+
+                        // ✅ Keep existing long press for drag
                         @Override
                         public void onLongPress(MotionEvent e) {
                             if (!isDragging) {
@@ -7165,7 +7235,7 @@ private Map<String, String> toggleContentsById = new HashMap<>(); // toggleId ->
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                // Let gesture detector handle long press
+                // Let gesture detector handle taps and long press
                 gestureDetector.onTouchEvent(event);
 
                 if (isDragging) {

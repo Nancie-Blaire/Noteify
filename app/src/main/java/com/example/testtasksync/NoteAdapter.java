@@ -8,19 +8,13 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
 import android.widget.Toast;
 import android.widget.EditText;
-import android.view.MenuItem;
-import androidx.core.content.ContextCompat;
 
-import android.view.ContextThemeWrapper;
-import android.view.Gravity;
-import android.graphics.PorterDuff;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import androidx.core.content.ContextCompat;
 
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
@@ -141,6 +135,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 lockIcon.setVisibility(note.isLocked() ? View.VISIBLE : View.GONE);
             }
 
+            // ✅ ALWAYS show locked content if the note is locked
             if (note.isLocked()) {
                 noteContent.setText("Locked");
             } else {
@@ -164,8 +159,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 });
             }
 
+            // ✅ FIX: Always check lock state before opening
             itemView.setOnClickListener(v -> {
                 if (note.isLocked()) {
+                    // ✅ Authenticate each time for locked notes
                     authenticateAndOpen(v.getContext(), note, listener, auth, itemType);
                 } else {
                     listener.onNoteClick(note);
@@ -310,6 +307,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                             super.onAuthenticationSucceeded(result);
                             Toast.makeText(context, "✓ Authentication successful", Toast.LENGTH_SHORT).show();
+                            // ✅ Open note temporarily - lock state remains unchanged
                             listener.onNoteClick(note);
                         }
 
@@ -355,6 +353,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 String enteredPassword = input.getText().toString();
                 if (enteredPassword.equals(savedPassword)) {
                     Toast.makeText(context, "✓ Unlocked!", Toast.LENGTH_SHORT).show();
+                    // ✅ Open note temporarily - lock state remains unchanged
                     listener.onNoteClick(note);
                 } else {
                     Toast.makeText(context, "✗ Incorrect password", Toast.LENGTH_SHORT).show();
@@ -365,61 +364,51 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.show();
         }
 
+        // Replace the showPopupMenu method with this:
         private void showPopupMenu(View view, Note note, FirebaseFirestore db, FirebaseAuth auth,
                                    List<Note> noteList, NoteAdapter adapter, String itemType) {
-            ContextThemeWrapper wrapper = new ContextThemeWrapper(view.getContext(), R.style.CustomPopupMenu);
-            PopupMenu popupMenu = new PopupMenu(wrapper, view, Gravity.END);
-            popupMenu.getMenuInflater().inflate(R.menu.note_menu, popupMenu.getMenu());
+            LayoutInflater inflater = LayoutInflater.from(view.getContext());
+            View popupView = inflater.inflate(R.layout.menu_note_layout, null);
 
-            try {
-                Field popup = PopupMenu.class.getDeclaredField("mPopup");
-                popup.setAccessible(true);
-                Object menuHelper = popup.get(popupMenu);
-                Method setForceShowIcon = menuHelper.getClass().getDeclaredMethod("setForceShowIcon", boolean.class);
-                setForceShowIcon.invoke(menuHelper, true);
-            } catch (Exception e) {
-                e.printStackTrace();
+            final PopupWindow popupWindow = new PopupWindow(
+                    popupView,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    true
+            );
+
+            popupWindow.setElevation(8);
+
+            View deleteView = popupView.findViewById(R.id.menu_delete);
+            View lockView = popupView.findViewById(R.id.menu_lock);
+
+            // Update lock text based on current state
+            TextView lockText = lockView.findViewById(R.id.menu_lock).findViewById(android.R.id.text1);
+            if (lockText == null) {
+                // If using custom layout, find the TextView differently
+                lockText = ((ViewGroup) lockView).getChildAt(1) instanceof TextView ?
+                        (TextView) ((ViewGroup) lockView).getChildAt(1) : null;
             }
 
-            MenuItem lockItem = popupMenu.getMenu().findItem(R.id.menu_lock);
-            if (lockItem != null) {
-                if (note.isLocked()) {
-                    lockItem.setTitle("Unlock");
-                    lockItem.setIcon(R.drawable.ic_privacy_unlock);
-                } else {
-                    lockItem.setTitle("Lock");
-                    lockItem.setIcon(R.drawable.ic_privacy_lock);
-                }
-
-                if (lockItem.getIcon() != null) {
-                    lockItem.getIcon().setColorFilter(
-                            ContextCompat.getColor(view.getContext(), R.color.menu_icon_tint),
-                            PorterDuff.Mode.SRC_IN
-                    );
-                }
+            if (lockText != null) {
+                lockText.setText(note.isLocked() ? "Unlock" : "Lock");
             }
 
-            MenuItem deleteItem = popupMenu.getMenu().findItem(R.id.menu_delete);
-            if (deleteItem != null && deleteItem.getIcon() != null) {
-                deleteItem.getIcon().setColorFilter(
-                        ContextCompat.getColor(view.getContext(), R.color.menu_icon_tint),
-                        PorterDuff.Mode.SRC_IN
-                );
-            }
-
-            popupMenu.setOnMenuItemClickListener(item -> {
-                int itemId = item.getItemId();
-                if (itemId == R.id.menu_delete) {
-                    deleteItem(note, db, auth, view, noteList, adapter, itemType);
-                    return true;
-                } else if (itemId == R.id.menu_lock) {
-                    toggleLock(note, db, auth, view, noteList, adapter, itemType);
-                    return true;
-                }
-                return false;
+            deleteView.setOnClickListener(v -> {
+                deleteItem(note, db, auth, view, noteList, adapter, itemType);
+                popupWindow.dismiss();
             });
 
-            popupMenu.show();
+            lockView.setOnClickListener(v -> {
+                toggleLock(note, db, auth, view, noteList, adapter, itemType);
+                popupWindow.dismiss();
+            });
+
+            // Measure the popup view first
+            popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+
+            // Position popup aligned to right edge of anchor, slightly below
+            popupWindow.showAsDropDown(view, view.getWidth() - popupView.getMeasuredWidth(), 8);
         }
 
         private void toggleLock(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
@@ -718,7 +707,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         Log.e("NoteAdapter", "Failed to get schedule", e);
                     });
         }
-          private void deleteNote(String userId, String noteId, FirebaseFirestore db, View view,
+        private void deleteNote(String userId, String noteId, FirebaseFirestore db, View view,
                                 List<Note> noteList, NoteAdapter adapter) {
             // ✅ SOFT DELETE - Just set deletedAt timestamp
             db.collection("users")

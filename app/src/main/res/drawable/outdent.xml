@@ -7,22 +7,22 @@
 
     <!-- Top line -->
     <path
-        android:fillColor="#333333"
+        android:fillColor="#FFFFFF"
         android:pathData="M3,5h18c0.55,0 1,0.45 1,1v0c0,0.55 -0.45,1 -1,1H3c-0.55,0 -1,-0.45 -1,-1v0C2,5.45 2.45,5 3,5z"/>
 
     <!-- Outdent arrow (pointing left) -->
     <path
-        android:fillColor="#333333"
+        android:fillColor="#FFFFFF"
         android:pathData="M7,9l-4,3l4,3V9z"/>
 
     <!-- Middle line (indented) -->
     <path
-        android:fillColor="#333333"
+        android:fillColor="#FFFFFF"
         android:pathData="M10,11h11c0.55,0 1,0.45 1,1v0c0,0.55 -0.45,1 -1,1H10c-0.55,0 -1,-0.45 -1,-1v0C9,11.45 9.45,11 10,11z"/>
 
     <!-- Bottom line -->
     <path
-        android:fillColor="#333333"
+        android:fillColor="#FFFFFF"
         android:pathData="M3,17h18c0.55,0 1,0.45 1,1v0c0,0.55 -0.45,1 -1,1H3c-0.55,0 -1,-0.45 -1,-1v0C2,17.45 2.45,17 3,17z"/>
 
 </vector>

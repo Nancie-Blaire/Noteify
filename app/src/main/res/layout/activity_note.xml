@@ -198,7 +198,7 @@
                 android:src="@drawable/headings_fonts"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Text Style"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Divider -->
             <ImageButton
@@ -209,7 +209,7 @@
                 android:src="@drawable/ic_notes_feature_divider"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Divider"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Bullet List -->
             <ImageButton
@@ -220,7 +220,7 @@
                 android:src="@drawable/bullet_points"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Bullet List"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Numbered List -->
             <ImageButton
@@ -231,7 +231,7 @@
                 android:src="@drawable/numbered_list"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Numbered List"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Toggle List -->
             <ImageButton
@@ -242,7 +242,7 @@
                 android:src="@drawable/toggle_list"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Toggle"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Checkbox -->
             <ImageButton
@@ -253,7 +253,7 @@
                 android:src="@drawable/checkbox"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Checkbox"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Link -->
             <ImageButton
@@ -264,7 +264,7 @@
                 android:src="@drawable/link"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Link"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Image -->
             <ImageButton
@@ -275,7 +275,7 @@
                 android:src="@drawable/ic_insert_image"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Image"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Table -->
             <ImageButton
@@ -286,7 +286,7 @@
                 android:src="@drawable/table_list"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Table"
-                app:tint="#757575" />
+                app:tint="#FFFFFF" />
 
             <!-- Indent -->
             <ImageButton
@@ -297,7 +297,7 @@
                 android:src="@drawable/indent"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Indent"
-                app:tint="#757575" />
+                app:tint="#FFFFFF" />
 
             <!-- Outdent -->
             <ImageButton
@@ -308,7 +308,7 @@
                 android:src="@drawable/outdent"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Outdent"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Theme -->
             <ImageButton
@@ -319,7 +319,7 @@
                 android:src="@drawable/ic_notes_feature_palette"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Theme"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
             <!-- Subpage -->
             <ImageButton
@@ -330,7 +330,7 @@
                 android:src="@drawable/ic_fab_notes"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Subpage"
-                app:tint="#757575" />
+                app:tint="#FFFFFFFF" />
 
         </LinearLayout>
 

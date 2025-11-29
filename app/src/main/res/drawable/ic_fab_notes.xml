@@ -6,18 +6,18 @@
     <!-- Paper Body -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#000000"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="2"
         android:pathData="M4,3h14l3,3v15a1,1 0 0 1 -1,1H4a1,1 0 0 1 -1,-1V4a1,1 0 0 1 1,-1z" />
 
     <!-- Folded Corner -->
     <path
-        android:fillColor="#000000"
+        android:fillColor="#FFFFFF"
         android:pathData="M17,3v3h3z" />
 
     <!-- Lines -->
-    <path android:strokeColor="#000000" android:pathData="M6,8h10v1H6z" android:strokeWidth="1"/>
-    <path android:strokeColor="#000000" android:pathData="M6,11h10v1H6z" android:strokeWidth="1"/>
-    <path android:strokeColor="#000000" android:pathData="M6,14h10v1H6z" android:strokeWidth="1"/>
-    <path android:strokeColor="#000000" android:pathData="M6,17h10v1H6z" android:strokeWidth="1"/>
+    <path android:strokeColor="#FFFFFF" android:pathData="M6,8h10v1H6z" android:strokeWidth="1"/>
+    <path android:strokeColor="#FFFFFF" android:pathData="M6,11h10v1H6z" android:strokeWidth="1"/>
+    <path android:strokeColor="#FFFFFF" android:pathData="M6,14h10v1H6z" android:strokeWidth="1"/>
+    <path android:strokeColor="#FFFFFF" android:pathData="M6,17h10v1H6z" android:strokeWidth="1"/>
 </vector>

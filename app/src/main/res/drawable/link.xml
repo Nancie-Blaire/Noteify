@@ -7,7 +7,7 @@
 
     <!-- Left part of chain -->
     <path
-        android:strokeColor="#333333"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:fillColor="#00000000"
@@ -15,7 +15,7 @@
 
     <!-- Right part of chain -->
     <path
-        android:strokeColor="#333333"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:fillColor="#00000000"

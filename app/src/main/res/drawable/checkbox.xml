@@ -7,14 +7,14 @@
 
     <!-- Checkbox outline -->
     <path
-        android:strokeColor="#333333"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="2"
         android:fillColor="#00000000"
         android:pathData="M5,5h14v14H5z"/>
 
     <!-- Checkmark -->
     <path
-        android:strokeColor="#333333"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"

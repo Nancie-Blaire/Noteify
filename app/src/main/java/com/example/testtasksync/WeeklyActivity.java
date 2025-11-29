@@ -292,15 +292,15 @@ public class WeeklyActivity extends AppCompatActivity {
                         viewHolder.itemView.setScaleX(1.05f);
                         viewHolder.itemView.setScaleY(1.05f);
 
-                        // ✅ CRITICAL: Disable ScrollView during drag
-                        ScrollView scrollView = findViewById(R.id.scrollView);
+                        // ✅ CRITICAL: Disable NestedScrollView during drag
+                        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
                         if (scrollView != null) {
                             scrollView.requestDisallowInterceptTouchEvent(true);
                             scrollView.setOnTouchListener((v, event) -> true); // Block scroll completely
                         }
                     } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {
-                        // ✅ Re-enable ScrollView when drag ends
-                        ScrollView scrollView = findViewById(R.id.scrollView);
+                        // ✅ Re-enable NestedScrollView when drag ends
+                        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
                         if (scrollView != null) {
                             scrollView.requestDisallowInterceptTouchEvent(false);
                             scrollView.setOnTouchListener(null); // Restore normal scroll
@@ -317,15 +317,16 @@ public class WeeklyActivity extends AppCompatActivity {
                     viewHolder.itemView.setScaleX(1.0f);
                     viewHolder.itemView.setScaleY(1.0f);
 
-                    ScrollView scrollView = findViewById(R.id.scrollView);
+                    // ✅ Re-enable scroll
+                    androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
                     if (scrollView != null) {
                         scrollView.requestDisallowInterceptTouchEvent(false);
+                        scrollView.setOnTouchListener(null); // ⚠️ ADD THIS LINE!
                     }
 
                     // Check for cross-day drop
                     checkCrossDayDrop(viewHolder);
                 }
-
                 private void checkCrossDayDrop(RecyclerView.ViewHolder viewHolder) {
                     if (draggedTask == null || draggedFromDay == null) {
                         resetDragState();
@@ -669,7 +670,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 });
     }
 
-   private void addTask(String day) {
+    private void addTask(String day) {
         WeeklyTask task = new WeeklyTask();
         task.setId("");
         task.setDay(day);
@@ -685,7 +686,7 @@ public class WeeklyActivity extends AppCompatActivity {
         }
     }
 
-  private void updateTaskPositions(String day) {
+    private void updateTaskPositions(String day) {
         List<WeeklyTask> tasks = dayTasks.get(day);
         if (tasks != null) {
             for (int i = 0; i < tasks.size(); i++) {
@@ -1290,7 +1291,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     }
                 });
     }
-   @Override
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (tasksListener != null) {
@@ -1301,19 +1302,24 @@ public class WeeklyActivity extends AppCompatActivity {
     // ✅ ADD this method in your WeeklyActivity class
     @Override
     public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
-        // Check if any ItemTouchHelper is currently dragging
+        // ✅ IMPROVED: Better drag detection
         boolean isDragging = false;
-        for (ItemTouchHelper helper : dayTouchHelpers.values()) {
-            // If dragging, let the RecyclerView handle it completely
-            if (ev.getAction() == android.view.MotionEvent.ACTION_MOVE) {
-                isDragging = true;
-                break;
+
+        // Check if we're in a drag motion
+        if (ev.getAction() == android.view.MotionEvent.ACTION_MOVE) {
+            // Check if any RecyclerView is currently being dragged
+            for (String day : days) {
+                RecyclerView recyclerView = dayContainers.get(day);
+                if (recyclerView != null && recyclerView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING) {
+                    isDragging = true;
+                    break;
+                }
             }
         }
 
         if (isDragging) {
-            // Prevent ScrollView from intercepting
-            ScrollView scrollView = findViewById(R.id.scrollView);
+            // Prevent NestedScrollView from intercepting
+            androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
             if (scrollView != null) {
                 scrollView.requestDisallowInterceptTouchEvent(true);
             }
@@ -1321,4 +1327,5 @@ public class WeeklyActivity extends AppCompatActivity {
 
         return super.dispatchTouchEvent(ev);
     }
+
 }

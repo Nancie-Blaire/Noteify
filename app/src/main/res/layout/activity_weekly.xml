@@ -32,7 +32,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1" />
 
-        <!-- Calendar Icon (NEW) -->
+        <!-- Calendar Icon -->
         <ImageView
             android:id="@+id/scheduleButton"
             android:layout_width="40dp"
@@ -54,8 +54,8 @@
 
     </LinearLayout>
 
-    <!-- ScrollView for Content -->
-    <ScrollView
+    <!-- NestedScrollView for Content (CHANGED FROM ScrollView) -->
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:id="@+id/scrollView"
         android:layout_height="0dp"
@@ -135,6 +135,7 @@
                         android:id="@+id/monTasksContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
@@ -175,6 +176,7 @@
                         android:id="@+id/tuesTasksContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
@@ -215,6 +217,7 @@
                         android:id="@+id/wedTasksContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
@@ -255,6 +258,7 @@
                         android:id="@+id/thurTasksContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
@@ -295,6 +299,7 @@
                         android:id="@+id/friTasksContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
@@ -335,6 +340,7 @@
                         android:id="@+id/satTasksContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
@@ -375,6 +381,7 @@
                         android:id="@+id/sunTasksContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
@@ -383,6 +390,6 @@
 
         </LinearLayout>
 
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>

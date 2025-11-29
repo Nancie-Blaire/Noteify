@@ -166,4 +166,3 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
         }
     }
 }
-

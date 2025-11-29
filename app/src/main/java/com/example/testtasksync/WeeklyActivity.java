@@ -292,13 +292,21 @@ public class WeeklyActivity extends AppCompatActivity {
                         viewHolder.itemView.setScaleX(1.05f);
                         viewHolder.itemView.setScaleY(1.05f);
 
+                        // ✅ CRITICAL: Disable ScrollView during drag
                         ScrollView scrollView = findViewById(R.id.scrollView);
                         if (scrollView != null) {
                             scrollView.requestDisallowInterceptTouchEvent(true);
+                            scrollView.setOnTouchListener((v, event) -> true); // Block scroll completely
+                        }
+                    } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {
+                        // ✅ Re-enable ScrollView when drag ends
+                        ScrollView scrollView = findViewById(R.id.scrollView);
+                        if (scrollView != null) {
+                            scrollView.requestDisallowInterceptTouchEvent(false);
+                            scrollView.setOnTouchListener(null); // Restore normal scroll
                         }
                     }
                 }
-
                 @Override
                 public void clearView(@NonNull RecyclerView recyclerView,
                                       @NonNull RecyclerView.ViewHolder viewHolder) {
@@ -324,17 +332,25 @@ public class WeeklyActivity extends AppCompatActivity {
                         return;
                     }
 
+                    // Get the dragged item's position on screen
                     int[] location = new int[2];
                     viewHolder.itemView.getLocationOnScreen(location);
+                    int itemTop = location[1];
+                    int itemBottom = location[1] + viewHolder.itemView.getHeight();
                     int itemCenterY = location[1] + (viewHolder.itemView.getHeight() / 2);
 
-                    Log.d(TAG, "🎯 Dropped at Y: " + itemCenterY);
+                    Log.d(TAG, "🎯 Dropped at Y: " + itemCenterY + " (top: " + itemTop + ", bottom: " + itemBottom + ")");
 
                     LinearLayout daysContainer = findViewById(R.id.daysContainer);
-                    int margin = (int) (50 * getResources().getDisplayMetrics().density);
 
+                    // ✅ Increased margin for better detection (especially upward)
+                    int margin = (int) (100 * getResources().getDisplayMetrics().density);
+
+                    // ✅ Check ALL days (not just those after current day)
                     for (int i = 0; i < days.size(); i++) {
                         String targetDay = days.get(i);
+
+                        // Skip the day we're dragging from
                         if (targetDay.equals(draggedFromDay)) continue;
 
                         View daySection = daysContainer.getChildAt(i);
@@ -343,18 +359,28 @@ public class WeeklyActivity extends AppCompatActivity {
                             int[] daySectionLoc = new int[2];
                             daySection.getLocationOnScreen(daySectionLoc);
 
+                            // ✅ IMPROVED: Use the day section's actual bounds with extended margins
                             int sectionTop = daySectionLoc[1] - margin;
-                            int sectionBottom = sectionTop + daySection.getHeight() + (margin * 2);
+                            int sectionBottom = daySectionLoc[1] + daySection.getHeight() + margin;
 
-                            if (itemCenterY >= sectionTop && itemCenterY <= sectionBottom) {
+                            Log.d(TAG, "📍 " + targetDay + " zone: " + sectionTop + " to " + sectionBottom);
+
+                            // ✅ Check if item center OR any part of item overlaps with target day
+                            boolean centerInZone = itemCenterY >= sectionTop && itemCenterY <= sectionBottom;
+                            boolean topInZone = itemTop >= sectionTop && itemTop <= sectionBottom;
+                            boolean bottomInZone = itemBottom >= sectionTop && itemBottom <= sectionBottom;
+
+                            if (centerInZone || topInZone || bottomInZone) {
                                 Log.d(TAG, "✅ Moving to " + targetDay);
 
-                                // ✅ Get current position after any reordering
+                                // Get current position after any reordering
                                 List<WeeklyTask> fromTasks = dayTasks.get(draggedFromDay);
                                 int currentPosition = fromTasks.indexOf(draggedTask);
 
                                 if (currentPosition >= 0) {
                                     moveTaskToAnotherDay(draggedTask, draggedFromDay, targetDay, currentPosition);
+                                } else {
+                                    Log.e(TAG, "❌ Task not found in source day list!");
                                 }
 
                                 resetDragState();
@@ -363,7 +389,8 @@ public class WeeklyActivity extends AppCompatActivity {
                         }
                     }
 
-                    // If not moved to another day, just update positions
+                    // If not moved to another day, just update positions within same day
+                    Log.d(TAG, "⚪ Stayed in " + draggedFromDay);
                     updateTaskPositions(draggedFromDay);
                     resetDragState();
                 }
@@ -1274,7 +1301,24 @@ public class WeeklyActivity extends AppCompatActivity {
     // ✅ ADD this method in your WeeklyActivity class
     @Override
     public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
-        // Allow drag events to pass through to other RecyclerViews
+        // Check if any ItemTouchHelper is currently dragging
+        boolean isDragging = false;
+        for (ItemTouchHelper helper : dayTouchHelpers.values()) {
+            // If dragging, let the RecyclerView handle it completely
+            if (ev.getAction() == android.view.MotionEvent.ACTION_MOVE) {
+                isDragging = true;
+                break;
+            }
+        }
+
+        if (isDragging) {
+            // Prevent ScrollView from intercepting
+            ScrollView scrollView = findViewById(R.id.scrollView);
+            if (scrollView != null) {
+                scrollView.requestDisallowInterceptTouchEvent(true);
+            }
+        }
+
         return super.dispatchTouchEvent(ev);
     }
 }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     android:background="#F5F5F5">
 
@@ -32,7 +32,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1" />
 
-        <!-- ✅ NEW: Due Date Calendar Button -->
+        <!-- Due Date Calendar Button -->
         <ImageView
             android:id="@+id/dueDateButton"
             android:layout_width="40dp"
@@ -91,7 +91,7 @@
                 android:maxLines="2"
                 android:layout_marginBottom="16dp" />
 
-            <!-- ✅ NEW: Due Date Display (shown when due date is set) -->
+            <!-- Due Date Display (shown when due date is set) -->
             <LinearLayout
                 android:id="@+id/dueDateDisplay"
                 android:layout_width="match_parent"
@@ -132,14 +132,13 @@
 
             </LinearLayout>
 
-            <!-- Tasks Container -->
-            <LinearLayout
+            <!-- ✅ Tasks RecyclerView (with drag & drop) -->
+            <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/tasksContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
-                <!-- Tasks will be added here dynamically -->
-            </LinearLayout>
+                android:nestedScrollingEnabled="false"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
             <!-- Add Task Button -->
             <LinearLayout

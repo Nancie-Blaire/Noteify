@@ -22,6 +22,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.Timestamp;
@@ -44,6 +45,21 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import android.view.MotionEvent;
+import android.view.ViewGroup;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.view.MotionEvent;
+import android.view.ViewGroup;
+import android.animation.ObjectAnimator;
+import android.view.MotionEvent;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
+
 
 
 public class TodoActivity extends AppCompatActivity {
@@ -54,7 +70,9 @@ public class TodoActivity extends AppCompatActivity {
     private String listId;
     private boolean isNewList = false;
 
-
+    private RecyclerView tasksRecyclerView;
+    private TodoTaskAdapter taskAdapter;
+    private ItemTouchHelper itemTouchHelper;
 
     private EditText todoTitle;
     private ImageView saveButton, backButton, dueDateButton;
@@ -73,6 +91,10 @@ public class TodoActivity extends AppCompatActivity {
     private Handler autoSaveHandler = new Handler();
     private Runnable autoSaveRunnable;
     private ListenerRegistration tasksListener;
+    private View draggedView = null;
+    private int draggedPosition = -1;
+    private float initialY = 0;
+    private float lastY = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,19 +113,20 @@ public class TodoActivity extends AppCompatActivity {
         todoTitle = findViewById(R.id.todoTitle);
         saveButton = findViewById(R.id.saveButton);
         backButton = findViewById(R.id.backButton);
-        dueDateButton = findViewById(R.id.dueDateButton); // ✅ NEW
-        tasksContainer = findViewById(R.id.tasksContainer);
+        dueDateButton = findViewById(R.id.dueDateButton);
+        tasksRecyclerView = findViewById(R.id.tasksContainer); // ✅ Now RecyclerView
         addTaskButton = findViewById(R.id.addTaskButton);
-        dueDateDisplay = findViewById(R.id.dueDateDisplay); // ✅ NEW
+        dueDateDisplay = findViewById(R.id.dueDateDisplay);
         dueDateText = findViewById(R.id.dueDateText);
         clearDateButton = findViewById(R.id.clearDateButton);
+
+        // ✅ NEW: Setup RecyclerView with drag & drop
+        setupRecyclerView();
 
         // Set up buttons
         saveButton.setOnClickListener(v -> saveTodoList());
         backButton.setOnClickListener(v -> finish());
         addTaskButton.setOnClickListener(v -> addTask());
-
-        // ✅ NEW: Due date button opens dialog
         dueDateButton.setOnClickListener(v -> showDueDateDialog());
         clearDateButton.setOnClickListener(v -> clearDueDate());
 
@@ -117,6 +140,100 @@ public class TodoActivity extends AppCompatActivity {
 
         NotificationHelper.createNotificationChannel(this);
         requestNotificationPermission();
+    }
+    private void setupRecyclerView() {
+        taskAdapter = new TodoTaskAdapter(taskList, new TodoTaskAdapter.TaskActionListener() {
+            @Override
+            public void onTaskTextChanged(TodoTask task, String newText) {
+                if (autoSaveRunnable != null) {
+                    autoSaveHandler.removeCallbacks(autoSaveRunnable);
+                }
+                autoSaveRunnable = () -> {
+                    if (!isNewList && !task.getId().isEmpty()) {
+                        saveTodoList();
+                    }
+                };
+                autoSaveHandler.postDelayed(autoSaveRunnable, 1000);
+            }
+
+            @Override
+            public void onTaskCompletionChanged(TodoTask task, boolean isCompleted) {
+                updateTaskCompletionInFirebase(task);
+            }
+
+            @Override
+            public void onScheduleClicked(TodoTask task, int position) {
+                View taskView = tasksRecyclerView.getLayoutManager()
+                        .findViewByPosition(position);
+                if (taskView != null) {
+                    LinearLayout scheduleDisplay = taskView.findViewById(R.id.scheduleDisplay);
+                    TextView scheduleText = taskView.findViewById(R.id.scheduleText);
+                    ImageView notificationIcon = taskView.findViewById(R.id.notificationIcon);
+                    showTaskScheduleDialog(task, scheduleDisplay, scheduleText, notificationIcon);
+                }
+            }
+
+            @Override
+            public void onClearScheduleClicked(TodoTask task) {
+                task.setScheduleDate(null);
+                task.setScheduleTime(null);
+                task.setHasNotification(false);
+                taskAdapter.notifyDataSetChanged();
+                if (!isNewList) {
+                    saveTodoList();
+                }
+            }
+
+            @Override
+            public void onDeleteClicked(TodoTask task, int position) {
+                if (taskList.size() > 1) {
+                    taskList.remove(position);
+                    taskAdapter.notifyItemRemoved(position);
+                    updateTaskPositions();
+                } else {
+                    Toast.makeText(TodoActivity.this, "Keep at least one task",
+                            Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onTaskMoved(int fromPosition, int toPosition) {
+                if (!isNewList) {
+                    saveTodoList();
+                }
+            }
+        });
+
+        tasksRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        tasksRecyclerView.setAdapter(taskAdapter);
+
+        // ✅ Setup drag and drop
+        ItemTouchHelper.Callback callback = new ItemTouchHelper.SimpleCallback(
+                ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
+
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView,
+                                  @NonNull RecyclerView.ViewHolder viewHolder,
+                                  @NonNull RecyclerView.ViewHolder target) {
+                int fromPos = viewHolder.getAdapterPosition();
+                int toPos = target.getAdapterPosition();
+                taskAdapter.moveItem(fromPos, toPos);
+                return true;
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+                // No swipe action
+            }
+
+            @Override
+            public boolean isLongPressDragEnabled() {
+                return true; // ✅ Enable long press to drag
+            }
+        };
+
+        itemTouchHelper = new ItemTouchHelper(callback);
+        itemTouchHelper.attachToRecyclerView(tasksRecyclerView);
     }
     private void requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -606,7 +723,6 @@ public class TodoActivity extends AppCompatActivity {
                 .orderBy("position")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    tasksContainer.removeAllViews();
                     taskList.clear();
 
                     for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
@@ -616,7 +732,6 @@ public class TodoActivity extends AppCompatActivity {
                         task.setCompleted(Boolean.TRUE.equals(doc.getBoolean("isCompleted")));
                         task.setPosition(doc.getLong("position").intValue());
 
-                        // Load schedule data
                         Timestamp scheduleTimestamp = doc.getTimestamp("scheduleDate");
                         if (scheduleTimestamp != null) {
                             task.setScheduleDate(scheduleTimestamp.toDate());
@@ -629,22 +744,22 @@ public class TodoActivity extends AppCompatActivity {
                         }
 
                         taskList.add(task);
-                        addTaskView(task);
                     }
 
                     if (taskList.isEmpty()) {
                         addTask();
                         addTask();
                     }
+
+                    taskAdapter.notifyDataSetChanged();
+                    setupTasksRealtimeListener(userId);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load tasks", e);
                     addTask();
                     addTask();
                 });
-        setupTasksRealtimeListener(userId);
     }
-
     // ========================================
     // ADD NEW TASK
     // ========================================
@@ -656,12 +771,13 @@ public class TodoActivity extends AppCompatActivity {
         task.setPosition(taskList.size());
 
         taskList.add(task);
-        addTaskView(task);
+        taskAdapter.notifyItemInserted(taskList.size() - 1);
     }
 
     // ========================================
     // ADD TASK VIEW (UI + LISTENERS)
     // ========================================
+    // Replace your addTaskView() method with this updated version:
     private void addTaskView(TodoTask task) {
         View taskView = LayoutInflater.from(this).inflate(R.layout.item_todo, tasksContainer, false);
 
@@ -673,15 +789,16 @@ public class TodoActivity extends AppCompatActivity {
         TextView scheduleText = taskView.findViewById(R.id.scheduleText);
         ImageView notificationIcon = taskView.findViewById(R.id.notificationIcon);
         ImageView clearScheduleButton = taskView.findViewById(R.id.clearScheduleButton);
-// Set task text
+
+        // Set task text
         if (task.getTaskText() != null && !task.getTaskText().isEmpty()) {
             taskText.setText(task.getTaskText());
         }
 
-// Set checkbox state
+        // Set checkbox state
         checkbox.setChecked(task.isCompleted());
 
-// ✅ Apply strikethrough based on completion status (MUST be AFTER setText!)
+        // Apply strikethrough based on completion status
         if (task.isCompleted()) {
             taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
             taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
@@ -692,7 +809,7 @@ public class TodoActivity extends AppCompatActivity {
 
         updateTaskScheduleDisplay(task, scheduleDisplay, scheduleText, notificationIcon);
 
-// Replace the existing checkbox listener with this:
+        // Checkbox listener
         checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             task.setCompleted(isChecked);
             if (isChecked) {
@@ -702,10 +819,9 @@ public class TodoActivity extends AppCompatActivity {
                 taskText.setTextColor(getResources().getColor(android.R.color.black));
                 taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             }
-
-            // Update in Firebase immediately
             updateTaskCompletionInFirebase(task);
         });
+
         // Text change listener + auto-save
         taskText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -764,9 +880,210 @@ public class TodoActivity extends AppCompatActivity {
             }
         });
 
+        // ✅ IMPROVED: Add drag and drop functionality
+        taskView.setOnLongClickListener(v -> {
+            // Don't allow dragging while editing
+            if (taskText.isFocused()) {
+                return false;
+            }
+
+            startDragging(v, task);
+            return true;
+        });
+
+        taskView.setOnTouchListener(new View.OnTouchListener() {
+            private boolean isDragging = false;
+            private float touchStartY = 0;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                if (draggedView != v) {
+                    return false;
+                }
+
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_MOVE:
+                        if (draggedView != null) {
+                            float rawY = event.getRawY();
+
+                            // Move the dragged view
+                            v.setY(rawY - v.getHeight() / 2 - getStatusBarHeight());
+
+                            // Check for reordering
+                            int currentIndex = tasksContainer.indexOfChild(v);
+                            int targetIndex = findTargetPosition(rawY);
+
+                            if (targetIndex != -1 && targetIndex != currentIndex) {
+                                swapTaskPositions(currentIndex, targetIndex);
+                            }
+                        }
+                        return true;
+
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (draggedView != null) {
+                            stopDragging();
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
+
         tasksContainer.addView(taskView);
     }
 
+    private void swapTaskPositions(int fromPos, int toPos) {
+        if (fromPos == toPos) return;
+
+        // Update data model
+        TodoTask movedTask = taskList.remove(fromPos);
+        taskList.add(toPos, movedTask);
+
+        // Update view positions
+        View movedView = tasksContainer.getChildAt(fromPos);
+        tasksContainer.removeViewAt(fromPos);
+        tasksContainer.addView(movedView, toPos);
+    }
+
+    // ✅ NEW: Get status bar height
+    private int getStatusBarHeight() {
+        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resourceId > 0) {
+            return getResources().getDimensionPixelSize(resourceId);
+        }
+        return 0;
+    }
+    private void startDragging(View view, TodoTask task) {
+        draggedView = view;
+        draggedPosition = tasksContainer.indexOfChild(view);
+
+        // Bring to front
+        view.bringToFront();
+
+        // Visual feedback
+        view.setAlpha(0.7f);
+        view.setScaleX(1.05f);
+        view.setScaleY(1.05f);
+        view.setElevation(16f);
+
+        // Make container allow overlapping
+        tasksContainer.setClipChildren(false);
+        tasksContainer.setClipToPadding(false);
+    }
+
+    // ✅ NEW: Stop dragging
+    private void stopDragging() {
+        if (draggedView == null) return;
+
+        View view = draggedView;
+        draggedView = null;
+
+        // Reset visual
+        view.setAlpha(1.0f);
+        view.setScaleX(1.0f);
+        view.setScaleY(1.0f);
+        view.setElevation(0f);
+
+        // Animate back to position
+        int finalIndex = tasksContainer.indexOfChild(view);
+        view.animate()
+                .y(0) // Reset Y since LinearLayout will handle positioning
+                .setDuration(200)
+                .withEndAction(() -> {
+                    // Force layout refresh
+                    tasksContainer.requestLayout();
+
+                    // Save new order
+                    updateTaskPositions();
+                    if (!isNewList) {
+                        saveTodoList();
+                    }
+                })
+                .start();
+
+        // Restore normal clipping
+        tasksContainer.setClipChildren(true);
+        tasksContainer.setClipToPadding(true);
+    }
+
+    private int findTargetPosition(float rawY) {
+        int[] containerLocation = new int[2];
+        tasksContainer.getLocationOnScreen(containerLocation);
+        float relativeY = rawY - containerLocation[1];
+
+        float accumulatedHeight = 0;
+
+        for (int i = 0; i < tasksContainer.getChildCount(); i++) {
+            View child = tasksContainer.getChildAt(i);
+
+            if (child == draggedView) {
+                continue; // Skip the dragged view
+            }
+
+            float childMidpoint = accumulatedHeight + (child.getHeight() / 2f);
+
+            if (relativeY < childMidpoint) {
+                return i;
+            }
+
+            accumulatedHeight += child.getHeight();
+        }
+
+        return tasksContainer.getChildCount() - 1;
+    }
+
+    // ✅ NEW: Calculate expected Y position for a task at given index
+    private float getExpectedYPosition(int index) {
+        if (index == 0) {
+            return 0;
+        }
+
+        float totalHeight = 0;
+        for (int i = 0; i < index; i++) {
+            View child = tasksContainer.getChildAt(i);
+            if (child != null) {
+                totalHeight += child.getHeight();
+            }
+        }
+        return totalHeight;
+    }
+
+    // ✅ NEW: Get target position based on Y coordinate
+    private int getTargetPosition(float rawY) {
+        int[] location = new int[2];
+        tasksContainer.getLocationOnScreen(location);
+        float relativeY = rawY - location[1];
+
+        float cumulativeHeight = 0;
+        for (int i = 0; i < tasksContainer.getChildCount(); i++) {
+            View child = tasksContainer.getChildAt(i);
+            cumulativeHeight += child.getHeight();
+
+            if (relativeY < cumulativeHeight) {
+                return i;
+            }
+        }
+
+        return tasksContainer.getChildCount() - 1;
+    }
+
+    // ✅ NEW: Reorder tasks in the list and UI
+    private void reorderTasks(int fromPosition, int toPosition) {
+        if (fromPosition == toPosition) return;
+
+        // Update data model
+        TodoTask movedTask = taskList.remove(fromPosition);
+        taskList.add(toPosition, movedTask);
+
+        // Update UI
+        View movedView = tasksContainer.getChildAt(fromPosition);
+        tasksContainer.removeViewAt(fromPosition);
+        tasksContainer.addView(movedView, toPosition);
+
+        // Update positions
+        updateTaskPositions();
+    }
     private void updateTaskCompletionInFirebase(TodoTask task) {
         if (isNewList || task.getId().isEmpty()) {
             return;
@@ -1306,14 +1623,13 @@ public class TodoActivity extends AppCompatActivity {
                         for (int i = 0; i < taskList.size(); i++) {
                             TodoTask task = taskList.get(i);
 
-                            // ✅ Match by ID if available, otherwise by text and position
                             boolean matches = false;
                             if (!task.getId().isEmpty() && task.getId().equals(taskId)) {
                                 matches = true;
                             } else if (task.getTaskText().equals(taskText) &&
                                     position != null && task.getPosition() == position.intValue()) {
                                 matches = true;
-                                task.setId(taskId); // ✅ Update task ID
+                                task.setId(taskId);
                             }
 
                             if (matches) {
@@ -1322,40 +1638,8 @@ public class TodoActivity extends AppCompatActivity {
                                     Log.d(TAG, "✅ Updating UI for task: " + taskText);
                                     task.setCompleted(newStatus);
 
-                                    // Update the UI
-                                    if (i < tasksContainer.getChildCount()) {
-                                        View taskView = tasksContainer.getChildAt(i);
-                                        if (taskView != null) {
-                                            CheckBox checkbox = taskView.findViewById(R.id.todoCheckbox);
-                                            EditText taskTextView = taskView.findViewById(R.id.todoEditText);
-
-                                            // Remove listener temporarily
-                                            checkbox.setOnCheckedChangeListener(null);
-                                            checkbox.setChecked(newStatus);
-
-                                            // Apply strikethrough
-                                            if (newStatus) {
-                                                taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
-                                                taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-                                            } else {
-                                                taskTextView.setTextColor(getResources().getColor(android.R.color.black));
-                                                taskTextView.setPaintFlags(taskTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
-                                            }
-
-                                            // Re-attach listener
-                                            checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                                                task.setCompleted(isChecked);
-                                                if (isChecked) {
-                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
-                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-                                                } else {
-                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.black));
-                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
-                                                }
-                                                updateTaskCompletionInFirebase(task);
-                                            });
-                                        }
-                                    }
+                                    // ✅ UPDATE: Use adapter instead of manual view update
+                                    taskAdapter.notifyItemChanged(i);
                                 }
                                 break;
                             }

@@ -13,9 +13,11 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.Timestamp;
@@ -39,6 +41,14 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.annotation.NonNull;
+
 
 public class WeeklyActivity extends AppCompatActivity {
 
@@ -59,13 +69,17 @@ public class WeeklyActivity extends AppCompatActivity {
     private ImageView saveButton, backButton, scheduleButton;
 
     private List<String> days = Arrays.asList("Mon", "Tues", "Wed", "Thur", "Fri", "Sat", "Sun");
-    private Map<String, LinearLayout> dayContainers = new HashMap<>();
+    private Map<String, RecyclerView> dayContainers = new HashMap<>();
     private Map<String, List<WeeklyTask>> dayTasks = new HashMap<>();
     private String selectedTime = "";
     private ListenerRegistration tasksListener;
 
+
+    private Map<String, WeeklyTaskAdapter> dayAdapters = new HashMap<>();
+    private Map<String, ItemTouchHelper> dayTouchHelpers = new HashMap<>();
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState)  {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_weekly);
 
@@ -88,7 +102,8 @@ public class WeeklyActivity extends AppCompatActivity {
         // Initialize with current week by default
         setCurrentWeek();
 
-        // Initialize day containers
+// In onCreate(), replace the dayContainers initialization:
+// Initialize day containers (NOW RecyclerViews)
         dayContainers.put("Mon", findViewById(R.id.monTasksContainer));
         dayContainers.put("Tues", findViewById(R.id.tuesTasksContainer));
         dayContainers.put("Wed", findViewById(R.id.wedTasksContainer));
@@ -97,10 +112,13 @@ public class WeeklyActivity extends AppCompatActivity {
         dayContainers.put("Sat", findViewById(R.id.satTasksContainer));
         dayContainers.put("Sun", findViewById(R.id.sunTasksContainer));
 
-        // Initialize task lists
+// Initialize task lists
         for (String day : days) {
             dayTasks.put(day, new ArrayList<>());
         }
+
+// ✅ NEW: Setup RecyclerViews with adapters
+        setupRecyclerViews();
 
         // Set up add task buttons
         findViewById(R.id.addMonTask).setOnClickListener(v -> addTask("Mon"));
@@ -129,7 +147,300 @@ public class WeeklyActivity extends AppCompatActivity {
         }
 
     }
+    private void setupRecyclerViews() {
+        for (String day : days) {
+            RecyclerView recyclerView = dayContainers.get(day);
+            List<WeeklyTask> tasks = dayTasks.get(day);
 
+            WeeklyTaskAdapter adapter = new WeeklyTaskAdapter(day, tasks,
+                    new WeeklyTaskAdapter.TaskActionListener() {
+                        @Override
+                        public void onTaskTextChanged(WeeklyTask task, String newText) {
+                            // Auto-save functionality can be added here
+                        }
+
+                        @Override
+                        public void onTaskCompletionChanged(WeeklyTask task, boolean isCompleted) {
+                            if (!isNewPlan && task.getId() != null && !task.getId().isEmpty()) {
+                                FirebaseUser user = auth.getCurrentUser();
+                                if (user != null) {
+                                    db.collection("users")
+                                            .document(user.getUid())
+                                            .collection("weeklyPlans")
+                                            .document(planId)
+                                            .collection("tasks")
+                                            .document(task.getId())
+                                            .update("isCompleted", isCompleted)
+                                            .addOnSuccessListener(aVoid -> {
+                                                Log.d(TAG, "✅ Task completion updated");
+
+                                                // Cancel notification when completed
+                                                if (isCompleted) {
+                                                    NotificationHelper.cancelNotification(
+                                                            WeeklyActivity.this, task.getId());
+                                                }
+                                            });
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onDeleteClicked(WeeklyTask task, int position) {
+                            List<WeeklyTask> dayTaskList = dayTasks.get(day);
+                            if (dayTaskList != null && dayTaskList.size() > 1) {
+                                dayTaskList.remove(position);
+
+                                WeeklyTaskAdapter currentAdapter = dayAdapters.get(day);
+                                if (currentAdapter != null) {
+                                    currentAdapter.notifyItemRemoved(position);
+                                }
+
+                                updateTaskPositions(day);
+                            } else {
+                                Toast.makeText(WeeklyActivity.this,
+                                        "Keep at least one task per day", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+
+                        @Override
+                        public void onTaskMoved(int fromPosition, int toPosition) {
+                            // Save when order changes (optional)
+                        }
+                    });
+
+            recyclerView.setLayoutManager(new LinearLayoutManager(this));
+            recyclerView.setAdapter(adapter);
+            recyclerView.setNestedScrollingEnabled(false);
+
+            dayAdapters.put(day, adapter);
+
+            // ✅ IMPROVED: Setup drag and drop with BETTER cross-day support
+            ItemTouchHelper.Callback callback = new ItemTouchHelper.Callback() {
+
+                private String draggedFromDay = null;
+                private WeeklyTask draggedTask = null;
+                private int draggedFromPosition = -1;
+
+                @Override
+                public int getMovementFlags(@NonNull RecyclerView recyclerView,
+                                            @NonNull RecyclerView.ViewHolder viewHolder) {
+                    int dragFlags = ItemTouchHelper.UP | ItemTouchHelper.DOWN;
+                    int swipeFlags = 0;
+                    return makeMovementFlags(dragFlags, swipeFlags);
+                }
+
+                @Override
+                public boolean onMove(@NonNull RecyclerView recyclerView,
+                                      @NonNull RecyclerView.ViewHolder viewHolder,
+                                      @NonNull RecyclerView.ViewHolder target) {
+
+                    // ✅ Simply allow all moves - cross-day detection happens in clearView()
+                    int fromPos = viewHolder.getAdapterPosition();
+                    int toPos = target.getAdapterPosition();
+
+                    WeeklyTaskAdapter currentAdapter = dayAdapters.get(day);
+                    if (currentAdapter != null) {
+                        currentAdapter.moveItem(fromPos, toPos);
+                    }
+                    return true;
+                }
+
+                @Override
+                public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+                    // No swipe
+                }
+
+                @Override
+                public boolean isLongPressDragEnabled() {
+                    return true;
+                }
+
+                @Override
+                public boolean isItemViewSwipeEnabled() {
+                    return false;
+                }
+
+                @Override
+                public void onSelectedChanged(RecyclerView.ViewHolder viewHolder, int actionState) {
+                    super.onSelectedChanged(viewHolder, actionState);
+
+                    if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
+                        draggedFromDay = day;
+                        draggedFromPosition = viewHolder.getAdapterPosition();
+
+                        if (draggedFromPosition >= 0 && draggedFromPosition < tasks.size()) {
+                            draggedTask = tasks.get(draggedFromPosition);
+
+                            // ✅ Force update task text from EditText
+                            if (viewHolder instanceof WeeklyTaskAdapter.TaskViewHolder) {
+                                WeeklyTaskAdapter.TaskViewHolder taskHolder =
+                                        (WeeklyTaskAdapter.TaskViewHolder) viewHolder;
+                                String currentText = taskHolder.taskText.getText().toString();
+                                draggedTask.setTaskText(currentText);
+
+                                Log.d(TAG, "🎯 Started dragging: '" + draggedTask.getTaskText() +
+                                        "' from " + day + " at position " + draggedFromPosition);
+                            }
+                        } else {
+                            Log.e(TAG, "❌ Invalid drag position: " + draggedFromPosition);
+                            draggedTask = null;
+                            return;
+                        }
+
+                        // Visual feedback
+                        viewHolder.itemView.setAlpha(0.6f);
+                        viewHolder.itemView.setScaleX(1.05f);
+                        viewHolder.itemView.setScaleY(1.05f);
+
+                        ScrollView scrollView = findViewById(R.id.scrollView);
+                        if (scrollView != null) {
+                            scrollView.requestDisallowInterceptTouchEvent(true);
+                        }
+                    }
+                }
+
+                @Override
+                public void clearView(@NonNull RecyclerView recyclerView,
+                                      @NonNull RecyclerView.ViewHolder viewHolder) {
+                    super.clearView(recyclerView, viewHolder);
+
+                    // Reset visual
+                    viewHolder.itemView.setAlpha(1.0f);
+                    viewHolder.itemView.setScaleX(1.0f);
+                    viewHolder.itemView.setScaleY(1.0f);
+
+                    ScrollView scrollView = findViewById(R.id.scrollView);
+                    if (scrollView != null) {
+                        scrollView.requestDisallowInterceptTouchEvent(false);
+                    }
+
+                    // Check for cross-day drop
+                    checkCrossDayDrop(viewHolder);
+                }
+
+                private void checkCrossDayDrop(RecyclerView.ViewHolder viewHolder) {
+                    if (draggedTask == null || draggedFromDay == null) {
+                        resetDragState();
+                        return;
+                    }
+
+                    int[] location = new int[2];
+                    viewHolder.itemView.getLocationOnScreen(location);
+                    int itemCenterY = location[1] + (viewHolder.itemView.getHeight() / 2);
+
+                    Log.d(TAG, "🎯 Dropped at Y: " + itemCenterY);
+
+                    LinearLayout daysContainer = findViewById(R.id.daysContainer);
+                    int margin = (int) (50 * getResources().getDisplayMetrics().density);
+
+                    for (int i = 0; i < days.size(); i++) {
+                        String targetDay = days.get(i);
+                        if (targetDay.equals(draggedFromDay)) continue;
+
+                        View daySection = daysContainer.getChildAt(i);
+
+                        if (daySection != null) {
+                            int[] daySectionLoc = new int[2];
+                            daySection.getLocationOnScreen(daySectionLoc);
+
+                            int sectionTop = daySectionLoc[1] - margin;
+                            int sectionBottom = sectionTop + daySection.getHeight() + (margin * 2);
+
+                            if (itemCenterY >= sectionTop && itemCenterY <= sectionBottom) {
+                                Log.d(TAG, "✅ Moving to " + targetDay);
+
+                                // ✅ Get current position after any reordering
+                                List<WeeklyTask> fromTasks = dayTasks.get(draggedFromDay);
+                                int currentPosition = fromTasks.indexOf(draggedTask);
+
+                                if (currentPosition >= 0) {
+                                    moveTaskToAnotherDay(draggedTask, draggedFromDay, targetDay, currentPosition);
+                                }
+
+                                resetDragState();
+                                return;
+                            }
+                        }
+                    }
+
+                    // If not moved to another day, just update positions
+                    updateTaskPositions(draggedFromDay);
+                    resetDragState();
+                }
+
+                private void resetDragState() {
+                    draggedTask = null;
+                    draggedFromDay = null;
+                    draggedFromPosition = -1;
+                }
+            };
+            ItemTouchHelper touchHelper = new ItemTouchHelper(callback);
+            touchHelper.attachToRecyclerView(recyclerView);
+            dayTouchHelpers.put(day, touchHelper);
+        }
+    }
+
+    // ✅ NEW: Method to move task between days
+    // ✅ UPDATED: Method to move task between days
+    // ✅ UPDATED: Method to move task between days
+    private void moveTaskToAnotherDay(WeeklyTask task, String fromDay, String toDay, int fromPosition) {
+        // ✅ DEBUG: Check the state BEFORE moving (dapat nandito sa simula)
+        List<WeeklyTask> fromTasks = dayTasks.get(fromDay);
+        List<WeeklyTask> toTasks = dayTasks.get(toDay);
+
+        Log.d(TAG, "📊 BEFORE MOVE:");
+        Log.d(TAG, "   " + fromDay + " has " + (fromTasks != null ? fromTasks.size() : 0) + " tasks");
+        Log.d(TAG, "   " + toDay + " has " + (toTasks != null ? toTasks.size() : 0) + " tasks");
+        Log.d(TAG, "   Removing from position: " + fromPosition);
+        Log.d(TAG, "   Task text: " + task.getTaskText());
+
+        Log.d(TAG, "🔄 Moving task from " + fromDay + " (pos: " + fromPosition + ") to " + toDay);
+
+        // Remove from source day
+        if (fromTasks != null && fromPosition >= 0 && fromPosition < fromTasks.size()) {
+            // ✅ IMPORTANT: Remove the exact task object, not by ID
+            WeeklyTask removedTask = fromTasks.remove(fromPosition);
+
+            Log.d(TAG, "✅ Removed task: " + removedTask.getTaskText() + " from " + fromDay);
+
+            WeeklyTaskAdapter fromAdapter = dayAdapters.get(fromDay);
+            if (fromAdapter != null) {
+                fromAdapter.notifyItemRemoved(fromPosition);
+                // ✅ Notify range changed to update remaining items
+                fromAdapter.notifyItemRangeChanged(fromPosition, fromTasks.size() - fromPosition);
+            }
+        } else {
+            Log.e(TAG, "❌ Failed to remove task - invalid position or list");
+            return;
+        }
+
+        // Update task's day
+        task.setDay(toDay);
+
+        // Add to target day
+        if (toTasks != null) {
+            toTasks.add(task);
+            task.setPosition(toTasks.size() - 1);
+
+            Log.d(TAG, "✅ Added task: " + task.getTaskText() + " to " + toDay + " at position " + task.getPosition());
+
+            WeeklyTaskAdapter toAdapter = dayAdapters.get(toDay);
+            if (toAdapter != null) {
+                toAdapter.notifyItemInserted(toTasks.size() - 1);
+            }
+        }
+
+        // Update positions in both days
+        updateTaskPositions(fromDay);
+        updateTaskPositions(toDay);
+
+        // ✅ DEBUG: Check the state AFTER moving
+        Log.d(TAG, "📊 AFTER MOVE:");
+        Log.d(TAG, "   " + fromDay + " has " + (fromTasks != null ? fromTasks.size() : 0) + " tasks");
+        Log.d(TAG, "   " + toDay + " has " + (toTasks != null ? toTasks.size() : 0) + " tasks");
+
+        Toast.makeText(this, "Moved to " + toDay, Toast.LENGTH_SHORT).show();
+    }
     private void requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this,
@@ -284,11 +595,6 @@ public class WeeklyActivity extends AppCompatActivity {
                 .orderBy("position")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    // Clear existing views
-                    for (LinearLayout container : dayContainers.values()) {
-                        container.removeAllViews();
-                    }
-
                     // Clear task lists
                     for (String day : days) {
                         dayTasks.get(day).clear();
@@ -309,137 +615,50 @@ public class WeeklyActivity extends AppCompatActivity {
                         }
                     }
 
-                    // Add task views for each day
+                    // Refresh all adapters
                     for (String day : days) {
                         List<WeeklyTask> tasks = dayTasks.get(day);
                         if (tasks.isEmpty()) {
-                            // Add default tasks if none exist
                             for (int i = 0; i < 3; i++) {
                                 addTask(day);
                             }
                         } else {
-                            for (WeeklyTask task : tasks) {
-                                addTaskView(day, task);
+                            WeeklyTaskAdapter adapter = dayAdapters.get(day);
+                            if (adapter != null) {
+                                adapter.notifyDataSetChanged();
                             }
                         }
                     }
+
+                    setupTasksRealtimeListener(userId);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load tasks", e);
-                    // Add default tasks if loading fails
                     for (String day : days) {
                         for (int i = 0; i < 3; i++) {
                             addTask(day);
                         }
                     }
                 });
-        setupTasksRealtimeListener(userId);
     }
-    private void addTask(String day) {
+
+   private void addTask(String day) {
         WeeklyTask task = new WeeklyTask();
-        task.setId(""); // Will be generated on save
+        task.setId("");
         task.setDay(day);
         task.setTaskText("");
         task.setCompleted(false);
         task.setPosition(dayTasks.get(day).size());
 
         dayTasks.get(day).add(task);
-        addTaskView(day, task);
+
+        WeeklyTaskAdapter adapter = dayAdapters.get(day);
+        if (adapter != null) {
+            adapter.notifyItemInserted(dayTasks.get(day).size() - 1);
+        }
     }
 
-    private void addTaskView(String day, WeeklyTask task) {
-        LinearLayout container = dayContainers.get(day);
-        if (container == null) return;
-
-        View taskView = LayoutInflater.from(this).inflate(R.layout.item_weekly_task, container, false);
-
-        CheckBox checkbox = taskView.findViewById(R.id.taskCheckbox);
-        EditText taskText = taskView.findViewById(R.id.taskEditText);
-        ImageView deleteButton = taskView.findViewById(R.id.deleteTaskButton);
-
-        // ✅ Set task text FIRST
-        if (task.getTaskText() != null && !task.getTaskText().isEmpty()) {
-            taskText.setText(task.getTaskText());
-        }
-
-        // ✅ Set checkbox state
-        checkbox.setChecked(task.isCompleted());
-
-        // ✅ Apply strikethrough based on completion status (AFTER setText!)
-        if (task.isCompleted()) {
-            taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
-            taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-        } else {
-            taskText.setTextColor(getResources().getColor(android.R.color.black));
-            taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
-        }
-
-        // Checkbox listener
-        checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            task.setCompleted(isChecked);
-            if (isChecked) {
-                taskText.setTextColor(getResources().getColor(android.R.color.darker_gray));
-                taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-            } else {
-                taskText.setTextColor(getResources().getColor(android.R.color.black));
-                taskText.setPaintFlags(taskText.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
-            }
-
-            // ✅ Save completion status to Firestore immediately
-            if (!isNewPlan && task.getId() != null && !task.getId().isEmpty()) {
-                FirebaseUser user = auth.getCurrentUser();
-                if (user != null) {
-                    db.collection("users")
-                            .document(user.getUid())
-                            .collection("weeklyPlans")
-                            .document(planId)
-                            .collection("tasks")
-                            .document(task.getId())
-                            .update("isCompleted", isChecked)
-                            .addOnSuccessListener(aVoid -> {
-                                Log.d(TAG, "✅ Task completion status updated");
-                            })
-                            .addOnFailureListener(e -> {
-                                Log.e(TAG, "Failed to update task completion", e);
-                            });
-                }
-            }
-        });
-
-        // Text change listener
-        taskText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                task.setTaskText(s.toString());
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {}
-        });
-
-        // Focus listener to show/hide delete button
-        taskText.setOnFocusChangeListener((v, hasFocus) -> {
-            deleteButton.setVisibility(hasFocus ? View.VISIBLE : View.GONE);
-        });
-
-        // Delete button listener
-        deleteButton.setOnClickListener(v -> {
-            List<WeeklyTask> tasks = dayTasks.get(day);
-            if (tasks != null && tasks.size() > 1) { // Keep at least 1 task
-                tasks.remove(task);
-                container.removeView(taskView);
-                updateTaskPositions(day);
-            } else {
-                Toast.makeText(this, "Keep at least one task per day", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        container.addView(taskView);
-    }
-    private void updateTaskPositions(String day) {
+  private void updateTaskPositions(String day) {
         List<WeeklyTask> tasks = dayTasks.get(day);
         if (tasks != null) {
             for (int i = 0; i < tasks.size(); i++) {
@@ -1023,81 +1242,18 @@ public class WeeklyActivity extends AppCompatActivity {
                     for (QueryDocumentSnapshot doc : snapshots) {
                         String taskId = doc.getId();
                         String day = doc.getString("day");
-                        String taskText = doc.getString("taskText");
                         Boolean isCompleted = doc.getBoolean("isCompleted");
 
-                        Log.d(TAG, "🔄 Real-time update: " + taskText + " (" + day + ") -> " + isCompleted);
-
-                        // Find and update matching task
                         List<WeeklyTask> tasks = dayTasks.get(day);
                         if (tasks != null) {
-                            for (int i = 0; i < tasks.size(); i++) {
-                                WeeklyTask task = tasks.get(i);
-
-                                // ✅ Match by ID if available, otherwise by text
-                                boolean matches = false;
-                                if (!task.getId().isEmpty() && task.getId().equals(taskId)) {
-                                    matches = true;
-                                } else if (task.getTaskText().equals(taskText)) {
-                                    matches = true;
-                                    task.setId(taskId); // ✅ Update task ID
-                                }
-
-                                if (matches) {
+                            for (WeeklyTask task : tasks) {
+                                if (task.getId().equals(taskId)) {
                                     boolean newStatus = isCompleted != null && isCompleted;
                                     if (task.isCompleted() != newStatus) {
-                                        Log.d(TAG, "✅ Updating UI for task: " + taskText);
                                         task.setCompleted(newStatus);
-
-                                        // Update UI
-                                        LinearLayout container = dayContainers.get(day);
-                                        if (container != null && i < container.getChildCount()) {
-                                            View taskView = container.getChildAt(i);
-                                            if (taskView != null) {
-                                                CheckBox checkbox = taskView.findViewById(R.id.taskCheckbox);
-                                                EditText taskTextView = taskView.findViewById(R.id.taskEditText);
-
-                                                // Remove listener temporarily
-                                                checkbox.setOnCheckedChangeListener(null);
-                                                checkbox.setChecked(newStatus);
-
-                                                // Apply strikethrough
-                                                if (newStatus) {
-                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
-                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-                                                } else {
-                                                    taskTextView.setTextColor(getResources().getColor(android.R.color.black));
-                                                    taskTextView.setPaintFlags(taskTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
-                                                }
-
-                                                // Re-attach listener
-                                                checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                                                    task.setCompleted(isChecked);
-                                                    if (isChecked) {
-                                                        taskTextView.setTextColor(getResources().getColor(android.R.color.darker_gray));
-                                                        taskTextView.setPaintFlags(taskTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-                                                    } else {
-                                                        taskTextView.setTextColor(getResources().getColor(android.R.color.black));
-                                                        taskTextView.setPaintFlags(taskTextView.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
-                                                    }
-
-                                                    if (!isNewPlan && task.getId() != null && !task.getId().isEmpty()) {
-                                                        FirebaseUser user = auth.getCurrentUser();
-                                                        if (user != null) {
-                                                            db.collection("users")
-                                                                    .document(user.getUid())
-                                                                    .collection("weeklyPlans")
-                                                                    .document(planId)
-                                                                    .collection("tasks")
-                                                                    .document(task.getId())
-                                                                    .update("isCompleted", isChecked)
-                                                                    .addOnSuccessListener(aVoid -> {
-                                                                        Log.d(TAG, "✅ Task completion updated");
-                                                                    });
-                                                        }
-                                                    }
-                                                });
-                                            }
+                                        WeeklyTaskAdapter adapter = dayAdapters.get(day);
+                                        if (adapter != null) {
+                                            adapter.notifyDataSetChanged();
                                         }
                                     }
                                     break;
@@ -1107,11 +1263,18 @@ public class WeeklyActivity extends AppCompatActivity {
                     }
                 });
     }
-    @Override
+   @Override
     protected void onDestroy() {
         super.onDestroy();
         if (tasksListener != null) {
             tasksListener.remove();
         }
+
+    }
+    // ✅ ADD this method in your WeeklyActivity class
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        // Allow drag events to pass through to other RecyclerViews
+        return super.dispatchTouchEvent(ev);
     }
 }

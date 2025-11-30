@@ -426,29 +426,41 @@ public class NoteActivity extends AppCompatActivity {
             textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
-        Map<String, Object> noteData = new HashMap<>();
-        noteData.put("title", title);
-        noteData.put("content", content);
-        noteData.put("color", currentNoteColor);
-        noteData.put("timestamp", System.currentTimeMillis());
-        noteData.put("dividerStyles", dividerStylesForFirestore);
-        noteData.put("toggleStates", toggleStatesForFirestore);
-        noteData.put("toggleContents", toggleContentsForFirestore);
-        noteData.put("textStyles", textStylesForFirestore);
-
-        // ✅ NEW: Save toggle data by ID
-        noteData.put("toggleContentsById", toggleContentsById);
-        noteData.put("toggleStatesById", toggleStatesById);
-
+        // ✅ Get lock state first
         db.collection("users").document(user.getUid())
                 .collection("notes")
                 .document(noteId)
-                .set(noteData)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d("NoteActivity", "✅ Auto-saved note with toggle IDs");
-                })
-                .addOnFailureListener(e -> {
-                    Log.e("NoteActivity", "❌ Auto-save failed", e);
+                .get()
+                .addOnSuccessListener(doc -> {
+                    Boolean isLocked = doc.getBoolean("isLocked");
+
+                    Map<String, Object> noteData = new HashMap<>();
+                    noteData.put("title", title);
+                    noteData.put("content", content);
+                    noteData.put("color", currentNoteColor);
+                    noteData.put("timestamp", System.currentTimeMillis());
+                    noteData.put("dividerStyles", dividerStylesForFirestore);
+                    noteData.put("toggleStates", toggleStatesForFirestore);
+                    noteData.put("toggleContents", toggleContentsForFirestore);
+                    noteData.put("textStyles", textStylesForFirestore);
+                    noteData.put("toggleContentsById", toggleContentsById);
+                    noteData.put("toggleStatesById", toggleStatesById);
+
+                    // ✅ Preserve lock state
+                    if (isLocked != null) {
+                        noteData.put("isLocked", isLocked);
+                    }
+
+                    db.collection("users").document(user.getUid())
+                            .collection("notes")
+                            .document(noteId)
+                            .update(noteData)  // Changed from .set() to .update()
+                            .addOnSuccessListener(aVoid -> {
+                                Log.d("NoteActivity", "✅ Auto-saved note with lock state");
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e("NoteActivity", "❌ Auto-save failed", e);
+                            });
                 });
     }
     private void saveAndExit() {
@@ -472,25 +484,43 @@ public class NoteActivity extends AppCompatActivity {
             textStylesForFirestore.put(String.valueOf(entry.getKey()), entry.getValue());
         }
 
-        Map<String, Object> noteData = new HashMap<>();
-        noteData.put("title", title);
-        noteData.put("content", content);
-        noteData.put("color", currentNoteColor);
-        noteData.put("timestamp", System.currentTimeMillis());
-        noteData.put("dividerStyles", dividerStylesForFirestore);
-        noteData.put("textStyles", textStylesForFirestore);
-
-        // ✅ NEW: Save toggle data by ID
-        noteData.put("toggleContentsById", toggleContentsById);
-        noteData.put("toggleStatesById", toggleStatesById);
-
+        // ✅ STEP 1: Get current lock state from Firestore FIRST
         db.collection("users").document(user.getUid())
                 .collection("notes")
                 .document(noteId)
-                .set(noteData)
-                .addOnSuccessListener(aVoid -> finish())
+                .get()
+                .addOnSuccessListener(doc -> {
+                    Boolean isLocked = doc.getBoolean("isLocked");
+
+                    // ✅ Create noteData HERE (inside the callback)
+                    Map<String, Object> noteData = new HashMap<>();
+                    noteData.put("title", title);
+                    noteData.put("content", content);
+                    noteData.put("color", currentNoteColor);
+                    noteData.put("timestamp", System.currentTimeMillis());
+                    noteData.put("dividerStyles", dividerStylesForFirestore);
+                    noteData.put("textStyles", textStylesForFirestore);
+                    noteData.put("toggleContentsById", toggleContentsById);
+                    noteData.put("toggleStatesById", toggleStatesById);
+
+                    // ✅ PRESERVE LOCK STATE
+                    if (isLocked != null) {
+                        noteData.put("isLocked", isLocked);
+                    }
+
+                    // ✅ Use update() instead of set()
+                    db.collection("users").document(user.getUid())
+                            .collection("notes")
+                            .document(noteId)
+                            .update(noteData)  // Changed from .set() to .update()
+                            .addOnSuccessListener(aVoid -> finish())
+                            .addOnFailureListener(e -> {
+                                Toast.makeText(this, "Error saving note", Toast.LENGTH_SHORT).show();
+                                finish();
+                            });
+                })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Error saving note", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Error checking lock state", Toast.LENGTH_SHORT).show();
                     finish();
                 });
     }

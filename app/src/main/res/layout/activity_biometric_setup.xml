@@ -36,7 +36,7 @@
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:src="@android:drawable/ic_lock_lock"
-            app:tint="#26E9D8"
+            app:tint="#FF9376"
             android:layout_marginBottom="24dp"/>
 
         <!-- Biometric Status -->

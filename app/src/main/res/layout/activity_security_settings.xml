@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="#F5F5F5">
+    android:background="@drawable/lightmode_bg">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,13 +13,13 @@
 
         <!-- Header -->
         <TextView
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🔒 Security Settings"
+            android:text="Security Settings"
             android:textSize="28sp"
+            android:textColor="#000000"
             android:textStyle="bold"
-            android:textColor="#333333"
-            android:layout_marginBottom="8dp"/>
+            android:layout_marginBottom="3dp"/>
 
         <TextView
             android:id="@+id/tvSecurityStatus"
@@ -28,7 +28,7 @@
             android:text="Loading..."
             android:textSize="16sp"
             android:textColor="#666666"
-            android:layout_marginBottom="32dp"/>
+            android:layout_marginBottom="30dp"/>
 
         <!-- Card: Password Status -->
         <androidx.cardview.widget.CardView
@@ -42,35 +42,37 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
+                android:background="@drawable/rounded_bg"
                 android:padding="20dp">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
                     android:text="Master Password"
+                    android:textColor="#000000"
                     android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="#333333"
-                    android:layout_marginBottom="8dp"/>
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvPasswordStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="✅ Master password set"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
-                    android:layout_marginBottom="12dp"/>
+                    android:layout_marginBottom="12dp"
+                    android:text="Master password set"
+                    android:textColor="#8DAAA6"
+                    android:textStyle="bold"
+                    android:textSize="11sp" />
 
                 <Button
                     android:id="@+id/btnChangePassword"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Change Password"
-                    android:textColor="#FFFFFF"
-                    android:backgroundTint="#2196F3"
+                    android:backgroundTint="#FF9376"
                     android:padding="12dp"
-                    android:textAllCaps="false"/>
+                    android:text="Change Password"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF" />
 
             </LinearLayout>
 
@@ -88,6 +90,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
+                android:background="@drawable/rounded_bg"
                 android:padding="20dp">
 
                 <TextView
@@ -96,34 +99,35 @@
                     android:text="Fingerprint Authentication"
                     android:textSize="18sp"
                     android:textStyle="bold"
-                    android:textColor="#333333"
-                    android:layout_marginBottom="8dp"/>
+                    android:textColor="#000000"
+                    android:layout_marginBottom="5dp"/>
 
                 <TextView
                     android:id="@+id/tvBiometricStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="⚠️ Not enabled on this device"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:text="Not enabled on this device"
+                    android:textSize="11sp"
+                    android:textColor="#8DAAA6"
+                    android:textStyle="bold"
                     android:layout_marginBottom="12dp"/>
 
                 <Button
                     android:id="@+id/btnEnableFingerprint"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Enable Fingerprint"
-                    android:textColor="#FFFFFF"
-                    android:backgroundTint="#4CAF50"
+                    android:backgroundTint="#FF9376"
                     android:padding="12dp"
-                    android:textAllCaps="false"/>
+                    android:text="Enable Fingerprint"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="ℹ️ Fingerprint is device-specific. You need to enable it separately on each device."
+                    android:text="Fingerprint is device-specific. You need to enable it separately on each device."
                     android:textSize="12sp"
-                    android:textColor="#999999"
+                    android:textColor="#8DAAA6"
                     android:layout_marginTop="8dp"
                     android:padding="8dp"
                     android:background="#FFF9E6"/>
@@ -145,23 +149,25 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="16dp"
+                android:background="@drawable/rounded_bg">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="💡 How it works"
+                    android:text="How it works"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textColor="#1976D2"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="• Master password works on all devices\n• Fingerprint must be enabled per device\n• If fingerprint fails, you can use password"
-                    android:textSize="13sp"
-                    android:textColor="#424242"
+                    android:textSize="11sp"
+                    android:textColor="#8DAAA6"
+                    android:textStyle="bold"
                     android:lineSpacingExtra="4dp"/>
 
             </LinearLayout>
@@ -180,8 +186,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Back"
-            android:textColor="#666666"
-            android:backgroundTint="#E0E0E0"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#FF9376"
             android:padding="12dp"
             android:textAllCaps="false"/>
 

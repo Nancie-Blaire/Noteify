@@ -6858,9 +6858,14 @@ public class NoteActivity extends AppCompatActivity {
 
             if (child instanceof EditText) {
                 EditText editText = (EditText) child;
+
+                // ✅ CRITICAL FIX: Skip the title EditText
+                if (editText.getId() == R.id.noteTitle) {
+                    continue; // Skip title, don't include it in content
+                }
+
                 String text = editText.getText().toString();
 
-                // ✅ Include empty sections too (might have user input later)
                 if (!text.isEmpty()) {
                     if (fullContent.length() > 0 && !fullContent.toString().endsWith("\n")) {
                         fullContent.append("\n");
@@ -7903,4 +7908,6 @@ public class NoteActivity extends AppCompatActivity {
     private boolean isImageLine(String line) {
         return line.trim().matches("^〔IMAGE:\\d+〕$");
     }
+
+    //
 }

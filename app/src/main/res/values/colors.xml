@@ -28,4 +28,7 @@
     <!-- You can change these to match your app's design -->
     <color name="upcoming_bg">#75CEC6</color>
     <color name="overdue_bg">#FA94A3</color>
+
+    <!-- Radio button color-->
+    <color name="radio_button_color">#FF9376</color>
 </resources>

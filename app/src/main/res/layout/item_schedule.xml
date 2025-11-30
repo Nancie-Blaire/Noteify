@@ -31,7 +31,7 @@
                 android:text="10:00"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#2196F3"/>
+                android:textColor="#ff9376"/>
 
             <TextView
                 android:id="@+id/scheduleAmPm"
@@ -47,7 +47,7 @@
             android:id="@+id/categoryIndicator"
             android:layout_width="4dp"
             android:layout_height="match_parent"
-            android:background="#2196F3"
+            android:background="#ff9376"
             android:layout_marginEnd="12dp"/>
 
         <!-- Schedule Details -->
@@ -94,7 +94,7 @@
                     android:text="Event"
                     android:textSize="12sp"
                     android:textColor="@android:color/white"
-                    android:background="@drawable/badge_background"
+                    android:background="#ff9376"
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:paddingTop="4dp"

@@ -44,8 +44,12 @@ public class Bin extends AppCompatActivity {
     private Button btnDelete;
     private TextView emptyStateText;
 
+    private long deletedAt;
+    private String category;
+
     private FirebaseAuth auth;
     private FirebaseFirestore db;
+    private View ivBack;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +67,7 @@ public class Bin extends AppCompatActivity {
         btnRestore = findViewById(R.id.btnRestore);
         btnDelete = findViewById(R.id.btnDelete);
         emptyStateText = findViewById(R.id.emptyStateText);
+        ivBack = findViewById(R.id.ivBack);
 
         // Setup RecyclerView
         binRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -89,6 +94,9 @@ public class Bin extends AppCompatActivity {
 
         // Auto-cleanup items older than 30 days
         autoCleanupOldItems();
+
+        // Back button
+        ivBack.setOnClickListener(v -> finish());
     }
 
     private void updateActionBar(int selectedCount) {

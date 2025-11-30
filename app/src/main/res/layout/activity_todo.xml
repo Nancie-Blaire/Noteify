@@ -3,56 +3,100 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#F5F5F5">
+    android:orientation="vertical">
 
-    <!-- Top Bar -->
-    <LinearLayout
+    <!-- Top Bar with Curved Background -->
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="#FFFFFF"
-        android:elevation="2dp"
-        android:paddingStart="8dp"
-        android:paddingEnd="16dp">
+        android:layout_height="120dp"
+        android:layout_marginTop="20dp">
 
+        <!-- Back Button -->
         <ImageView
             android:id="@+id/backButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="@drawable/ic_revert_back_btn"
             android:contentDescription="Back"
             app:tint="#000000"
             android:padding="8dp"
+            android:layout_alignParentStart="true"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
-        <View
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1" />
+        <!-- Title -->
+        <TextView
+            android:id="@+id/todoHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="To-Do List"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:layout_toEndOf="@id/backButton"
+            android:layout_alignTop="@id/backButton"
+            android:layout_alignBottom="@id/backButton"
+            android:gravity="center_vertical"
+            android:layout_marginStart="8dp" />
 
-        <!-- Due Date Calendar Button -->
-        <ImageView
-            android:id="@+id/dueDateButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_calendar"
-            android:contentDescription="Set Due Date"
-            android:padding="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginEnd="8dp" />
+        <!-- Secondary Title (editable) -->
+        <EditText
+            android:id="@+id/todoTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@android:color/transparent"
+            android:hint="Title of List 01"
+            android:inputType="textCapWords"
+            android:maxLines="1"
+            android:text="Title of List 01"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            android:textAlignment="viewEnd"
+            android:gravity="end"/>
 
-        <ImageView
-            android:id="@+id/saveButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_check"
-            android:contentDescription="Save"
-            android:padding="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+        <!-- Action Buttons Container -->
+        <RelativeLayout
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@id/backButton"
+            android:layout_alignParentEnd="true"
+            android:layout_marginTop="-1dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="horizontal">
 
-    </LinearLayout>
+            <!-- Due Date Calendar Button -->
+
+            <!-- Save Button -->
+            <ImageView
+                android:id="@+id/dueDateButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Set Due Date"
+                android:padding="8dp"
+                android:src="@drawable/ic_calendar" />
+
+            <ImageView
+                android:id="@+id/saveButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentEnd="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Save"
+                android:padding="8dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_check" />
+
+        </RelativeLayout>
+
+    </RelativeLayout>
 
     <!-- ScrollView for Content -->
     <ScrollView
@@ -66,30 +110,6 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="16dp">
-
-            <!-- Icon -->
-            <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/ic_fab_todo"
-                android:contentDescription="Todo icon"
-                android:layout_gravity="start"
-                android:layout_marginBottom="16dp"
-                app:tint="#000000" />
-
-            <!-- Title -->
-            <EditText
-                android:id="@+id/todoTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="To-Do List"
-                android:textSize="32sp"
-                android:textStyle="bold"
-                android:textColor="#000000"
-                android:background="@android:color/transparent"
-                android:inputType="textCapWords"
-                android:maxLines="2"
-                android:layout_marginBottom="16dp" />
 
             <!-- Due Date Display (shown when due date is set) -->
             <LinearLayout
@@ -132,7 +152,7 @@
 
             </LinearLayout>
 
-            <!-- ✅ Tasks RecyclerView (with drag & drop) -->
+            <!-- Tasks RecyclerView (with drag & drop) -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/tasksContainer"
                 android:layout_width="match_parent"
@@ -154,8 +174,9 @@
                 <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:src="@android:drawable/ic_input_add"
-                    android:contentDescription="Add task" />
+                    android:src="@drawable/ic_fab_add"
+                    android:contentDescription="Add task"
+                    app:tint="#000000" />
 
                 <TextView
                     android:layout_width="wrap_content"

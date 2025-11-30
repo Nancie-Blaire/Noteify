@@ -3,186 +3,344 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/lightmode_bg"
-    android:fillViewport="true">
+    android:background="@drawable/lightmode_bg">
+
+    <!-- Header with Back Button -->
+    <LinearLayout
+        android:id="@+id/header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:layout_marginTop="32dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginStart="12dp"/>
+    </LinearLayout>
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_below="@id/header"
         android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="80dp">
 
+            <!-- Settings Icon -->
+            <ImageView
+                android:layout_width="150dp"
+                android:layout_height="150dp"
+                android:src="@drawable/settings_icon"
+                android:layout_gravity="center"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="32dp"/>
+
+            <!-- TIME FORMAT Section -->
             <LinearLayout
+                android:id="@+id/timeFormatSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="32dp"
-                android:layout_marginTop="32dp">
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginBottom="2dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <LinearLayout
+                    android:id="@+id/timeFormatHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="TIME FORMAT"
+                        android:textColor="#333333"
+                        android:textSize="14sp"
+                        android:textStyle="bold"/>
+
+                    <ImageView
+                        android:id="@+id/timeFormatArrow"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_chevron_down"
+                        android:tint="#666666"/>
+                </LinearLayout>
+
+                <!-- Expandable Content - INLINE LAYOUT -->
+                <LinearLayout
+                    android:id="@+id/timeFormatContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="100dp"
+                    android:layout_marginTop="16dp"
+                    android:background="#ffffff"
+                    android:padding="8dp"
+                    android:visibility="gone">
+                    <LinearLayout
+                        android:layout_width="100dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:orientation="horizontal">
+
+                        <RadioGroup
+                            android:id="@+id/timeFormatRadioGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <!-- Military Option -->
+                            <RadioButton
+                                android:id="@+id/rbMilitary"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Military"
+                                android:textColor="#333333"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:gravity="center_vertical"
+                                android:paddingEnd="8dp" />
 
 
-                <!-- Settings Title -->
+                            <!-- Civilian Option -->
+                            <RadioButton
+                                android:id="@+id/rbCivilian"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Civilian"
+                                android:textColor="#333333"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:gravity="center_vertical"
+                                android:paddingEnd="8dp" />
+
+                        </RadioGroup>
+                    </LinearLayout>
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"/>
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="(e.g. 24:00)"
+                            android:textColor="#999999"
+                            android:textSize="11sp"
+                            android:textAlignment="viewEnd"
+                            android:layout_marginBottom="30dp"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="(e.g. 12:00 A.M.)"
+                            android:textColor="#999999"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- NOTIFICATION Section -->
+            <LinearLayout
+                android:id="@+id/notificationSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginBottom="2dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <LinearLayout
+                    android:id="@+id/notificationHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="NOTIFICATION"
+                        android:textColor="#333333"
+                        android:textSize="14sp"
+                        android:textStyle="bold"/>
+
+                    <ImageView
+                        android:id="@+id/notificationArrow"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_chevron_down"
+                        android:tint="#666666"/>
+                </LinearLayout>
+
+                <!-- Expandable Content - SIMPLE LAYOUT -->
+                <LinearLayout
+                    android:id="@+id/notificationContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="100dp"
+                    android:layout_marginTop="16dp"
+                    android:background="#ffffff"
+                    android:padding="8dp"
+                    android:visibility="gone">
+
+                    <RadioGroup
+                        android:id="@+id/notificationRadioGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <RadioButton
+                            android:id="@+id/rbNotificationOn"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:textSize="14sp"
+                            android:textColor="#333333"
+                            android:layout_marginBottom="8dp"/>
+
+                        <RadioButton
+                            android:id="@+id/rbNotificationOff"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:textSize="14sp"
+                            android:textColor="#333333"/>
+                    </RadioGroup>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- PROFILE Section -->
+            <LinearLayout
+                android:id="@+id/userProfileIcon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:layout_marginBottom="2dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical">
+
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:layout_marginStart="16dp"
-                    android:text="Settings"
-                    android:textColor="#000000"
-                    android:textSize="24sp"
-                    android:textStyle="bold" />
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="PROFILE"
+                    android:textColor="#333333"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="#666666"/>
             </LinearLayout>
 
-            <!-- First Row: Bin, Profile, Theme -->
+            <!-- THEME Section -->
             <LinearLayout
+                android:id="@+id/btnTheme"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center"
-                android:layout_marginBottom="8dp">
+                android:padding="16dp"
+                android:layout_marginBottom="2dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical">
 
-                <!-- Bin Button -->
-                <LinearLayout
-                    android:id="@+id/btnBin"
+                <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="20dp"
-                    android:layout_margin="6dp"
-                    android:background="@drawable/light_orange_background"
-                    android:clickable="true"
-                    android:focusable="true">
+                    android:text="THEME"
+                    android:textColor="#333333"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
 
-                    <ImageView
-                        android:layout_width="71dp"
-                        android:layout_height="63dp"
-                        android:layout_marginBottom="8dp"
-                        android:src="@drawable/ic_settings_bin"
-                        app:tint="#FFFFFF" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textStyle="bold"
-                        android:text="Bin"
-                        android:textColor="#333333"
-                        android:textSize="14sp"/>
-                </LinearLayout>
-
-                <!-- Profile Button -->
-                <LinearLayout
-                    android:id="@+id/userProfileIcon"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="20dp"
-                    android:layout_margin="6dp"
-                    android:background="@drawable/light_orange_background"
-                    android:clickable="true"
-                    android:focusable="true">
-
-                    <ImageView
-                        android:layout_width="71dp"
-                        android:layout_height="63dp"
-                        android:src="@drawable/ic_settings_account"
-                        app:tint="#FFFFFF"
-                        android:layout_marginBottom="8dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textStyle="bold"
-                        android:text="Profile"
-                        android:textColor="#333333"
-                        android:textSize="14sp"/>
-                </LinearLayout>
-
-                <!-- Theme Button -->
-                <LinearLayout
-                    android:id="@+id/btnTheme"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="20dp"
-                    android:layout_margin="6dp"
-                    android:background="@drawable/light_orange_background"
-                    android:clickable="true"
-                    android:focusable="true">
-
-                    <ImageView
-                        android:layout_width="71dp"
-                        android:layout_height="63dp"
-                        android:src="@drawable/ic_settings_theme"
-                        app:tint="#FFFFFF"
-                        android:layout_marginBottom="8dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textStyle="bold"
-                        android:text="Theme"
-                        android:textColor="#333333"
-                        android:textSize="14sp"/>
-                </LinearLayout>
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="#666666"/>
             </LinearLayout>
 
-            <!-- Second Row: Security (Centered) -->
+            <!-- BIN Section -->
             <LinearLayout
+                android:id="@+id/btnBin"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center"
-                android:layout_marginBottom="50dp">
+                android:padding="16dp"
+                android:layout_marginBottom="2dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical">
 
-                <!-- Empty Space (Left) -->
-                <Space
-                    android:layout_width="wrap_content"
-                    android:layout_height="1dp"
-                    android:layout_weight="1"/>
-
-                <!-- Security Button -->
-                <LinearLayout
-                    android:id="@+id/btnSecurity"
+                <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="20dp"
-                    android:layout_margin="6dp"
-                    android:background="@drawable/light_orange_background"
-                    android:clickable="true"
-                    android:focusable="true">
+                    android:text="BIN"
+                    android:textColor="#333333"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
 
-                    <ImageView
-                        android:layout_width="71dp"
-                        android:layout_height="63dp"
-                        android:layout_marginBottom="8dp"
-                        android:src="@drawable/ic_settings_security"
-                        app:tint="#FFFFFF" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="#666666"/>
+            </LinearLayout>
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textStyle="bold"
-                        android:text="Security"
-                        android:textColor="#333333"
-                        android:textSize="14sp" />
-                </LinearLayout>
+            <!-- PRIVACY Section -->
+            <LinearLayout
+                android:id="@+id/btnSecurity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical">
 
-                <!-- Empty Space (Right) -->
-                <Space
-                    android:layout_width="wrap_content"
-                    android:layout_height="1dp"
-                    android:layout_weight="1"/>
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="PRIVACY"
+                    android:textColor="#333333"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="#666666"/>
             </LinearLayout>
 
         </LinearLayout>

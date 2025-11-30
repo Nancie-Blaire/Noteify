@@ -71,7 +71,7 @@ public class Login extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
 
         // ✅ CHECK FOR ACCOUNT SWITCH - Auto-fill email
-        Intent intent = getIntent();
+        /*Intent intent = getIntent();
         if (intent != null && intent.hasExtra("SWITCH_ACCOUNT_EMAIL")) {
             String switchEmail = intent.getStringExtra("SWITCH_ACCOUNT_EMAIL");
             if (switchEmail != null && !switchEmail.isEmpty()) {
@@ -79,7 +79,7 @@ public class Login extends AppCompatActivity {
                 etPassword.requestFocus();
                 Toast.makeText(this, "Switching to " + switchEmail + ". Please enter your password.", Toast.LENGTH_SHORT).show();
             }
-        }
+        }*/
 
         if (etEmail == null || etPassword == null || btnLogin == null ||
                 tvSignUpRedirect == null || tvForgotPassword == null || progressBar == null) {

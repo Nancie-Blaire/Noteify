@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="#FFFFFF">
+    android:background="@drawable/light_orange_background">
 
     <!-- Title -->
     <TextView
@@ -163,7 +163,7 @@
             android:id="@+id/cancelButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cancel"
+            android:text="CANCEL"
             android:textColor="#808080"
             android:background="?attr/selectableItemBackground"
             android:layout_marginEnd="8dp"
@@ -174,9 +174,10 @@
             android:id="@+id/saveScheduleButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Save"
+            android:text="SAVE"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#4CAF50"
+            android:fontFamily="@font/inter_regular"
+            android:backgroundTint="#ff9376"
             android:paddingStart="24dp"
             android:paddingEnd="24dp" />
 

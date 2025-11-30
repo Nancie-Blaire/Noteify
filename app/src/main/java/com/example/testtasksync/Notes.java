@@ -28,7 +28,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.Timestamp;
 
@@ -38,8 +37,6 @@ import java.util.Comparator;
 import java.util.List;
 
 import static android.content.Context.INPUT_METHOD_SERVICE;
-import java.util.Collections;
-import java.util.Comparator;
 
 public class Notes extends Fragment {
 
@@ -60,6 +57,8 @@ public class Notes extends Fragment {
     private RecyclerView searchRecyclerView;
     private EditText searchBar;
     private ImageView searchIcon;
+    private ImageButton prioToolbar;
+    private ImageButton recentsToolbar;
     private View blurOverlay;
     private View searchContainer;
     private View mainContent;
@@ -68,6 +67,16 @@ public class Notes extends Fragment {
 
     private boolean notesLoaded = false;
     private boolean schedulesLoaded = false;
+
+    // Layout modes
+    private enum LayoutMode { GRID, LIST }
+    private LayoutMode prioLayoutMode = LayoutMode.GRID;
+    private LayoutMode recentsLayoutMode = LayoutMode.LIST;
+
+    // View
+    private static final String PREFS_NAME = "NotesPreferences";
+    private static final String PREF_PRIO_LAYOUT = "prioLayoutMode";
+    private static final String PREF_RECENTS_LAYOUT = "recentsLayoutMode";
 
     @Nullable
     @Override
@@ -87,6 +96,8 @@ public class Notes extends Fragment {
         searchRecyclerView = view.findViewById(R.id.searchRecyclerView);
         searchBar = view.findViewById(R.id.searchBar);
         searchIcon = view.findViewById(R.id.searchIcon);
+        prioToolbar = view.findViewById(R.id.prioToolbar);
+        recentsToolbar = view.findViewById(R.id.recentsToolbar);
         blurOverlay = view.findViewById(R.id.blurOverlay);
         searchContainer = view.findViewById(R.id.searchContainer);
         mainContent = view.findViewById(R.id.mainContent);
@@ -100,6 +111,9 @@ public class Notes extends Fragment {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
+        // Calling methods
+        loadLayoutPreferences();
+
         FirebaseUser user = auth.getCurrentUser();
 
         // Check if user is logged in
@@ -108,6 +122,10 @@ public class Notes extends Fragment {
             requireActivity().finish();
             return;
         }
+
+        // Setup toolbar click listeners
+        prioToolbar.setOnClickListener(v -> showPrioToolbarMenu(v));
+        recentsToolbar.setOnClickListener(v -> showRecentsToolbarMenu(v));
 
         // Setup search bar - NOT focused by default
         searchBar.setFocusable(false);
@@ -195,14 +213,198 @@ public class Notes extends Fragment {
         loadNotes(user);
         loadSchedules(user);
 
-
         // Initialize time card views
         TextView timeText = view.findViewById(R.id.timeText);
         TextView amPmText = view.findViewById(R.id.amPmText);
         TextView dateText = view.findViewById(R.id.dateText);
 
-// Update time and date
+        // Update time and date
         updateTimeAndDate(timeText, amPmText, dateText);
+    }
+
+    // Add this method to load saved preferences
+    private void loadLayoutPreferences() {
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+
+        // Load prio layout mode
+        String savedPrioLayout = prefs.getString(PREF_PRIO_LAYOUT, "GRID");
+        prioLayoutMode = savedPrioLayout.equals("LIST") ? LayoutMode.LIST : LayoutMode.GRID;
+
+        // Load recents layout mode
+        String savedRecentsLayout = prefs.getString(PREF_RECENTS_LAYOUT, "LIST");
+        recentsLayoutMode = savedRecentsLayout.equals("GRID") ? LayoutMode.GRID : LayoutMode.LIST;
+
+        Log.d(TAG, "Loaded preferences - Prio: " + prioLayoutMode + ", Recents: " + recentsLayoutMode);
+    }
+
+    // Add this method to save preferences
+    private void saveLayoutPreference(String key, LayoutMode mode) {
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(key, mode.name());
+        editor.apply();
+        Log.d(TAG, "Saved preference - " + key + ": " + mode.name());
+    }
+
+    private void showPrioToolbarMenu(View anchor) {
+        LayoutInflater inflater = LayoutInflater.from(getContext());
+        View popupView = inflater.inflate(R.layout.menu_toolbar_layout, null);
+
+        final PopupWindow popupWindow = new PopupWindow(
+                popupView,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                true
+        );
+
+        popupWindow.setElevation(8);
+
+        View gridView = popupView.findViewById(R.id.menu_grid_view);
+        View listView = popupView.findViewById(R.id.menu_list_view);
+        View sortDate = popupView.findViewById(R.id.menu_sort_date);
+
+        gridView.setOnClickListener(v -> {
+            prioLayoutMode = LayoutMode.GRID;
+            saveLayoutPreference(PREF_PRIO_LAYOUT, prioLayoutMode);
+            updatePrioLayout();
+            Toast.makeText(getContext(), "Grid view", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
+
+        listView.setOnClickListener(v -> {
+            prioLayoutMode = LayoutMode.LIST;
+            saveLayoutPreference(PREF_PRIO_LAYOUT, prioLayoutMode);
+            updatePrioLayout();
+            Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
+
+        sortDate.setOnClickListener(v -> {
+            sortPriosByDate();
+            Toast.makeText(getContext(), "Sorted by date", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
+
+        // Calculate position to align popup to the right edge of anchor
+        int[] location = new int[2];
+        anchor.getLocationOnScreen(location);
+        int xOffset = anchor.getWidth() - popupView.getMeasuredWidth();
+
+        // Measure the popup view first
+        popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+
+        // Position popup aligned to right edge of anchor, slightly below
+        popupWindow.showAsDropDown(anchor, anchor.getWidth() - popupView.getMeasuredWidth(), 8);
+    }
+
+    // Replace the showRecentsToolbarMenu method with this:
+    private void showRecentsToolbarMenu(View anchor) {
+        LayoutInflater inflater = LayoutInflater.from(getContext());
+        View popupView = inflater.inflate(R.layout.menu_toolbar_layout, null);
+
+        final PopupWindow popupWindow = new PopupWindow(
+                popupView,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                true
+        );
+
+        popupWindow.setElevation(8);
+
+        View gridView = popupView.findViewById(R.id.menu_grid_view);
+        View listView = popupView.findViewById(R.id.menu_list_view);
+        View sortDate = popupView.findViewById(R.id.menu_sort_date);
+
+        gridView.setOnClickListener(v -> {
+            recentsLayoutMode = LayoutMode.GRID;
+            saveLayoutPreference(PREF_RECENTS_LAYOUT, recentsLayoutMode);
+            updateRecentsLayout();
+            Toast.makeText(getContext(), "Grid view", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
+
+        listView.setOnClickListener(v -> {
+            recentsLayoutMode = LayoutMode.LIST;
+            saveLayoutPreference(PREF_RECENTS_LAYOUT, recentsLayoutMode);
+            updateRecentsLayout();
+            Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
+
+        sortDate.setOnClickListener(v -> {
+            sortRecentsByDate();
+            Toast.makeText(getContext(), "Sorted by date", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
+
+        // Calculate position to align popup to the right edge of anchor
+        int[] location = new int[2];
+        anchor.getLocationOnScreen(location);
+        int xOffset = anchor.getWidth() - popupView.getMeasuredWidth();
+
+        // Measure the popup view first
+        popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+
+        // Position popup aligned to right edge of anchor, slightly below
+        popupWindow.showAsDropDown(anchor, anchor.getWidth() - popupView.getMeasuredWidth(), 8);
+    }
+
+    private void updatePrioLayout() {
+        if (starredList.isEmpty()) {
+            return;
+        }
+
+        if (prioLayoutMode == LayoutMode.GRID) {
+            prioNotesRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
+            starredAdapter = new NoteAdapter(starredList, note -> openItem(note), true, typeDetector);
+        } else {
+            prioNotesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+            starredAdapter = new NoteAdapter(starredList, note -> openItem(note), false, typeDetector);
+        }
+
+        prioNotesRecyclerView.setAdapter(starredAdapter);
+        starredAdapter.notifyDataSetChanged();
+    }
+
+    private void updateRecentsLayout() {
+        if (combinedList.isEmpty()) {
+            return;
+        }
+
+        if (recentsLayoutMode == LayoutMode.GRID) {
+            notesRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
+        } else {
+            notesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        }
+
+        NoteAdapter unifiedAdapter = new NoteAdapter(combinedList, note -> openItem(note),
+                recentsLayoutMode == LayoutMode.GRID, typeDetector);
+        notesRecyclerView.setAdapter(unifiedAdapter);
+        unifiedAdapter.notifyDataSetChanged();
+    }
+
+    private void sortPriosByDate() {
+        Collections.sort(starredList, new Comparator<Note>() {
+            @Override
+            public int compare(Note n1, Note n2) {
+                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
+            }
+        });
+        starredAdapter.notifyDataSetChanged();
+    }
+
+    private void sortRecentsByDate() {
+        Collections.sort(combinedList, new Comparator<Note>() {
+            @Override
+            public int compare(Note n1, Note n2) {
+                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
+            }
+        });
+
+        NoteAdapter currentAdapter = (NoteAdapter) notesRecyclerView.getAdapter();
+        if (currentAdapter != null) {
+            currentAdapter.notifyDataSetChanged();
+        }
     }
 
     private void updateTimeAndDate(TextView timeText, TextView amPmText, TextView dateText) {
@@ -210,7 +412,7 @@ public class Notes extends Fragment {
 
         // Format time
         int hour = calendar.get(java.util.Calendar.HOUR);
-        if (hour == 0) hour = 12; // Convert 0 to 12 for 12-hour format
+        if (hour == 0) hour = 12;
         int minute = calendar.get(java.util.Calendar.MINUTE);
         String time = String.format("%d:%02d", hour, minute);
         timeText.setText(time);
@@ -257,28 +459,24 @@ public class Notes extends Fragment {
         searchResults.clear();
         String lowerQuery = query.toLowerCase();
 
-        // Search in notes
         for (Note note : noteList) {
             if (matchesQuery(note, lowerQuery)) {
                 searchResults.add(note);
             }
         }
 
-        // Search in todos
         for (Note todo : todoList) {
             if (matchesQuery(todo, lowerQuery)) {
                 searchResults.add(todo);
             }
         }
 
-        // Search in weeklies
         for (Note weekly : weeklyList) {
             if (matchesQuery(weekly, lowerQuery)) {
                 searchResults.add(weekly);
             }
         }
 
-        // Sort by timestamp (newest first)
         Collections.sort(searchResults, (n1, n2) ->
                 Long.compare(n2.getTimestamp(), n1.getTimestamp()));
 
@@ -367,9 +565,8 @@ public class Notes extends Fragment {
 
                     if (snapshots != null) {
                         for (QueryDocumentSnapshot doc : snapshots) {
-                            // ✅ Filter out deleted items in code
                             if (doc.get("deletedAt") != null) {
-                                continue;  // Skip deleted items
+                                continue;
                             }
 
                             Note note = new Note(
@@ -406,7 +603,6 @@ public class Notes extends Fragment {
                             noteList.add(note);
                         }
 
-                        // ✅ Sort in code instead of Firestore (API 23 compatible)
                         Collections.sort(noteList, new Comparator<Note>() {
                             @Override
                             public int compare(Note n1, Note n2) {
@@ -442,9 +638,8 @@ public class Notes extends Fragment {
                         Log.d(TAG, "Found " + snapshots.size() + " schedule items");
 
                         for (QueryDocumentSnapshot doc : snapshots) {
-                            // ✅ Filter out deleted items in code
                             if (doc.get("deletedAt") != null) {
-                                continue;  // Skip deleted items
+                                continue;
                             }
 
                             String category = doc.getString("category");
@@ -461,7 +656,6 @@ public class Notes extends Fragment {
                             }
                         }
 
-                        // ✅ Sort in code (API 23 compatible)
                         Collections.sort(todoList, new Comparator<Note>() {
                             @Override
                             public int compare(Note n1, Note n2) {
@@ -557,9 +751,7 @@ public class Notes extends Fragment {
             prioNotesRecyclerView.setAdapter(prioWelcomeAdapter);
         } else {
             Log.d(TAG, "Starred items found: " + starredList.size());
-            starredAdapter.setTypeDetector(typeDetector);
-            prioNotesRecyclerView.setAdapter(starredAdapter);
-            starredAdapter.notifyDataSetChanged();
+            updatePrioLayout();
         }
 
         combinedList.clear();
@@ -582,16 +774,8 @@ public class Notes extends Fragment {
             notesRecyclerView.setAdapter(recentWelcomeAdapter);
         } else {
             Log.d(TAG, "Combined items found: " + combinedList.size());
-
-            NoteAdapter unifiedAdapter = new NoteAdapter(combinedList, note -> {
-                openItem(note);
-            }, false, typeDetector);
-
-            notesRecyclerView.setAdapter(unifiedAdapter);
-            unifiedAdapter.notifyDataSetChanged();
-
+            updateRecentsLayout();
             Log.d(TAG, "✅ UI Updated successfully!");
         }
     }
-
 }

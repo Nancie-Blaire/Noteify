@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:background="#f4e8df"
+    android:background="#f6d5b6"
     android:layout_marginBottom="12dp"
     app:cardCornerRadius="8dp"
     app:cardElevation="2dp"

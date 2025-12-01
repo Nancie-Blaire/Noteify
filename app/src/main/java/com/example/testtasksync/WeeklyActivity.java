@@ -3,9 +3,11 @@ package com.example.testtasksync;
 
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -84,9 +86,18 @@ public class WeeklyActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
 
-        // Get plan ID from intent
-        planId = getIntent().getStringExtra("planId");
+        // ✅ CRITICAL FIX: Get planId from intent FIRST
+        Intent intent = getIntent();
+        planId = intent.getStringExtra("planId");
+        boolean fromNotification = intent.getBooleanExtra("fromNotification", false);
+
+        // ✅ Check if new plan AFTER getting intent data
         isNewPlan = (planId == null || planId.isEmpty());
+
+        Log.d(TAG, "🎯 WeeklyActivity opened:");
+        Log.d(TAG, "   planId: " + planId);
+        Log.d(TAG, "   isNewPlan: " + isNewPlan);
+        Log.d(TAG, "   fromNotification: " + fromNotification);
 
         // Initialize views
         weeklyTitle = findViewById(R.id.weeklyTitle);
@@ -126,7 +137,7 @@ public class WeeklyActivity extends AppCompatActivity {
         findViewById(R.id.addSatTask).setOnClickListener(v -> addTask("Sat"));
         findViewById(R.id.addSunTask).setOnClickListener(v -> addTask("Sun"));
 
-        // ✅ NEW: Setup per-day schedule buttons
+        // ✅ Setup per-day schedule buttons
         findViewById(R.id.mondayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Mon"));
         findViewById(R.id.tuesdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Tues"));
         findViewById(R.id.wednesdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Wed"));
@@ -140,8 +151,9 @@ public class WeeklyActivity extends AppCompatActivity {
         backButton.setOnClickListener(v -> finish());
         scheduleButton.setOnClickListener(v -> showScheduleDialog());
 
-        // Load existing plan or add default tasks
+        // ✅ Load existing plan or add default tasks
         if (isNewPlan) {
+            Log.d(TAG, "📝 Creating new plan - adding default tasks");
             // Add 3 default tasks for each day
             for (String day : days) {
                 for (int i = 0; i < 3; i++) {
@@ -149,6 +161,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 }
             }
         } else {
+            Log.d(TAG, "📂 Loading existing plan: " + planId);
             loadWeeklyPlan();
         }
     }
@@ -992,8 +1005,8 @@ public class WeeklyActivity extends AppCompatActivity {
                         if (dayTaskList != null) {
                             for (WeeklyTask task : dayTaskList) {
                                 if (!task.getTaskText().trim().isEmpty() && !task.isCompleted()) {
-                                    // ✅ Create unique notification ID with schedule number
-                                    String notificationId = task.getId() + "_sched_" +
+                                    // ✅ FIXED: Create notification ID with planId FIRST
+                                    String notificationId = planId + "_" + task.getId() + "_sched_" +
                                             daySchedule.getScheduleNumber();
 
                                     NotificationHelper.scheduleWeeklyTaskNotification(
@@ -1746,5 +1759,4 @@ public class WeeklyActivity extends AppCompatActivity {
 
         return super.dispatchTouchEvent(ev);
     }
-
 }

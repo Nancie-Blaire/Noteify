@@ -7,6 +7,7 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -1145,7 +1146,107 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
 
     private void addLinkBlock() {
-        Toast.makeText(this, "Link dialog - to be implemented", Toast.LENGTH_SHORT).show();
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.link_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        com.google.android.material.textfield.TextInputEditText linkUrlInput =
+                sheetView.findViewById(R.id.linkUrlInput);
+        TextView createLinkBtn = sheetView.findViewById(R.id.createLinkBtn);
+
+        createLinkBtn.setOnClickListener(v -> {
+            String url = linkUrlInput.getText().toString().trim();
+
+            if (url.isEmpty()) {
+                Toast.makeText(this, "Please enter a URL", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Add https:// if missing
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                url = "https://" + url;
+            }
+
+            // Extract title from URL
+            String title = extractTitle(url);
+
+            // Check if last block is empty text - replace it
+            boolean shouldReplaceLastBlock = false;
+            int insertPosition = blocks.size();
+
+            if (!blocks.isEmpty()) {
+                NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+
+                if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                        (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+
+                    shouldReplaceLastBlock = true;
+                    insertPosition = blocks.size() - 1;
+
+                    // Delete empty text block
+                    FirebaseUser user = auth.getCurrentUser();
+                    if (user != null) {
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("blocks").document(lastBlock.getId())
+                                .delete();
+                    }
+
+                    blocks.remove(blocks.size() - 1);
+                }
+            }
+
+            // Create link block
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.LINK);
+            block.setPosition(insertPosition);
+            block.setContent(title);
+            block.setLinkUrl(url);
+            block.setLinkBackgroundColor("#FFFFFF");
+            block.setLinkDescription("");
+
+            blocks.add(insertPosition, block);
+
+            if (shouldReplaceLastBlock) {
+                adapter.notifyItemChanged(insertPosition);
+            } else {
+                adapter.notifyItemInserted(insertPosition);
+            }
+
+            saveBlock(block);
+
+            // Add new text block after link
+            NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
+            textBlock.setPosition(blocks.size());
+            blocks.add(textBlock);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(textBlock);
+
+            updateBlockPositions();
+
+            bottomSheet.dismiss();
+            Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
+        });
+
+        bottomSheet.show();
+    }
+
+    private String extractTitle(String url) {
+        try {
+            String domain = url.replace("https://", "").replace("http://", "");
+            int slashIndex = domain.indexOf("/");
+            if (slashIndex > 0) {
+                domain = domain.substring(0, slashIndex);
+            }
+
+            // Capitalize first letter
+            if (!domain.isEmpty()) {
+                domain = domain.substring(0, 1).toUpperCase() + domain.substring(1);
+            }
+
+            return domain;
+        } catch (Exception e) {
+            return "Link";
+        }
     }
 
     private void saveBlock(NoteBlock block) {

@@ -37,8 +37,17 @@ public class NoteBlock {
 
     // For numbered lists - track number
     private int listNumber;
+    private String linkBackgroundColor; // For link blocks
+    private String linkDescription;
 
-
+    public String getLinkBackgroundColor() { return linkBackgroundColor; }
+    public void setLinkBackgroundColor(String linkBackgroundColor) {
+        this.linkBackgroundColor = linkBackgroundColor;
+    }
+    public String getLinkDescription() { return linkDescription; }
+    public void setLinkDescription(String linkDescription) {
+        this.linkDescription = linkDescription;
+    }
     // Constructor
     public NoteBlock(String id, BlockType type) {
         this.id = id;
@@ -127,6 +136,8 @@ public class NoteBlock {
         map.put("base64Data", base64Data);
         map.put("isChunked", isChunked);
         map.put("sizeKB", sizeKB);
+        map.put("linkBackgroundColor", linkBackgroundColor);
+        map.put("linkDescription", linkDescription);
 
         return map;
     }
@@ -137,6 +148,8 @@ public class NoteBlock {
         block.id = (String) map.get("id");
         block.type = BlockType.valueOf((String) map.get("type"));
         block.content = (String) map.get("content");
+        block.linkBackgroundColor = (String) map.get("linkBackgroundColor");
+        block.linkDescription = (String) map.get("linkDescription");
 
         if (map.get("indentLevel") != null) {
             block.indentLevel = ((Long) map.get("indentLevel")).intValue();

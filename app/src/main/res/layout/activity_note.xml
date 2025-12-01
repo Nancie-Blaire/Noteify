@@ -110,7 +110,7 @@
                 android:id="@+id/emptySpace"
                 android:layout_width="match_parent"
                 android:layout_height="400dp"
-                android:background="?attr/selectableItemBackground"
+                android:background="@android:color/transparent"
                 android:clickable="true"
                 android:focusable="true" />
 

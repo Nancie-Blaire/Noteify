@@ -10,6 +10,7 @@ import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -20,6 +21,8 @@ import java.util.List;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Base64;
+
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -907,24 +910,275 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
     }
 
+// REPLACE ang LinkViewHolder class sa NoteBlockAdapter.java with this:
+
     class LinkViewHolder extends RecyclerView.ViewHolder {
-        TextView linkText;
+        View cardView;
+        TextView titleText;
+        TextView urlText;
+        TextView descriptionText;
+        ImageView menuBtn;
+        ImageView faviconView;
 
         LinkViewHolder(View view) {
             super(view);
-            linkText = view.findViewById(R.id.linkText);
+            cardView = view.findViewById(R.id.linkCardView);
+            titleText = view.findViewById(R.id.linkTitle);
+            urlText = view.findViewById(R.id.linkUrl);
+            descriptionText = view.findViewById(R.id.linkDescription);
+            menuBtn = view.findViewById(R.id.linkMenuBtn);
+            faviconView = view.findViewById(R.id.linkFavicon);
 
-            itemView.setOnClickListener(v -> {
-                int pos = getAdapterPosition();
-                if (pos != RecyclerView.NO_POSITION) {
-                    NoteBlock block = blocks.get(pos);
-                    listener.onLinkClick(block.getLinkUrl());
-                }
-            });
+            // ✅ CHECK: Verify all views are found
+            if (cardView == null) {
+                android.util.Log.e("LinkViewHolder", "cardView is NULL!");
+            }
+            if (titleText == null) {
+                android.util.Log.e("LinkViewHolder", "titleText is NULL!");
+            }
+            if (urlText == null) {
+                android.util.Log.e("LinkViewHolder", "urlText is NULL!");
+            }
+
+            // Click to open URL
+            if (cardView != null) {
+                cardView.setOnClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        NoteBlock block = blocks.get(pos);
+                        if (block.getLinkUrl() != null) {
+                            listener.onLinkClick(block.getLinkUrl());
+                        }
+                    }
+                });
+            }
+
+            // Three dots menu
+            if (menuBtn != null) {
+                menuBtn.setOnClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        showLinkActionsSheet(v, pos);
+                    }
+                });
+            }
         }
 
         void bind(NoteBlock block) {
-            linkText.setText(block.getContent());
+            // ✅ LOG: Debug what we're binding
+            android.util.Log.d("LinkViewHolder", "Binding link block:");
+            android.util.Log.d("LinkViewHolder", "  Title: " + block.getContent());
+            android.util.Log.d("LinkViewHolder", "  URL: " + block.getLinkUrl());
+            android.util.Log.d("LinkViewHolder", "  Description: " + block.getLinkDescription());
+            android.util.Log.d("LinkViewHolder", "  BgColor: " + block.getLinkBackgroundColor());
+
+            // Set title
+            if (titleText != null) {
+                String title = block.getContent();
+                titleText.setText(title != null && !title.isEmpty() ? title : "Untitled Link");
+            }
+
+            // Set URL
+            if (urlText != null) {
+                String url = block.getLinkUrl();
+                urlText.setText(url != null ? url : "No URL");
+            }
+
+            // Set description
+            if (descriptionText != null) {
+                String description = block.getLinkDescription();
+                if (description != null && !description.isEmpty()) {
+                    descriptionText.setText(description);
+                    descriptionText.setVisibility(View.VISIBLE);
+                } else {
+                    descriptionText.setVisibility(View.GONE);
+                }
+            }
+
+            // Set background color
+            if (cardView != null) {
+                String bgColor = block.getLinkBackgroundColor();
+                if (bgColor != null && !bgColor.isEmpty()) {
+                    try {
+                        cardView.setBackgroundColor(Color.parseColor(bgColor));
+                    } catch (Exception e) {
+                        cardView.setBackgroundColor(Color.parseColor("#FFFFFF"));
+                        android.util.Log.e("LinkViewHolder", "Invalid color: " + bgColor);
+                    }
+                } else {
+                    cardView.setBackgroundColor(Color.parseColor("#FFFFFF"));
+                }
+            }
+        }
+
+        private void showLinkActionsSheet(View view, int position) {
+            NoteBlock block = blocks.get(position);
+
+            BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+            View sheetView = LayoutInflater.from(view.getContext())
+                    .inflate(R.layout.link_actions_bottom_sheet, null);
+            bottomSheet.setContentView(sheetView);
+
+            LinearLayout colorOption = sheetView.findViewById(R.id.linkColorOption);
+            LinearLayout captionOption = sheetView.findViewById(R.id.linkCaptionOption);
+            LinearLayout deleteOption = sheetView.findViewById(R.id.linkDeleteOption);
+
+            if (colorOption != null) {
+                colorOption.setOnClickListener(v -> {
+                    bottomSheet.dismiss();
+                    showLinkColorSheet(view, block, position);
+                });
+            }
+
+            if (captionOption != null) {
+                captionOption.setOnClickListener(v -> {
+                    bottomSheet.dismiss();
+                    showLinkCaptionSheet(view, block, position);
+                });
+            }
+
+            if (deleteOption != null) {
+                deleteOption.setOnClickListener(v -> {
+                    bottomSheet.dismiss();
+                    listener.onBlockDeleted(position);
+                });
+            }
+
+            bottomSheet.show();
+        }
+
+        private void showLinkColorSheet(View view, NoteBlock block, int position) {
+            BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+            View sheetView = LayoutInflater.from(view.getContext())
+                    .inflate(R.layout.link_color_bottom_sheet, null);
+            bottomSheet.setContentView(sheetView);
+
+            // Get all color options
+            LinearLayout colorDefault = sheetView.findViewById(R.id.linkColorDefault);
+            LinearLayout colorGray = sheetView.findViewById(R.id.linkColorGray);
+            LinearLayout colorBrown = sheetView.findViewById(R.id.linkColorBrown);
+            LinearLayout colorOrange = sheetView.findViewById(R.id.linkColorOrange);
+            LinearLayout colorYellow = sheetView.findViewById(R.id.linkColorYellow);
+            LinearLayout colorGreen = sheetView.findViewById(R.id.linkColorGreen);
+            LinearLayout colorBlue = sheetView.findViewById(R.id.linkColorBlue);
+            LinearLayout colorPurple = sheetView.findViewById(R.id.linkColorPurple);
+            LinearLayout colorPink = sheetView.findViewById(R.id.linkColorPink);
+            LinearLayout colorRed = sheetView.findViewById(R.id.linkColorRed);
+
+            // Set listeners
+            if (colorDefault != null) {
+                colorDefault.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#FFFFFF");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorGray != null) {
+                colorGray.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#E0E0E0");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorBrown != null) {
+                colorBrown.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#D7CCC8");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorOrange != null) {
+                colorOrange.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#FFE0B2");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorYellow != null) {
+                colorYellow.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#FFF9C4");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorGreen != null) {
+                colorGreen.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#C8E6C9");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorBlue != null) {
+                colorBlue.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#BBDEFB");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorPurple != null) {
+                colorPurple.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#E1BEE7");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorPink != null) {
+                colorPink.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#F8BBD0");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (colorRed != null) {
+                colorRed.setOnClickListener(v -> {
+                    updateLinkColor(block, position, "#FFCDD2");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            bottomSheet.show();
+        }
+
+        private void updateLinkColor(NoteBlock block, int position, String color) {
+            block.setLinkBackgroundColor(color);
+            notifyItemChanged(position);
+            listener.onBlockChanged(block);
+        }
+
+        private void showLinkCaptionSheet(View view, NoteBlock block, int position) {
+            BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+            View sheetView = LayoutInflater.from(view.getContext())
+                    .inflate(R.layout.link_caption_bottom_sheet, null);
+            bottomSheet.setContentView(sheetView);
+
+            com.google.android.material.textfield.TextInputEditText captionInput =
+                    sheetView.findViewById(R.id.linkCaptionInput);
+            TextView cancelBtn = sheetView.findViewById(R.id.cancelCaptionBtn);
+            TextView saveBtn = sheetView.findViewById(R.id.saveCaptionBtn);
+
+            // Pre-fill existing caption
+            if (captionInput != null && block.getLinkDescription() != null) {
+                captionInput.setText(block.getLinkDescription());
+            }
+
+            if (cancelBtn != null) {
+                cancelBtn.setOnClickListener(v -> bottomSheet.dismiss());
+            }
+
+            if (saveBtn != null) {
+                saveBtn.setOnClickListener(v -> {
+                    if (captionInput != null) {
+                        String caption = captionInput.getText().toString().trim();
+                        block.setLinkDescription(caption);
+                        notifyItemChanged(position);
+                        listener.onBlockChanged(block);
+                    }
+                    bottomSheet.dismiss();
+                });
+            }
+
+            bottomSheet.show();
         }
     }
+
 }

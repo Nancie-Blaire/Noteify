@@ -3,12 +3,14 @@ package com.example.testtasksync;
 import android.graphics.Color;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -18,7 +20,6 @@ import java.util.List;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Base64;
-import android.widget.ProgressBar;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -28,9 +29,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     private List<NoteBlock> blocks;
     private OnBlockChangeListener listener;
-    private String noteId; // ✅ ADDED
+    private String noteId;
 
-    // View types
     private static final int TYPE_TEXT = 0;
     private static final int TYPE_HEADING = 1;
     private static final int TYPE_BULLET = 2;
@@ -49,16 +49,17 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         void onSubpageClick(String subpageId);
         void onLinkClick(String url);
         void onDividerClick(int position);
-    }
+        void onEnterPressed(int position, String textBeforeCursor, String textAfterCursor);
+        void onBackspaceOnEmptyBlock(int position);
+        void onBackspaceAtStart(int position, String currentText);
 
-    // ✅ FIXED: Constructor now accepts noteId
+    }
 
     public NoteBlockAdapter(List<NoteBlock> blocks, OnBlockChangeListener listener, String noteId) {
         this.blocks = blocks;
         this.listener = listener;
         this.noteId = noteId;
     }
-
 
     public void setNoteId(String noteId) {
         this.noteId = noteId;
@@ -148,7 +149,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         return blocks.size();
     }
 
-    // Move block up/down
     public void moveBlock(int fromPosition, int toPosition) {
         if (fromPosition < toPosition) {
             for (int i = fromPosition; i < toPosition; i++) {
@@ -160,7 +160,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             }
         }
 
-        // Update positions
         for (int i = 0; i < blocks.size(); i++) {
             blocks.get(i).setPosition(i);
         }
@@ -168,26 +167,72 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         notifyItemMoved(fromPosition, toPosition);
     }
 
+    // ✅ Helper: Convert dp to px
+    private int dpToPx(int dp, View view) {
+        return (int) (dp * view.getContext().getResources().getDisplayMetrics().density);
+    }
+
     // ViewHolder classes
     class TextViewHolder extends RecyclerView.ViewHolder {
         EditText contentEdit;
+        private boolean isProcessingEnter = false;
 
         TextViewHolder(View view) {
             super(view);
             contentEdit = view.findViewById(R.id.contentEdit);
 
             contentEdit.addTextChangedListener(new TextWatcher() {
+                private String textBeforeChange = "";
+                private int cursorPositionBeforeChange = 0;
+
                 @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    textBeforeChange = s.toString();
+                    cursorPositionBeforeChange = contentEdit.getSelectionStart();
+                }
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int after) {
                     int pos = getAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) {
+                    if (pos == RecyclerView.NO_POSITION) return;
+
+                    // Detect Enter key press
+                    if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
+                        isProcessingEnter = true;
+
+                        // Remove the newline character
+                        String textWithoutNewline = s.toString().substring(0, start) + s.toString().substring(start + 1);
+                        contentEdit.setText(textWithoutNewline);
+                        contentEdit.setSelection(start);
+
+                        // Split text at cursor
+                        String textBefore = textWithoutNewline.substring(0, start);
+                        String textAfter = start < textWithoutNewline.length() ? textWithoutNewline.substring(start) : "";
+
+                        // Update current block
                         NoteBlock block = blocks.get(pos);
-                        block.setContent(s.toString());
-                        listener.onBlockChanged(block);
+                        block.setContent(textBefore);
+
+                        // Notify activity to create new block
+                        listener.onEnterPressed(pos, textBefore, textAfter);
+
+                        isProcessingEnter = false;
+                        return;
                     }
+
+                    // Detect backspace on empty block
+                    if (before == 1 && after == 0 && s.length() == 0) {
+                        NoteBlock block = blocks.get(pos);
+                        if (block.getContent().isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
+                            return;
+                        }
+                    }
+
+                    // Regular text change
+                    NoteBlock block = blocks.get(pos);
+                    block.setContent(s.toString());
+                    listener.onBlockChanged(block);
                 }
 
                 @Override
@@ -198,12 +243,10 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         void bind(NoteBlock block) {
             contentEdit.setText(block.getContent());
 
-            // Set dynamic hint based on position
             int pos = getAdapterPosition();
             if (pos == 0) {
                 contentEdit.setHint("Enter here");
             } else if (pos > 0) {
-                // Check if previous block is a subpage
                 NoteBlock previousBlock = blocks.get(pos - 1);
                 if (previousBlock.getType() == NoteBlock.BlockType.SUBPAGE) {
                     contentEdit.setHint("Continue here");
@@ -212,14 +255,16 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
             }
 
-            // Set indent
-            int marginLeft = block.getIndentLevel() * 32;
+            int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) contentEdit.getLayoutParams();
             params.leftMargin = marginLeft;
             contentEdit.setLayoutParams(params);
         }
-    }
 
+        private int dpToPx(int dp) {
+            return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
+        }
+    }
     class HeadingViewHolder extends RecyclerView.ViewHolder {
         EditText contentEdit;
 
@@ -249,7 +294,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         void bind(NoteBlock block) {
             contentEdit.setText(block.getContent());
 
-            // Set heading size
             float textSize = 16f;
             switch (block.getType()) {
                 case HEADING_1: textSize = 28f; break;
@@ -260,60 +304,212 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
     }
 
+// ====================================================
+// SA NoteBlockAdapter.java
+// Replace yung BulletViewHolder class with this:
+// ====================================================
+
+    // ====================================================
+// SA NoteBlockAdapter.java
+// Replace yung BulletViewHolder class with this:
+// ====================================================
+
+// ====================================================
+// SA NoteBlockAdapter.java
+// Replace yung BulletViewHolder class with this:
+// ====================================================
+
+// ====================================================
+// SA NoteBlockAdapter.java
+// Replace yung BulletViewHolder class with this:
+// ====================================================
+
     class BulletViewHolder extends RecyclerView.ViewHolder {
         TextView bulletIcon;
         EditText contentEdit;
+        private boolean isProcessingEnter = false;
+        private boolean isProcessingBackspace = false;
 
         BulletViewHolder(View view) {
             super(view);
             bulletIcon = view.findViewById(R.id.bulletIcon);
             contentEdit = view.findViewById(R.id.contentEdit);
 
+            // ✅ ADD: KeyListener to detect backspace on empty bullet
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
+                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    String currentText = contentEdit.getText().toString();
+                    int cursorPosition = contentEdit.getSelectionStart();
+
+                    // ✅ CASE 1: Empty bullet + backspace
+                    if (currentText.isEmpty()) {
+                        NoteBlock block = blocks.get(pos);
+
+                        // ✅ If indented, OUTDENT first before deleting
+                        if (block.getIndentLevel() > 0) {
+                            block.setIndentLevel(block.getIndentLevel() - 1);
+                            notifyItemChanged(pos);
+                            listener.onBlockChanged(block);
+                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                            return true; // Consume - don't delete yet
+                        } else {
+                            // ✅ Already at indent 0, convert to TEXT (stay on same line)
+                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
+                            return true;
+                        }
+                    }
+
+                    // ✅ CASE 2: Cursor at start + backspace = merge with previous
+                    if (cursorPosition == 0 && !currentText.isEmpty()) {
+                        listener.onBackspaceAtStart(pos, currentText);
+                        return true;
+                    }
+                }
+                return false;
+            });
+
             contentEdit.addTextChangedListener(new TextWatcher() {
+                private String textBeforeChange = "";
+                private int cursorBeforeChange = 0;
+
                 @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    textBeforeChange = s.toString();
+                    cursorBeforeChange = contentEdit.getSelectionStart();
+                }
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int after) {
                     int pos = getAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) {
+                    if (pos == RecyclerView.NO_POSITION) return;
+
+                    // ✅ DETECT ENTER KEY
+                    if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
+                        isProcessingEnter = true;
+
+                        String textWithoutNewline = s.toString().substring(0, start) + s.toString().substring(start + 1);
+                        contentEdit.setText(textWithoutNewline);
+                        contentEdit.setSelection(start);
+
+                        String textBefore = textWithoutNewline.substring(0, start);
+                        String textAfter = start < textWithoutNewline.length() ? textWithoutNewline.substring(start) : "";
+
                         NoteBlock block = blocks.get(pos);
-                        block.setContent(s.toString());
-                        listener.onBlockChanged(block);
+                        block.setContent(textBefore);
+
+                        listener.onEnterPressed(pos, textBefore, textAfter);
+                        isProcessingEnter = false;
+                        return;
                     }
+
+                    // Regular text change
+                    NoteBlock block = blocks.get(pos);
+                    block.setContent(s.toString());
+                    listener.onBlockChanged(block);
                 }
 
                 @Override
                 public void afterTextChanged(Editable s) {}
             });
+
+            // ✅ Optional: Click bullet icon to toggle indent
+            bulletIcon.setOnClickListener(v -> {
+                int pos = getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) {
+                    NoteBlock block = blocks.get(pos);
+                    int maxIndent = 2; // 0 = ●, 1 = ○, 2 = ■
+
+                    if (block.getIndentLevel() < maxIndent) {
+                        block.setIndentLevel(block.getIndentLevel() + 1);
+                    } else {
+                        block.setIndentLevel(0); // Cycle back
+                    }
+
+                    notifyItemChanged(pos);
+                    listener.onBlockChanged(block);
+                }
+            });
         }
 
         void bind(NoteBlock block) {
             contentEdit.setText(block.getContent());
+            contentEdit.setHint("List item");
 
-            // Set bullet style based on indent
+            // ✅ Set bullet style based on indent
             String bullet = "●";
             if (block.getIndentLevel() == 1) bullet = "○";
             else if (block.getIndentLevel() >= 2) bullet = "■";
             bulletIcon.setText(bullet);
 
-            // Set indent
-            int marginLeft = block.getIndentLevel() * 32;
+            // ✅ Apply indent margin (24dp per level)
+            int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
         }
+
+        private int dpToPx(int dp) {
+            return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
+        }
     }
+
+// ====================================================
+// SAME FIX: Apply to NumberedViewHolder and CheckboxViewHolder
+// ====================================================
 
     class NumberedViewHolder extends RecyclerView.ViewHolder {
         TextView numberText;
         EditText contentEdit;
+        private boolean isProcessingEnter = false;
 
         NumberedViewHolder(View view) {
             super(view);
             numberText = view.findViewById(R.id.numberText);
             contentEdit = view.findViewById(R.id.contentEdit);
 
+            // ✅ ADD: KeyListener for numbered lists too
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
+                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    String currentText = contentEdit.getText().toString();
+                    int cursorPosition = contentEdit.getSelectionStart();
+
+                    // ✅ Empty numbered item + backspace
+                    if (currentText.isEmpty()) {
+                        NoteBlock block = blocks.get(pos);
+
+                        // ✅ If indented, OUTDENT first
+                        if (block.getIndentLevel() > 0) {
+                            block.setIndentLevel(block.getIndentLevel() - 1);
+                            notifyItemChanged(pos);
+                            listener.onBlockChanged(block);
+                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                            return true;
+                        } else {
+                            // ✅ Already at indent 0, convert to TEXT
+                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
+                            return true;
+                        }
+                    }
+
+                    // ✅ Cursor at start + backspace
+                    if (cursorPosition == 0 && !currentText.isEmpty()) {
+                        listener.onBackspaceAtStart(pos, currentText);
+                        return true;
+                    }
+                }
+                return false;
+            });
+
             contentEdit.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -321,11 +517,30 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int after) {
                     int pos = getAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) {
+                    if (pos == RecyclerView.NO_POSITION) return;
+
+                    // Detect Enter key
+                    if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
+                        isProcessingEnter = true;
+
+                        String textWithoutNewline = s.toString().substring(0, start) + s.toString().substring(start + 1);
+                        contentEdit.setText(textWithoutNewline);
+                        contentEdit.setSelection(start);
+
+                        String textBefore = textWithoutNewline.substring(0, start);
+                        String textAfter = start < textWithoutNewline.length() ? textWithoutNewline.substring(start) : "";
+
                         NoteBlock block = blocks.get(pos);
-                        block.setContent(s.toString());
-                        listener.onBlockChanged(block);
+                        block.setContent(textBefore);
+
+                        listener.onEnterPressed(pos, textBefore, textAfter);
+                        isProcessingEnter = false;
+                        return;
                     }
+
+                    NoteBlock block = blocks.get(pos);
+                    block.setContent(s.toString());
+                    listener.onBlockChanged(block);
                 }
 
                 @Override
@@ -335,24 +550,90 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
         void bind(NoteBlock block) {
             contentEdit.setText(block.getContent());
-            numberText.setText(block.getListNumber() + ".");
 
-            // Set indent
-            int marginLeft = block.getIndentLevel() * 32;
+            String numberFormat;
+            switch (block.getIndentLevel()) {
+                case 0:
+                    numberFormat = block.getListNumber() + ".";
+                    break;
+                case 1:
+                    numberFormat = ((char)('a' + block.getListNumber() - 1)) + ".";
+                    break;
+                case 2:
+                    numberFormat = toRoman(block.getListNumber()) + ".";
+                    break;
+                default:
+                    numberFormat = block.getListNumber() + ".";
+                    break;
+            }
+            numberText.setText(numberFormat);
+
+            int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
+        }
+
+        private String toRoman(int number) {
+            String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
+            if (number > 0 && number <= romans.length) {
+                return romans[number - 1];
+            }
+            return "i";
+        }
+
+        private int dpToPx(int dp) {
+            return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
         }
     }
 
     class CheckboxViewHolder extends RecyclerView.ViewHolder {
         CheckBox checkbox;
         EditText contentEdit;
+        private boolean isProcessingEnter = false;
 
         CheckboxViewHolder(View view) {
             super(view);
             checkbox = view.findViewById(R.id.checkbox);
             contentEdit = view.findViewById(R.id.contentEdit);
+
+            // ✅ ADD: KeyListener for checkboxes too
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
+                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    String currentText = contentEdit.getText().toString();
+                    int cursorPosition = contentEdit.getSelectionStart();
+
+                    // ✅ Empty checkbox + backspace
+                    if (currentText.isEmpty()) {
+                        NoteBlock block = blocks.get(pos);
+
+                        // ✅ If indented, OUTDENT first
+                        if (block.getIndentLevel() > 0) {
+                            block.setIndentLevel(block.getIndentLevel() - 1);
+                            notifyItemChanged(pos);
+                            listener.onBlockChanged(block);
+                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                            return true;
+                        } else {
+                            // ✅ Already at indent 0, convert to TEXT
+                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
+                            return true;
+                        }
+                    }
+
+                    // ✅ Cursor at start + backspace
+                    if (cursorPosition == 0 && !currentText.isEmpty()) {
+                        listener.onBackspaceAtStart(pos, currentText);
+                        return true;
+                    }
+                }
+                return false;
+            });
 
             checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 int pos = getAdapterPosition();
@@ -370,11 +651,30 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int after) {
                     int pos = getAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) {
+                    if (pos == RecyclerView.NO_POSITION) return;
+
+                    // Detect Enter key
+                    if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
+                        isProcessingEnter = true;
+
+                        String textWithoutNewline = s.toString().substring(0, start) + s.toString().substring(start + 1);
+                        contentEdit.setText(textWithoutNewline);
+                        contentEdit.setSelection(start);
+
+                        String textBefore = textWithoutNewline.substring(0, start);
+                        String textAfter = start < textWithoutNewline.length() ? textWithoutNewline.substring(start) : "";
+
                         NoteBlock block = blocks.get(pos);
-                        block.setContent(s.toString());
-                        listener.onBlockChanged(block);
+                        block.setContent(textBefore);
+
+                        listener.onEnterPressed(pos, textBefore, textAfter);
+                        isProcessingEnter = false;
+                        return;
                     }
+
+                    NoteBlock block = blocks.get(pos);
+                    block.setContent(s.toString());
+                    listener.onBlockChanged(block);
                 }
 
                 @Override
@@ -386,14 +686,16 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             checkbox.setChecked(block.isChecked());
             contentEdit.setText(block.getContent());
 
-            // Set indent
-            int marginLeft = block.getIndentLevel() * 32;
+            int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
         }
-    }
 
+        private int dpToPx(int dp) {
+            return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
+        }
+    }
     class ImageViewHolder extends RecyclerView.ViewHolder {
         ImageView imageView;
         ProgressBar progressBar;
@@ -413,7 +715,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
             });
 
-            // Long press to delete
             imageView.setOnLongClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
@@ -427,17 +728,14 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(view.getContext());
             builder.setTitle("Delete Image?");
             builder.setMessage("This will permanently delete this image.");
-
             builder.setPositiveButton("Delete", (dialog, which) -> {
                 listener.onBlockDeleted(position);
             });
-
             builder.setNegativeButton("Cancel", null);
             builder.show();
         }
 
         void bind(NoteBlock block) {
-            // Show size info
             if (block.getSizeKB() > 0) {
                 imageSizeText.setVisibility(View.VISIBLE);
                 imageSizeText.setText(block.getSizeKB() + " KB" + (block.isChunked() ? " (Large)" : ""));
@@ -445,12 +743,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 imageSizeText.setVisibility(View.GONE);
             }
 
-            // Check if image is chunked or inline
             if (block.isChunked()) {
-                // Large image - load from chunks
                 loadChunkedImage(block);
             } else {
-                // Small image - load from base64Data in block
                 loadInlineImage(block);
             }
         }
@@ -499,7 +794,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
             FirebaseFirestore db = FirebaseFirestore.getInstance();
 
-            // Get all chunks
             db.collection("users").document(user.getUid())
                     .collection("notes").document(noteId)
                     .collection("images").document(imageId)
@@ -507,7 +801,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     .get()
                     .addOnSuccessListener(querySnapshot -> {
                         if (!querySnapshot.isEmpty()) {
-                            // Sort chunks by index
                             List<QueryDocumentSnapshot> chunks = new ArrayList<>();
                             for (QueryDocumentSnapshot doc : querySnapshot) {
                                 chunks.add(doc);
@@ -520,7 +813,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                         indexA.compareTo(indexB) : 0;
                             });
 
-                            // Combine chunks
                             StringBuilder fullBase64 = new StringBuilder();
                             for (QueryDocumentSnapshot chunk : chunks) {
                                 String data = chunk.getString("data");
@@ -572,7 +864,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
         void bind(NoteBlock block) {
             // Apply divider style
-            // This will be customized based on dividerStyle
         }
     }
 
@@ -583,7 +874,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             super(view);
             titleText = view.findViewById(R.id.titleText);
 
-            // Regular click - open subpage
             itemView.setOnClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
@@ -592,7 +882,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
             });
 
-            // Long press - show delete dialog
             itemView.setOnLongClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
@@ -606,11 +895,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(view.getContext());
             builder.setTitle("Delete Subpage?");
             builder.setMessage("This will delete the subpage and all its content.");
-
             builder.setPositiveButton("Delete", (dialog, which) -> {
                 listener.onBlockDeleted(position);
             });
-
             builder.setNegativeButton("Cancel", null);
             builder.show();
         }

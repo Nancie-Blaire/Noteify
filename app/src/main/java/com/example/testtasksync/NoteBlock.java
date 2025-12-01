@@ -38,6 +38,7 @@ public class NoteBlock {
     // For numbered lists - track number
     private int listNumber;
 
+
     // Constructor
     public NoteBlock(String id, BlockType type) {
         this.id = id;

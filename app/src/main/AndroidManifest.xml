@@ -2,23 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <!-- ✅ NEW: Notification permissions -->
+    <uses-permission android:name="android.permission.INTERNET" /> <!-- ✅ NEW: Notification permissions -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <uses-feature android:name="android.hardware.camera"
-        android:required="false" />
-
-    <!-- ✅ Already in your manifest - no changes needed! -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" /> <!-- ✅ Already in your manifest - no changes needed! -->
     <uses-permission android:name="android:permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android:permission.CAMERA" />
 
@@ -31,7 +29,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.TESTtaskSync">
-
+        <activity
+            android:name=".NoteActivity"
+            android:exported="false" />
         <!-- ✅ NEW: Notification Receiver -->
         <receiver
             android:name=".NotificationReceiver"
@@ -90,7 +90,7 @@
             android:name=".NoteAdapter"
             android:exported="false" />
         <activity
-            android:name=".NoteActivity"
+            android:name=".NoteActivity_1"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
         <activity
@@ -126,6 +126,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>

@@ -76,5 +76,5 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     // RecyclerView (if not already added)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
-
+    implementation("com.google.firebase:firebase-firestore:24.10.0")
 }

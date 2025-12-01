@@ -43,12 +43,12 @@ public class Notes extends Fragment {
     private static final String TAG = "NotesFragment";
     private FirebaseAuth auth;
     private FirebaseFirestore db;
-    private List<Note> noteList;
-    private List<Note> todoList;
-    private List<Note> weeklyList;
-    private List<Note> starredList;
-    private List<Note> combinedList;
-    private List<Note> searchResults;
+    private List<NotePreview> noteList;
+    private List<NotePreview> todoList;
+    private List<NotePreview> weeklyList;
+    private List<NotePreview> starredList;
+    private List<NotePreview> combinedList;
+    private List<NotePreview> searchResults;
 
     private NoteAdapter starredAdapter;
     private NoteAdapter searchAdapter;
@@ -384,9 +384,9 @@ public class Notes extends Fragment {
     }
 
     private void sortPriosByDate() {
-        Collections.sort(starredList, new Comparator<Note>() {
+        Collections.sort(starredList, new Comparator<NotePreview>() {
             @Override
-            public int compare(Note n1, Note n2) {
+            public int compare(NotePreview n1, NotePreview n2) {
                 return Long.compare(n2.getTimestamp(), n1.getTimestamp());
             }
         });
@@ -394,9 +394,9 @@ public class Notes extends Fragment {
     }
 
     private void sortRecentsByDate() {
-        Collections.sort(combinedList, new Comparator<Note>() {
+        Collections.sort(combinedList, new Comparator<NotePreview>() {
             @Override
-            public int compare(Note n1, Note n2) {
+            public int compare(NotePreview n1, NotePreview n2) {
                 return Long.compare(n2.getTimestamp(), n1.getTimestamp());
             }
         });
@@ -473,19 +473,19 @@ public class Notes extends Fragment {
         searchResults.clear();
         String lowerQuery = query.toLowerCase();
 
-        for (Note note : noteList) {
+        for (NotePreview note : noteList) {
             if (matchesQuery(note, lowerQuery)) {
                 searchResults.add(note);
             }
         }
 
-        for (Note todo : todoList) {
+        for (NotePreview todo : todoList) {
             if (matchesQuery(todo, lowerQuery)) {
                 searchResults.add(todo);
             }
         }
 
-        for (Note weekly : weeklyList) {
+        for (NotePreview weekly : weeklyList) {
             if (matchesQuery(weekly, lowerQuery)) {
                 searchResults.add(weekly);
             }
@@ -498,7 +498,7 @@ public class Notes extends Fragment {
         Log.d(TAG, "Search results: " + searchResults.size() + " items for query: " + query);
     }
 
-    private boolean matchesQuery(Note note, String query) {
+    private boolean matchesQuery(NotePreview note, String query) {
         String title = note.getTitle() != null ? note.getTitle().toLowerCase() : "";
         String content = note.getContent() != null ? note.getContent().toLowerCase() : "";
         return title.contains(query) || content.contains(query);
@@ -520,7 +520,7 @@ public class Notes extends Fragment {
         }
     }
 
-    private void openItem(Note item) {
+    private void openItem(NotePreview item) {
         if (todoList.contains(item) || weeklyList.contains(item)) {
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) return;
@@ -583,7 +583,7 @@ public class Notes extends Fragment {
                                 continue;
                             }
 
-                            Note note = new Note(
+                            NotePreview note = new NotePreview(
                                     doc.getId(),
                                     doc.getString("title"),
                                     doc.getString("content")
@@ -616,9 +616,9 @@ public class Notes extends Fragment {
                             noteList.add(note);
                         }
 
-                        Collections.sort(noteList, new Comparator<Note>() {
+                        Collections.sort(noteList, new Comparator<NotePreview>() {
                             @Override
-                            public int compare(Note n1, Note n2) {
+                            public int compare(NotePreview n1, NotePreview n2) {
                                 return Long.compare(n2.getTimestamp(), n1.getTimestamp());
                             }
                         });
@@ -658,27 +658,27 @@ public class Notes extends Fragment {
                             String category = doc.getString("category");
 
                             if ("todo".equals(category)) {
-                                Note todoNote = createNoteFromSchedule(doc, "To-Do List");
+                                NotePreview todoNote = createNoteFromSchedule(doc, "To-Do List");
                                 todoList.add(todoNote);
                                 Log.d(TAG, "  Added todo: " + todoNote.getTitle());
 
                             } else if ("weekly".equals(category)) {
-                                Note weeklyNote = createNoteFromSchedule(doc, "Weekly Plan");
+                                NotePreview weeklyNote = createNoteFromSchedule(doc, "Weekly Plan");
                                 weeklyList.add(weeklyNote);
                                 Log.d(TAG, "  Added weekly: " + weeklyNote.getTitle());
                             }
                         }
 
-                        Collections.sort(todoList, new Comparator<Note>() {
+                        Collections.sort(todoList, new Comparator<NotePreview>() {
                             @Override
-                            public int compare(Note n1, Note n2) {
+                            public int compare(NotePreview n1, NotePreview n2) {
                                 return Long.compare(n2.getTimestamp(), n1.getTimestamp());
                             }
                         });
 
-                        Collections.sort(weeklyList, new Comparator<Note>() {
+                        Collections.sort(weeklyList, new Comparator<NotePreview>() {
                             @Override
-                            public int compare(Note n1, Note n2) {
+                            public int compare(NotePreview n1, NotePreview n2) {
                                 return Long.compare(n2.getTimestamp(), n1.getTimestamp());
                             }
                         });
@@ -692,13 +692,13 @@ public class Notes extends Fragment {
                 });
     }
 
-    private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
+    private NotePreview createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");
         String description = doc.getString("description");
         String content = description != null ? description : "No description";
 
-        Note note = new Note(id, title != null ? title : defaultTitle, content);
+        NotePreview note = new NotePreview(id, title != null ? title : defaultTitle, content);
 
         try {
             Timestamp createdAt = doc.getTimestamp("createdAt");
@@ -741,17 +741,17 @@ public class Notes extends Fragment {
         Log.d(TAG, "   Weeklies: " + weeklyList.size());
 
         starredList.clear();
-        for (Note note : noteList) {
+        for (NotePreview note : noteList) {
             if (note.isStarred()) {
                 starredList.add(note);
             }
         }
-        for (Note todo : todoList) {
+        for (NotePreview todo : todoList) {
             if (todo.isStarred()) {
                 starredList.add(todo);
             }
         }
-        for (Note weekly : weeklyList) {
+        for (NotePreview weekly : weeklyList) {
             if (weekly.isStarred()) {
                 starredList.add(weekly);
             }
@@ -773,9 +773,9 @@ public class Notes extends Fragment {
 
         Log.d(TAG, "Combined list size: " + combinedList.size());
 
-        Collections.sort(combinedList, new Comparator<Note>() {
+        Collections.sort(combinedList, new Comparator<NotePreview>() {
             @Override
-            public int compare(Note n1, Note n2) {
+            public int compare(NotePreview n1, NotePreview n2) {
                 return Long.compare(n2.getTimestamp(), n1.getTimestamp());
             }
         });

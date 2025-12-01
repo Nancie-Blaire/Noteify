@@ -11,17 +11,10 @@ import android.view.ViewGroup;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
 import android.widget.Toast;
 import android.widget.EditText;
-import android.view.MenuItem;
-import androidx.core.content.ContextCompat;
 
-import android.view.ContextThemeWrapper;
-import android.view.Gravity;
-import android.graphics.PorterDuff;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import androidx.core.content.ContextCompat;
 
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
@@ -38,7 +31,7 @@ import java.util.concurrent.Executor;
 
 public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder> {
 
-    private List<Note> noteList;
+    private List<NotePreview> noteList;
     private OnNoteClickListener listener;
     private FirebaseFirestore db;
     private FirebaseAuth auth;
@@ -55,14 +48,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     }
 
     public interface ItemTypeDetector {
-        String getItemType(Note note);
+        String getItemType(NotePreview note);
     }
 
     public interface OnNoteClickListener {
-        void onNoteClick(Note note);
+        void onNoteClick(NotePreview note);
     }
 
-    public NoteAdapter(List<Note> noteList, OnNoteClickListener listener, boolean isGridLayout) {
+    public NoteAdapter(List<NotePreview> noteList, OnNoteClickListener listener, boolean isGridLayout) {
         this.noteList = noteList;
         this.listener = listener;
         this.isGridLayout = isGridLayout;
@@ -71,11 +64,11 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         this.typeDetector = null;
     }
 
-    public NoteAdapter(List<Note> noteList, OnNoteClickListener listener) {
+    public NoteAdapter(List<NotePreview> noteList, OnNoteClickListener listener) {
         this(noteList, listener, false);
     }
 
-    public NoteAdapter(List<Note> noteList, OnNoteClickListener listener, boolean isGridLayout, ItemTypeDetector typeDetector) {
+    public NoteAdapter(List<NotePreview> noteList, OnNoteClickListener listener, boolean isGridLayout, ItemTypeDetector typeDetector) {
         this(noteList, listener, isGridLayout);
         this.typeDetector = typeDetector;
     }
@@ -84,7 +77,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         this.typeDetector = typeDetector;
     }
 
-    public void updateNote(Note note) {
+    public void updateNote(NotePreview note) {
         for (int i = 0; i < noteList.size(); i++) {
             if (noteList.get(i).getId().equals(note.getId())) {
                 noteList.set(i, note);
@@ -105,7 +98,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull NoteViewHolder holder, int position) {
-        Note note = noteList.get(position);
+        NotePreview note = noteList.get(position);
         holder.bind(note, listener, db, auth, isGridLayout, noteList, this, typeDetector);
     }
 
@@ -127,8 +120,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             lockIcon = itemView.findViewById(R.id.lockIcon);
         }
 
-        public void bind(Note note, OnNoteClickListener listener, FirebaseFirestore db,
-                         FirebaseAuth auth, boolean isGridLayout, List<Note> noteList,
+        public void bind(NotePreview note, OnNoteClickListener listener, FirebaseFirestore db,
+                         FirebaseAuth auth, boolean isGridLayout, List<NotePreview> noteList,
                          NoteAdapter adapter, ItemTypeDetector typeDetector) {
 
             if (note == null) {
@@ -269,7 +262,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             return true;
         }
 
-        private void authenticateAndOpen(Context context, Note note, OnNoteClickListener listener,
+        private void authenticateAndOpen(Context context, NotePreview note, OnNoteClickListener listener,
                                          FirebaseAuth auth, String itemType) {
             isSecuritySetupComplete(context, auth, isComplete -> {
                 if (!isComplete) {
@@ -293,7 +286,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             });
         }
 
-        private void showBiometricPrompt(Context context, Note note, OnNoteClickListener listener,
+        private void showBiometricPrompt(Context context, NotePreview note, OnNoteClickListener listener,
                                          FirebaseAuth auth, String itemType) {
             if (!(context instanceof FragmentActivity)) {
                 showPasswordDialog(context, note, listener,
@@ -341,7 +334,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             biometricPrompt.authenticate(promptInfo);
         }
 
-        private void showPasswordDialog(Context context, Note note, OnNoteClickListener listener,
+        private void showPasswordDialog(Context context, NotePreview note, OnNoteClickListener listener,
                                         String savedPassword) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             builder.setTitle("🔒 Enter Master Password");
@@ -366,8 +359,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.show();
         }
 
-        private void showPopupMenu(View view, Note note, FirebaseFirestore db, FirebaseAuth auth,
-                                   List<Note> noteList, NoteAdapter adapter, String itemType) {
+        private void showPopupMenu(View view, NotePreview note, FirebaseFirestore db, FirebaseAuth auth,
+                                   List<NotePreview> noteList, NoteAdapter adapter, String itemType) {
             LayoutInflater inflater = LayoutInflater.from(view.getContext());
             View popupView = inflater.inflate(R.layout.menu_note_layout, null);
 
@@ -412,8 +405,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             popupWindow.showAsDropDown(view, view.getWidth() - popupView.getMeasuredWidth(), 8);
         }
 
-        private void toggleLock(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
-                                List<Note> noteList, NoteAdapter adapter, String itemType) {
+        private void toggleLock(NotePreview note, FirebaseFirestore db, FirebaseAuth auth, View view,
+                                List<NotePreview> noteList, NoteAdapter adapter, String itemType) {
             Context context = view.getContext();
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) {
@@ -526,8 +519,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             builder.show();
         }
 
-        private void updateLockState(Note note, boolean newLockState, FirebaseFirestore db,
-                                     FirebaseUser user, View view, List<Note> noteList,
+        private void updateLockState(NotePreview note, boolean newLockState, FirebaseFirestore db,
+                                     FirebaseUser user, View view, List<NotePreview> noteList,
                                      NoteAdapter adapter, String itemType) {
             view.setEnabled(false);
             Context context = view.getContext();
@@ -568,8 +561,8 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     });
         }
 
-        private void deleteItem(Note note, FirebaseFirestore db, FirebaseAuth auth, View view,
-                                List<Note> noteList, NoteAdapter adapter, String itemType) {
+        private void deleteItem(NotePreview note, FirebaseFirestore db, FirebaseAuth auth, View view,
+                                List<NotePreview> noteList, NoteAdapter adapter, String itemType) {
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) return;
 
@@ -586,7 +579,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         }
 
         private void deleteTodo(String userId, String todoId, FirebaseFirestore db, View view,
-                                List<Note> noteList, NoteAdapter adapter) {
+                                List<NotePreview> noteList, NoteAdapter adapter) {
             // ✅ Delete from schedules collection (where the todo actually is)
             db.collection("users")
                     .document(userId)
@@ -607,7 +600,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         }
 
         private void deleteWeekly(String userId, String weeklyId, FirebaseFirestore db, View view,
-                                  List<Note> noteList, NoteAdapter adapter) {
+                                  List<NotePreview> noteList, NoteAdapter adapter) {
             // ✅ Delete from schedules collection (where the weekly actually is)
             db.collection("users")
                     .document(userId)
@@ -627,7 +620,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     });
         }
         private void deleteNote(String userId, String noteId, FirebaseFirestore db, View view,
-                                List<Note> noteList, NoteAdapter adapter) {
+                                List<NotePreview> noteList, NoteAdapter adapter) {
             db.collection("users")
                     .document(userId)
                     .collection("notes")
@@ -675,7 +668,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     });
         }
 
-        private void removeFromList(View view, List<Note> noteList, NoteAdapter adapter) {
+        private void removeFromList(View view, List<NotePreview> noteList, NoteAdapter adapter) {
             int position = getAdapterPosition();
             if (position != RecyclerView.NO_POSITION) {
                 noteList.remove(position);
@@ -691,7 +684,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             }
         }
 
-        private void updateStarInFirebase(Note note, FirebaseFirestore db, FirebaseAuth auth, String itemType) {
+        private void updateStarInFirebase(NotePreview note, FirebaseFirestore db, FirebaseAuth auth, String itemType) {
             FirebaseUser user = auth.getCurrentUser();
             if (user != null) {
                 // ✅ ALL items (notes, todo, weekly) are in their respective collections

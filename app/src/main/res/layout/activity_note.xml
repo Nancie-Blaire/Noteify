@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/noteLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FAFAFA"
-    tools:context=".NoteActivity">
+    android:background="#FAFAFA">
 
-    <!-- Top Bar with Check Button -->
+    <!-- Top Bar -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -33,145 +31,47 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- Bookmarks Link -->
-        <TextView
-            android:id="@+id/bookmarksLink"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Bookmarks"
-            android:textSize="14sp"
-            android:textColor="#4CAF50"
-            android:textStyle="bold"
-            android:padding="8dp"
-            android:layout_marginEnd="8dp"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/selectableItemBackgroundBorderless" />
-
     </LinearLayout>
 
-    <!-- Color Picker Panel (Initially Hidden) -->
-    <HorizontalScrollView
-        android:id="@+id/colorPickerPanel"
+    <!-- Note Title -->
+    <EditText
+        android:id="@+id/noteTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/topBar"
-        android:background="#FFFFFF"
-        android:elevation="4dp"
-        android:padding="12dp"
-        android:visibility="gone"
-        android:scrollbars="none">
+        android:hint="Title"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:inputType="textCapSentences"
+        android:background="@android:color/transparent"
+        android:padding="20dp"
+        android:textColor="#000"
+        android:maxLines="2" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <View android:id="@+id/colorDefault" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FAFAFA" android:tag="#FAFAFA" />
-            <View android:id="@+id/colorRed" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFCDD2" android:tag="#FFCDD2" />
-            <View android:id="@+id/colorPink" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#F8BBD0" android:tag="#F8BBD0" />
-            <View android:id="@+id/colorPurple" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#E1BEE7" android:tag="#E1BEE7" />
-            <View android:id="@+id/colorBlue" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#BBDEFB" android:tag="#BBDEFB" />
-            <View android:id="@+id/colorCyan" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#B2EBF2" android:tag="#B2EBF2" />
-            <View android:id="@+id/colorGreen" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#C8E6C9" android:tag="#C8E6C9" />
-            <View android:id="@+id/colorYellow" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFF9C4" android:tag="#FFF9C4" />
-            <View android:id="@+id/colorOrange" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFE0B2" android:tag="#FFE0B2" />
-            <View android:id="@+id/colorBrown" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#D7CCC8" android:tag="#D7CCC8" />
-            <View android:id="@+id/colorGrey" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#CFD8DC" android:tag="#CFD8DC" />
-
-        </LinearLayout>
-    </HorizontalScrollView>
-
-    <!-- ✅ MAIN CONTENT (Adjusted to sit above keyboard toolbar) -->
-    <ScrollView
-        android:id="@+id/scrollView"
+    <!-- Blocks RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/blocksRecycler"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/topBar"
+        android:layout_below="@id/noteTitle"
         android:layout_above="@id/keyboardToolbar"
-        android:fillViewport="true">
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="80dp"
+        android:clipToPadding="false" />
 
-        <LinearLayout
-            android:id="@+id/noteContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="20dp">
+    <!-- Add Block FAB -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/addBlockFab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="24dp"
+        android:src="@android:drawable/ic_input_add"
+        app:tint="@android:color/white"
+        app:backgroundTint="#4CAF50" />
 
-            <!-- Icon -->
-            <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/ic_fab_notes"
-                android:contentDescription="Todo icon"
-                android:layout_gravity="start"
-                android:layout_marginBottom="16dp"
-                app:tint="#000000" />
-
-            <!-- Note Title -->
-            <EditText
-                android:id="@+id/noteTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Title"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:inputType="textCapSentences"
-                android:background="@android:color/transparent"
-                android:padding="8dp"
-                android:textColor="#000"
-                android:layout_marginBottom="12dp" />
-
-            <!-- Note Content -->
-            <EditText
-                android:id="@+id/noteContent"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@android:color/transparent"
-                android:gravity="top"
-                android:hint="Start typing your note..."
-                android:inputType="textMultiLine"
-                android:minHeight="200dp"
-                android:padding="8dp"
-                android:textColor="#333"
-                android:textSize="16sp"
-                android:textIsSelectable="true" />
-
-            <LinearLayout
-                android:id="@+id/weblinksContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"/>
-
-            <!-- Subpages Section -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="8dp">
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/subpagesRecyclerView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    android:visibility="gone" />
-
-            </LinearLayout>
-
-            <!-- Bottom padding for keyboard -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="80dp" />
-
-        </LinearLayout>
-
-    </ScrollView>
-
-    <!-- ✅ KEYBOARD TOOLBAR (Notion-style, attached to keyboard) -->
+    <!-- Keyboard Toolbar -->
     <HorizontalScrollView
         android:id="@+id/keyboardToolbar"
         android:layout_width="match_parent"
@@ -233,18 +133,6 @@
                 android:contentDescription="Numbered List"
                 app:tint="#FFFFFFFF" />
 
-            <!-- Toggle List -->
-            <ImageButton
-                android:id="@+id/addToggleListOption"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/toggle_list"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Toggle"
-                android:visibility="gone"
-                app:tint="#FFFFFFFF" />
-
             <!-- Checkbox -->
             <ImageButton
                 android:id="@+id/addCheckboxOption"
@@ -277,18 +165,6 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Image"
                 app:tint="#FFFFFFFF" />
-
-            <!-- Table -->
-            <ImageButton
-                android:id="@+id/addTableOption"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/table_list"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Table"
-                android:visibility="gone"
-                app:tint="#FFFFFF" />
 
             <!-- Indent -->
             <ImageButton

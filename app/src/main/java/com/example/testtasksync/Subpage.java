@@ -6,6 +6,7 @@ public class Subpage {
     private String content;
     private String parentNoteId;
     private long timestamp;
+    private int position;
 
     // Empty constructor for Firestore
     public Subpage() {}
@@ -22,6 +23,7 @@ public class Subpage {
     public String getId() { return id; }
     public String getTitle() { return title; }
     public String getContent() { return content; }
+    public int getPosition() { return position; }
     public String getParentNoteId() { return parentNoteId; }
     public long getTimestamp() { return timestamp; }
 
@@ -31,4 +33,5 @@ public class Subpage {
     public void setContent(String content) { this.content = content; }
     public void setParentNoteId(String parentNoteId) { this.parentNoteId = parentNoteId; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+    public void setPosition(int position) { this.position = position; }
 }

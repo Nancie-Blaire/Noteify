@@ -34,9 +34,9 @@ public class Bin extends AppCompatActivity {
 
     private RecyclerView binRecyclerView;
     private BinAdapter binAdapter;
-    private List<Note> deletedNotes;
-    private List<Note> deletedSchedules;
-    private List<Note> allDeletedItems;
+    private List<NotePreview> deletedNotes;
+    private List<NotePreview> deletedSchedules;
+    private List<NotePreview> allDeletedItems;
 
     private View actionBar;
     private TextView selectedCountText;
@@ -129,7 +129,7 @@ public class Bin extends AppCompatActivity {
                     deletedNotes.clear();
                     if (snapshots != null) {
                         for (QueryDocumentSnapshot doc : snapshots) {
-                            Note note = new Note(
+                            NotePreview note = new NotePreview(
                                     doc.getId(),
                                     doc.getString("title"),
                                     doc.getString("content")
@@ -171,7 +171,7 @@ public class Bin extends AppCompatActivity {
                             String description = doc.getString("description");
                             String category = doc.getString("category");
 
-                            Note note = new Note(
+                            NotePreview note = new NotePreview(
                                     doc.getId(),
                                     title != null ? title : ("todo".equals(category) ? "To-Do List" : "Weekly Plan"),
                                     description != null ? description : "No description"
@@ -203,9 +203,9 @@ public class Bin extends AppCompatActivity {
         allDeletedItems.addAll(deletedSchedules);
 
         // ✅ Sort by deletion date (newest first) - API 23 compatible
-        Collections.sort(allDeletedItems, new Comparator<Note>() {
+        Collections.sort(allDeletedItems, new Comparator<NotePreview>() {
             @Override
-            public int compare(Note n1, Note n2) {
+            public int compare(NotePreview n1, NotePreview n2) {
                 return Long.compare(n2.getDeletedAt(), n1.getDeletedAt());
             }
         });
@@ -223,7 +223,7 @@ public class Bin extends AppCompatActivity {
     }
 
     private void confirmPermanentDelete() {
-        List<Note> selectedItems = binAdapter.getSelectedItems();
+        List<NotePreview> selectedItems = binAdapter.getSelectedItems();
         if (selectedItems.isEmpty()) return;
 
         new AlertDialog.Builder(this)
@@ -235,7 +235,7 @@ public class Bin extends AppCompatActivity {
                 .show();
     }
     private void restoreSelected() {
-        List<Note> selectedItems = binAdapter.getSelectedItems();
+        List<NotePreview> selectedItems = binAdapter.getSelectedItems();
         if (selectedItems.isEmpty()) return;
 
         FirebaseUser user = auth.getCurrentUser();
@@ -247,7 +247,7 @@ public class Bin extends AppCompatActivity {
         List<String> noteIds = new ArrayList<>();
         List<String> scheduleIds = new ArrayList<>();
 
-        for (Note note : selectedItems) {
+        for (NotePreview note : selectedItems) {
             if (note.getCategory() != null) {
                 scheduleIds.add(note.getId());
             } else {
@@ -359,7 +359,7 @@ public class Bin extends AppCompatActivity {
     }
 
     private void permanentlyDeleteSelected() {
-        List<Note> selectedItems = binAdapter.getSelectedItems();
+        List<NotePreview> selectedItems = binAdapter.getSelectedItems();
         if (selectedItems.isEmpty()) return;
 
         FirebaseUser user = auth.getCurrentUser();
@@ -371,7 +371,7 @@ public class Bin extends AppCompatActivity {
         List<String> scheduleIds = new ArrayList<>();
         List<String> noteIds = new ArrayList<>();
 
-        for (Note note : selectedItems) {
+        for (NotePreview note : selectedItems) {
             if (note.getCategory() != null) {
                 scheduleIds.add(note.getId());
             } else {

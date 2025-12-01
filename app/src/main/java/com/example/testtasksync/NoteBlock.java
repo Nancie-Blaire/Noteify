@@ -30,6 +30,11 @@ public class NoteBlock {
     private int position;
     private String styleData; // JSON string for additional style info
 
+    // ✅ NEW: For image blocks
+    private String base64Data; // For small images stored inline
+    private boolean isChunked; // For large images stored in chunks
+    private int sizeKB; // Image size
+
     // For numbered lists - track number
     private int listNumber;
 
@@ -41,6 +46,8 @@ public class NoteBlock {
         this.indentLevel = 0;
         this.isChecked = false;
         this.listNumber = 1;
+        this.isChunked = false;
+        this.sizeKB = 0;
     }
 
     // Empty constructor for Firestore
@@ -49,6 +56,7 @@ public class NoteBlock {
         this.type = BlockType.TEXT;
         this.content = "";
         this.indentLevel = 0;
+        this.isChunked = false;
     }
 
     // Getters and Setters
@@ -88,6 +96,16 @@ public class NoteBlock {
     public int getListNumber() { return listNumber; }
     public void setListNumber(int listNumber) { this.listNumber = listNumber; }
 
+    // ✅ NEW: Image-specific getters/setters
+    public String getBase64Data() { return base64Data; }
+    public void setBase64Data(String base64Data) { this.base64Data = base64Data; }
+
+    public boolean isChunked() { return isChunked; }
+    public void setChunked(boolean chunked) { isChunked = chunked; }
+
+    public int getSizeKB() { return sizeKB; }
+    public void setSizeKB(int sizeKB) { this.sizeKB = sizeKB; }
+
     // Convert to Firestore map
     public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
@@ -103,6 +121,12 @@ public class NoteBlock {
         map.put("position", position);
         map.put("styleData", styleData);
         map.put("listNumber", listNumber);
+
+        // ✅ NEW: Image data
+        map.put("base64Data", base64Data);
+        map.put("isChunked", isChunked);
+        map.put("sizeKB", sizeKB);
+
         return map;
     }
 
@@ -112,17 +136,41 @@ public class NoteBlock {
         block.id = (String) map.get("id");
         block.type = BlockType.valueOf((String) map.get("type"));
         block.content = (String) map.get("content");
-        block.indentLevel = ((Long) map.get("indentLevel")).intValue();
-        block.isChecked = (Boolean) map.get("isChecked");
+
+        if (map.get("indentLevel") != null) {
+            block.indentLevel = ((Long) map.get("indentLevel")).intValue();
+        }
+
+        if (map.get("isChecked") != null) {
+            block.isChecked = (Boolean) map.get("isChecked");
+        }
+
         block.imageId = (String) map.get("imageId");
         block.subpageId = (String) map.get("subpageId");
         block.linkUrl = (String) map.get("linkUrl");
         block.dividerStyle = (String) map.get("dividerStyle");
-        block.position = ((Long) map.get("position")).intValue();
+
+        if (map.get("position") != null) {
+            block.position = ((Long) map.get("position")).intValue();
+        }
+
         block.styleData = (String) map.get("styleData");
+
         if (map.get("listNumber") != null) {
             block.listNumber = ((Long) map.get("listNumber")).intValue();
         }
+
+        // ✅ NEW: Image data
+        block.base64Data = (String) map.get("base64Data");
+
+        if (map.get("isChunked") != null) {
+            block.isChunked = (Boolean) map.get("isChunked");
+        }
+
+        if (map.get("sizeKB") != null) {
+            block.sizeKB = ((Long) map.get("sizeKB")).intValue();
+        }
+
         return block;
     }
 }

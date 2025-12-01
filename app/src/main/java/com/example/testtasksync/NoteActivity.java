@@ -12,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -20,6 +22,26 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+//IMAGES
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import androidx.activity.OnBackPressedCallback;
 
 public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.OnBlockChangeListener {
 
@@ -50,9 +72,41 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private ItemTouchHelper itemTouchHelper;
     private boolean isReordering = false;
 
+    //images
+    private ActivityResultLauncher<Intent> galleryLauncher;
+    private ActivityResultLauncher<Intent> cameraLauncher;
+    private ActivityResultLauncher<String> permissionLauncher;
+    private Uri currentPhotoUri;
+
+    private static final int MAX_IMAGE_WIDTH = 1024;
+    private static final int MAX_IMAGE_HEIGHT = 1024;
+    private static final int COMPRESSION_QUALITY = 80;
+    private static final int MAX_INLINE_IMAGE_KB = 700;
+    private static final int CHUNK_SIZE = 50000;
+
+    private static final int REQUEST_SUBPAGE = 100;
+    private static final int REQUEST_GALLERY = 101;
+    private static final int REQUEST_CAMERA = 102;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ✅ MODERN: Handle Android back button/gesture
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // Auto-save before going back
+                saveNoteTitle();
+                saveAllBlocks();
+
+                // Disable callback and trigger back action
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+        });
+
         setContentView(R.layout.activity_note);
 
         // Initialize Firebase
@@ -82,9 +136,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Setup RecyclerView
         blocks = new ArrayList<>();
-        adapter = new NoteBlockAdapter(blocks, this);
+        adapter = new NoteBlockAdapter(blocks, this, noteId);
         blocksRecycler.setLayoutManager(new LinearLayoutManager(this));
         blocksRecycler.setAdapter(adapter);
+
+        // Setup image pickers
+        setupImagePickers();
 
         // Setup drag and drop
         setupDragAndDrop();
@@ -101,8 +158,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             noteTitle.setText(subpageTitle);
         }
 
-        // Setup listeners
+        // ✅ App back button saves and exits
         backBtn.setOnClickListener(v -> saveAndExit());
+
+        // Setup keyboard toolbar
         setupKeyboardToolbar();
 
         // Show keyboard toolbar
@@ -252,12 +311,20 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         itemTouchHelper.attachToRecyclerView(blocksRecycler);
     }
 
+    public void setNoteId(String noteId) {
+        this.noteId = noteId;
+    }
+
+
     private void createNewNote() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
         noteId = db.collection("users").document(user.getUid())
                 .collection("notes").document().getId();
+
+        // ✅ UPDATE: Set noteId in adapter after creating it
+        adapter.setNoteId(noteId);
 
         Map<String, Object> newNote = new HashMap<>();
         newNote.put("title", "");
@@ -269,7 +336,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         addTextBlock();
     }
-
     private void loadNote() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -449,14 +515,266 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         saveBlock(block);
     }
 
+    //IMAGESSSS
     private void addImageBlock() {
-        Toast.makeText(this, "Image picker - to be implemented", Toast.LENGTH_SHORT).show();
+        showInsertMediaBottomSheet();
     }
 
-    private void addSubpageBlock() {
+    private void setupImagePickers() {
+        galleryLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        Uri imageUri = result.getData().getData();
+                        if (imageUri != null) {
+                            uploadImageToFirebase(imageUri);
+                        }
+                    }
+                }
+        );
+
+        cameraLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK) {
+                        if (currentPhotoUri != null) {
+                            uploadImageToFirebase(currentPhotoUri);
+                        }
+                    }
+                }
+        );
+
+        permissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        openCamera();
+                    } else {
+                        Toast.makeText(this, "Camera permission is required", Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
+    }
+    private void showInsertMediaBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.insert_media_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        View openGallery = sheetView.findViewById(R.id.openGalleryOption);
+        View takePicture = sheetView.findViewById(R.id.takePictureOption);
+
+        openGallery.setOnClickListener(v -> {
+            bottomSheet.dismiss();
+            openGallery();
+        });
+
+        takePicture.setOnClickListener(v -> {
+            bottomSheet.dismiss();
+            checkCameraPermission();
+        });
+
+        bottomSheet.show();
+    }
+
+    private void openGallery() {
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        galleryLauncher.launch(intent);
+    }
+
+    private void checkCameraPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                    != PackageManager.PERMISSION_GRANTED) {
+                permissionLauncher.launch(Manifest.permission.CAMERA);
+            } else {
+                openCamera();
+            }
+        } else {
+            openCamera();
+        }
+    }
+
+    private void openCamera() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                Toast.makeText(this, "Error creating image file", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (photoFile != null) {
+                currentPhotoUri = FileProvider.getUriForFile(this,
+                        getApplicationContext().getPackageName() + ".fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, currentPhotoUri);
+                cameraLauncher.launch(takePictureIntent);
+            }
+        }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                .format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        return File.createTempFile(imageFileName, ".jpg", storageDir);
+    }
+
+    private void uploadImageToFirebase(Uri imageUri) {
+        if (noteId == null) {
+            Toast.makeText(this, "Please save the note first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        android.app.ProgressDialog progressDialog = new android.app.ProgressDialog(this);
+        progressDialog.setMessage("Processing image...");
+        progressDialog.setCancelable(false);
+        progressDialog.show();
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            progressDialog.dismiss();
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+
+                int originalWidth = bitmap.getWidth();
+                int originalHeight = bitmap.getHeight();
+                float scale = Math.min(
+                        MAX_IMAGE_WIDTH / (float) originalWidth,
+                        MAX_IMAGE_HEIGHT / (float) originalHeight
+                );
+
+                if (scale < 1.0f) {
+                    int newWidth = (int) (originalWidth * scale);
+                    int newHeight = (int) (originalHeight * scale);
+                    bitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true);
+                }
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, COMPRESSION_QUALITY, baos);
+                byte[] imageBytes = baos.toByteArray();
+
+                String base64Image = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP);
+
+                int originalSizeKB = imageBytes.length / 1024;
+                int base64SizeKB = base64Image.length() / 1024;
+
+                final Bitmap finalBitmap = bitmap;
+
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+
+                    if (base64SizeKB > MAX_INLINE_IMAGE_KB) {
+                        Toast.makeText(this, "Saving large image (" + originalSizeKB + " KB) in chunks...",
+                                Toast.LENGTH_SHORT).show();
+                        uploadImageInChunks(base64Image, originalSizeKB);
+                    } else {
+                        Toast.makeText(this, "Saving image (" + originalSizeKB + " KB)...",
+                                Toast.LENGTH_SHORT).show();
+                        insertImageBlock(base64Image, false, originalSizeKB);
+                    }
+                });
+
+            } catch (IOException e) {
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+                    Toast.makeText(this, "Error processing image: " + e.getMessage(),
+                            Toast.LENGTH_SHORT).show();
+                });
+                e.printStackTrace();
+            } catch (OutOfMemoryError e) {
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+                    Toast.makeText(this, "Image too large for device memory", Toast.LENGTH_LONG).show();
+                });
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    private void uploadImageInChunks(String base64Image, int sizeKB) {
+        String imageId = System.currentTimeMillis() + "";
+        int totalLength = base64Image.length();
+        int chunkCount = (int) Math.ceil(totalLength / (double) CHUNK_SIZE);
+
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("imageId", imageId);
+        metadata.put("isChunked", true);
+        metadata.put("chunkCount", chunkCount);
+        metadata.put("totalSize", totalLength);
+        metadata.put("sizeKB", sizeKB);
+        metadata.put("timestamp", System.currentTimeMillis());
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("images").document(imageId)
+                .set(metadata)
+                .addOnSuccessListener(aVoid -> {
+                    for (int i = 0; i < chunkCount; i++) {
+                        int start = i * CHUNK_SIZE;
+                        int end = Math.min(start + CHUNK_SIZE, totalLength);
+                        String chunk = base64Image.substring(start, end);
+
+                        Map<String, Object> chunkData = new HashMap<>();
+                        chunkData.put("data", chunk);
+                        chunkData.put("chunkIndex", i);
+
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("images").document(imageId)
+                                .collection("chunks").document(String.valueOf(i))
+                                .set(chunkData);
+                    }
+
+                    createImageBlock(imageId, true, sizeKB);
+                    Toast.makeText(this, "✅ Large image saved", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to save large image", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void insertImageBlock(String base64Image, boolean isChunked, int sizeKB) {
+        String imageId = System.currentTimeMillis() + "";
+
+        Map<String, Object> imageData = new HashMap<>();
+        if (!isChunked) {
+            imageData.put("base64Data", base64Image);
+        }
+        imageData.put("imageId", imageId);
+        imageData.put("isChunked", isChunked);
+        imageData.put("sizeKB", sizeKB);
+        imageData.put("timestamp", System.currentTimeMillis());
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("images").document(imageId)
+                    .set(imageData)
+                    .addOnSuccessListener(aVoid -> {
+                        createImageBlock(imageId, isChunked, sizeKB);
+                        Toast.makeText(this, "✅ Image saved", Toast.LENGTH_SHORT).show();
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show();
+                    });
+        }
+    }
+
+    private void createImageBlock(String imageId, boolean isChunked, int sizeKB) {
+        // ✅ Check if last block is empty text - if so, replace it with image
         boolean shouldReplaceLastBlock = false;
         int insertPosition = blocks.size();
 
@@ -469,33 +787,26 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 shouldReplaceLastBlock = true;
                 insertPosition = blocks.size() - 1;
 
-                db.collection("users").document(user.getUid())
-                        .collection("notes").document(noteId)
-                        .collection("blocks").document(lastBlock.getId())
-                        .delete();
+                // Delete the empty text block from Firestore
+                FirebaseUser user = auth.getCurrentUser();
+                if (user != null) {
+                    db.collection("users").document(user.getUid())
+                            .collection("notes").document(noteId)
+                            .collection("blocks").document(lastBlock.getId())
+                            .delete();
+                }
 
                 blocks.remove(blocks.size() - 1);
             }
         }
 
-        String newSubpageId = db.collection("users").document(user.getUid())
-                .collection("notes").document().getId();
-
-        Map<String, Object> subpageData = new HashMap<>();
-        subpageData.put("title", "");
-        subpageData.put("content", "");
-        subpageData.put("parentNoteId", noteId);
-        subpageData.put("timestamp", System.currentTimeMillis());
-
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .collection("subpages").document(newSubpageId)
-                .set(subpageData);
-
-        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.SUBPAGE);
+        // Create the image block
+        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.IMAGE);
         block.setPosition(insertPosition);
-        block.setContent("Untitled Subpage");
-        block.setSubpageId(newSubpageId);
+        block.setImageId(imageId);
+        block.setChunked(isChunked);
+        block.setSizeKB(sizeKB);
+
         blocks.add(insertPosition, block);
 
         if (shouldReplaceLastBlock) {
@@ -506,20 +817,88 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         saveBlock(block);
 
+        // ✅ AUTO ADD: Create new text block after image so user can continue typing
         NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
         textBlock.setPosition(blocks.size());
         blocks.add(textBlock);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(textBlock);
 
-        updateBlockPositions();
-
-        Intent intent = new Intent(this, SubpageActivity.class);
-        intent.putExtra("noteId", noteId);
-        intent.putExtra("subpageId", newSubpageId);
-        intent.putExtra("subpageTitle", "Untitled Subpage");
-        startActivityForResult(intent, 100);
+        // ✅ FIX: Create final variable for lambda
+        final int scrollPosition = insertPosition;
+        blocksRecycler.post(() -> {
+            blocksRecycler.smoothScrollToPosition(scrollPosition);
+        });
     }
+    //subPage
+private void addSubpageBlock() {
+    FirebaseUser user = auth.getCurrentUser();
+    if (user == null) return;
+
+    boolean shouldReplaceLastBlock = false;
+    int insertPosition = blocks.size();
+
+    if (!blocks.isEmpty()) {
+        NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+
+        if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+
+            shouldReplaceLastBlock = true;
+            insertPosition = blocks.size() - 1;
+
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("blocks").document(lastBlock.getId())
+                    .delete();
+
+            blocks.remove(blocks.size() - 1);
+        }
+    }
+
+    String newSubpageId = db.collection("users").document(user.getUid())
+            .collection("notes").document().getId();
+
+    Map<String, Object> subpageData = new HashMap<>();
+    subpageData.put("title", "");
+    subpageData.put("content", "");
+    subpageData.put("parentNoteId", noteId);
+    subpageData.put("timestamp", System.currentTimeMillis());
+
+    db.collection("users").document(user.getUid())
+            .collection("notes").document(noteId)
+            .collection("subpages").document(newSubpageId)
+            .set(subpageData);
+
+    NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.SUBPAGE);
+    block.setPosition(insertPosition);
+    block.setContent("Untitled Subpage");
+    block.setSubpageId(newSubpageId);
+    blocks.add(insertPosition, block);
+
+    if (shouldReplaceLastBlock) {
+        adapter.notifyItemChanged(insertPosition);
+    } else {
+        adapter.notifyItemInserted(insertPosition);
+    }
+
+    saveBlock(block);
+
+    NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
+    textBlock.setPosition(blocks.size());
+    blocks.add(textBlock);
+    adapter.notifyItemInserted(blocks.size() - 1);
+    saveBlock(textBlock);
+
+    updateBlockPositions();
+
+    Intent intent = new Intent(this, SubpageActivity.class);
+    intent.putExtra("noteId", noteId);
+    intent.putExtra("subpageId", newSubpageId);
+    intent.putExtra("subpageTitle", "Untitled Subpage");
+    startActivityForResult(intent, REQUEST_SUBPAGE); // ✅ Use constant
+}
+
 
     private void updateBlockPositions() {
         FirebaseUser user = auth.getCurrentUser();
@@ -615,17 +994,20 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (subpageBlock != null) {
             intent.putExtra("subpageTitle", subpageBlock.getContent());
         }
-        startActivityForResult(intent, 100);
+        startActivityForResult(intent, REQUEST_SUBPAGE); // ✅ Use constant
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 100) {
+
+        // Only reload when coming back from a subpage
+        if (requestCode == REQUEST_SUBPAGE) {
             if (noteId != null) {
                 loadBlocks();
             }
         }
+        // Gallery and Camera are handled by ActivityResultLauncher - no need to handle here
     }
 
     @Override
@@ -645,4 +1027,5 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         saveNoteTitle();
         saveAllBlocks();
     }
+
 }

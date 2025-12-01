@@ -15,11 +15,20 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+import android.widget.ProgressBar;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private List<NoteBlock> blocks;
     private OnBlockChangeListener listener;
+    private String noteId; // ✅ ADDED
 
     // View types
     private static final int TYPE_TEXT = 0;
@@ -42,9 +51,17 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         void onDividerClick(int position);
     }
 
-    public NoteBlockAdapter(List<NoteBlock> blocks, OnBlockChangeListener listener) {
+    // ✅ FIXED: Constructor now accepts noteId
+
+    public NoteBlockAdapter(List<NoteBlock> blocks, OnBlockChangeListener listener, String noteId) {
         this.blocks = blocks;
         this.listener = listener;
+        this.noteId = noteId;
+    }
+
+
+    public void setNoteId(String noteId) {
+        this.noteId = noteId;
     }
 
     @Override
@@ -379,10 +396,14 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     class ImageViewHolder extends RecyclerView.ViewHolder {
         ImageView imageView;
+        ProgressBar progressBar;
+        TextView imageSizeText;
 
         ImageViewHolder(View view) {
             super(view);
             imageView = view.findViewById(R.id.imageView);
+            progressBar = view.findViewById(R.id.progressBar);
+            imageSizeText = view.findViewById(R.id.imageSizeText);
 
             imageView.setOnClickListener(v -> {
                 int pos = getAdapterPosition();
@@ -391,10 +412,146 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     listener.onImageClick(block.getImageId());
                 }
             });
+
+            // Long press to delete
+            imageView.setOnLongClickListener(v -> {
+                int pos = getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) {
+                    showDeleteImageDialog(v, pos);
+                }
+                return true;
+            });
+        }
+
+        private void showDeleteImageDialog(View view, int position) {
+            android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(view.getContext());
+            builder.setTitle("Delete Image?");
+            builder.setMessage("This will permanently delete this image.");
+
+            builder.setPositiveButton("Delete", (dialog, which) -> {
+                listener.onBlockDeleted(position);
+            });
+
+            builder.setNegativeButton("Cancel", null);
+            builder.show();
         }
 
         void bind(NoteBlock block) {
-            // Image loading will be handled by the Activity
+            // Show size info
+            if (block.getSizeKB() > 0) {
+                imageSizeText.setVisibility(View.VISIBLE);
+                imageSizeText.setText(block.getSizeKB() + " KB" + (block.isChunked() ? " (Large)" : ""));
+            } else {
+                imageSizeText.setVisibility(View.GONE);
+            }
+
+            // Check if image is chunked or inline
+            if (block.isChunked()) {
+                // Large image - load from chunks
+                loadChunkedImage(block);
+            } else {
+                // Small image - load from base64Data in block
+                loadInlineImage(block);
+            }
+        }
+
+        private void loadInlineImage(NoteBlock block) {
+            String imageId = block.getImageId();
+            if (imageId == null) return;
+
+            progressBar.setVisibility(View.VISIBLE);
+            imageView.setVisibility(View.GONE);
+
+            FirebaseAuth auth = FirebaseAuth.getInstance();
+            FirebaseUser user = auth.getCurrentUser();
+            if (user == null) return;
+
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("images").document(imageId)
+                    .get()
+                    .addOnSuccessListener(doc -> {
+                        if (doc.exists()) {
+                            String base64Data = doc.getString("base64Data");
+                            if (base64Data != null) {
+                                displayBase64Image(base64Data);
+                            }
+                        }
+                        progressBar.setVisibility(View.GONE);
+                    })
+                    .addOnFailureListener(e -> {
+                        progressBar.setVisibility(View.GONE);
+                        imageView.setVisibility(View.VISIBLE);
+                    });
+        }
+
+        private void loadChunkedImage(NoteBlock block) {
+            String imageId = block.getImageId();
+            if (imageId == null) return;
+
+            progressBar.setVisibility(View.VISIBLE);
+            imageView.setVisibility(View.GONE);
+
+            FirebaseAuth auth = FirebaseAuth.getInstance();
+            FirebaseUser user = auth.getCurrentUser();
+            if (user == null) return;
+
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+            // Get all chunks
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("images").document(imageId)
+                    .collection("chunks")
+                    .get()
+                    .addOnSuccessListener(querySnapshot -> {
+                        if (!querySnapshot.isEmpty()) {
+                            // Sort chunks by index
+                            List<QueryDocumentSnapshot> chunks = new ArrayList<>();
+                            for (QueryDocumentSnapshot doc : querySnapshot) {
+                                chunks.add(doc);
+                            }
+
+                            Collections.sort(chunks, (a, b) -> {
+                                Long indexA = a.getLong("chunkIndex");
+                                Long indexB = b.getLong("chunkIndex");
+                                return indexA != null && indexB != null ?
+                                        indexA.compareTo(indexB) : 0;
+                            });
+
+                            // Combine chunks
+                            StringBuilder fullBase64 = new StringBuilder();
+                            for (QueryDocumentSnapshot chunk : chunks) {
+                                String data = chunk.getString("data");
+                                if (data != null) {
+                                    fullBase64.append(data);
+                                }
+                            }
+
+                            displayBase64Image(fullBase64.toString());
+                        }
+                        progressBar.setVisibility(View.GONE);
+                    })
+                    .addOnFailureListener(e -> {
+                        progressBar.setVisibility(View.GONE);
+                        imageView.setVisibility(View.VISIBLE);
+                    });
+        }
+
+        private void displayBase64Image(String base64Data) {
+            try {
+                byte[] decodedBytes = Base64.decode(base64Data, Base64.NO_WRAP);
+                Bitmap bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+
+                if (bitmap != null) {
+                    imageView.setImageBitmap(bitmap);
+                    imageView.setVisibility(View.VISIBLE);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                imageView.setVisibility(View.VISIBLE);
+            }
         }
     }
 
@@ -426,7 +583,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             super(view);
             titleText = view.findViewById(R.id.titleText);
 
-            // ✅ Regular click - open subpage
+            // Regular click - open subpage
             itemView.setOnClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
@@ -435,13 +592,13 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
             });
 
-            // ✅ Long press - show delete dialog
+            // Long press - show delete dialog
             itemView.setOnLongClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
                     showDeleteDialog(v, pos);
                 }
-                return true;  // Consume the event
+                return true;
             });
         }
 
@@ -462,6 +619,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             titleText.setText(block.getContent());
         }
     }
+
     class LinkViewHolder extends RecyclerView.ViewHolder {
         TextView linkText;
 

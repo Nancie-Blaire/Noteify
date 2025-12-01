@@ -18,7 +18,7 @@ public class NotificationHelper {
     private static final String TAG = "NotificationHelper";
     private static final String CHANNEL_ID = "task_reminders";
     private static final String CHANNEL_NAME = "Task Reminders";
-    private static final String APP_NAME = "Noteify"; // ✅ Your app name
+    private static final String APP_NAME = "Noteify";
 
     /**
      * Create notification channel (required for Android 8.0+)
@@ -44,8 +44,7 @@ public class NotificationHelper {
     }
 
     /**
-     * ✅ IMPORTANT: Use this ONLY when scheduling the ENTIRE todo list
-     * (when the list itself has a due date, not individual tasks)
+     * ✅ FIXED: Now passes listId to notification
      */
     public static void scheduleTodoListNotification(Context context, String listId,
                                                     String listTitle,
@@ -56,7 +55,6 @@ public class NotificationHelper {
             return;
         }
 
-        // ✅ Skip if title is empty
         if (listTitle == null || listTitle.trim().isEmpty()) {
             Log.d(TAG, "⚠️ Skipping notification with empty title");
             return;
@@ -65,7 +63,6 @@ public class NotificationHelper {
         Calendar notificationTime = Calendar.getInstance();
         notificationTime.setTime(scheduleDate);
 
-        // If time is specified, set it
         if (scheduleTime != null && !scheduleTime.isEmpty()) {
             try {
                 String[] timeParts = scheduleTime.split(":");
@@ -79,10 +76,8 @@ public class NotificationHelper {
             }
         }
 
-        // Subtract reminder minutes
         notificationTime.add(Calendar.MINUTE, -reminderMinutes);
 
-        // Don't schedule if time is in the past
         if (notificationTime.getTimeInMillis() <= System.currentTimeMillis()) {
             Log.d(TAG, "⚠️ Notification time is in the past, skipping");
             return;
@@ -90,16 +85,16 @@ public class NotificationHelper {
 
         Log.d(TAG, "✅ Scheduling TODO LIST notification: " + listTitle);
 
-        // ✅ FIXED: Title is always "Noteify", message is the list title
+        // ✅ FIXED: Pass listId as sourceId
         scheduleNotification(context, listId, APP_NAME, listTitle,
-                notificationTime.getTimeInMillis(), "todo");
+                notificationTime.getTimeInMillis(), "todo", listId);
     }
 
     /**
-     * Schedule notification for an INDIVIDUAL TODO TASK
+     * ✅ FIXED: Now passes listId to notification
      */
-    public static void scheduleTodoTaskNotification(Context context, String taskId,
-                                                    String taskText,
+    public static void scheduleTodoTaskNotification(Context context, String listId,
+                                                    String taskId, String taskText,
                                                     Date scheduleDate, String scheduleTime,
                                                     int reminderMinutes) {
         if (scheduleDate == null) {
@@ -107,7 +102,6 @@ public class NotificationHelper {
             return;
         }
 
-        // ✅ Skip if task text is empty
         if (taskText == null || taskText.trim().isEmpty()) {
             Log.d(TAG, "⚠️ Skipping notification with empty task text");
             return;
@@ -116,7 +110,6 @@ public class NotificationHelper {
         Calendar notificationTime = Calendar.getInstance();
         notificationTime.setTime(scheduleDate);
 
-        // If time is specified, set it
         if (scheduleTime != null && !scheduleTime.isEmpty()) {
             try {
                 String[] timeParts = scheduleTime.split(":");
@@ -130,10 +123,8 @@ public class NotificationHelper {
             }
         }
 
-        // Subtract reminder minutes
         notificationTime.add(Calendar.MINUTE, -reminderMinutes);
 
-        // Don't schedule if time is in the past
         if (notificationTime.getTimeInMillis() <= System.currentTimeMillis()) {
             Log.d(TAG, "⚠️ Notification time is in the past, skipping");
             return;
@@ -141,13 +132,13 @@ public class NotificationHelper {
 
         Log.d(TAG, "✅ Scheduling individual TASK notification: " + taskText);
 
-        // ✅ FIXED: Title is always "Noteify", message is the task text
+        // ✅ FIXED: Pass listId as sourceId
         scheduleNotification(context, taskId, APP_NAME, taskText,
-                notificationTime.getTimeInMillis(), "todo_task");
+                notificationTime.getTimeInMillis(), "todo_task", listId);
     }
 
     /**
-     * Schedule a notification for a weekly task
+     * ✅ FIXED: Now passes planId to notification
      */
     public static void scheduleWeeklyTaskNotification(Context context, String taskId,
                                                       String planTitle, String taskText,
@@ -158,25 +149,20 @@ public class NotificationHelper {
             return;
         }
 
-        // ✅ Skip if task text is empty
         if (taskText == null || taskText.trim().isEmpty()) {
             Log.d(TAG, "⚠️ Skipping notification with empty task text");
             return;
         }
 
-        // Calculate which day of the week
         Calendar taskDate = Calendar.getInstance();
         taskDate.setTime(startDate);
 
-        // Map day string to Calendar constant
         int dayOfWeek = getDayOfWeek(day);
 
-        // Find the next occurrence of this day in the week
         while (taskDate.get(Calendar.DAY_OF_WEEK) != dayOfWeek) {
             taskDate.add(Calendar.DAY_OF_MONTH, 1);
         }
 
-        // Set time
         try {
             String[] timeParts = time.split(":");
             int hour = Integer.parseInt(timeParts[0]);
@@ -189,43 +175,44 @@ public class NotificationHelper {
             return;
         }
 
-        // Subtract reminder minutes
         taskDate.add(Calendar.MINUTE, -reminderMinutes);
 
-        // Don't schedule if time is in the past
         if (taskDate.getTimeInMillis() <= System.currentTimeMillis()) {
             Log.d(TAG, "⚠️ Weekly notification time is in the past, skipping");
             return;
         }
 
-        // ✅ FIXED: Title is always "Noteify", message shows task text
         String notificationMessage = taskText + " (" + planTitle + " - " + day + ")";
+
+        // ✅ FIXED: Extract planId correctly (it's now the first part before "_")
+        String planId = taskId.split("_")[0];
+
         scheduleNotification(context, taskId, APP_NAME, notificationMessage,
-                taskDate.getTimeInMillis(), "weekly");
+                taskDate.getTimeInMillis(), "weekly", planId);
     }
 
     /**
-     * Schedule notification using AlarmManager
+     * ✅ FIXED: Schedule notification with sourceId for navigation
      */
     private static void scheduleNotification(Context context, String id,
                                              String title, String message,
-                                             long triggerTime, String type) {
+                                             long triggerTime, String type, String sourceId) {
         Intent intent = new Intent(context, NotificationReceiver.class);
         intent.putExtra("notification_id", id.hashCode());
         intent.putExtra("title", title);
         intent.putExtra("message", message);
         intent.putExtra("type", type);
+        intent.putExtra("sourceId", sourceId); // ✅ ADDED: Pass sourceId for navigation
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
                 context,
-                id.hashCode(), // Use hashCode as unique request code
+                id.hashCode(),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            // Use setExactAndAllowWhileIdle for precise timing
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
@@ -243,6 +230,7 @@ public class NotificationHelper {
             Log.d(TAG, "✅ Notification scheduled for: " + new Date(triggerTime));
             Log.d(TAG, "   Title: " + title);
             Log.d(TAG, "   Message: " + message);
+            Log.d(TAG, "   SourceId: " + sourceId);
         }
     }
 

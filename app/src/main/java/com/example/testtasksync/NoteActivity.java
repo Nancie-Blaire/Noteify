@@ -6,6 +6,7 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -42,6 +43,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import androidx.activity.OnBackPressedCallback;
+
+//COLOR PICKER
+import android.graphics.Color;
 
 public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.OnBlockChangeListener {
 
@@ -88,6 +92,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private static final int REQUEST_GALLERY = 101;
     private static final int REQUEST_CAMERA = 102;
 
+    //themes
+    private View colorPickerPanel;
+    private RelativeLayout noteLayout;
+    private String currentNoteColor = "#FAFAFA";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -134,6 +142,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         addThemeBtn = findViewById(R.id.addThemeOption);
         addSubpageBtn = findViewById(R.id.addSubpageOption);
 
+        noteLayout = findViewById(R.id.noteLayout);
+        colorPickerPanel = findViewById(R.id.colorPickerPanel);
         // Setup RecyclerView
         blocks = new ArrayList<>();
         adapter = new NoteBlockAdapter(blocks, this, noteId);
@@ -145,6 +155,13 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Setup drag and drop
         setupDragAndDrop();
+        setupColorPicker();
+        if (noteId != null) {
+            loadNote();
+            loadNoteColor(); // ✅ Load saved color
+        } else {
+            createNewNote();
+        }
 
         // Load note if exists
         if (noteId != null) {
@@ -198,10 +215,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         outdentBtn.setOnClickListener(v ->
                 Toast.makeText(this, "Outdent - to be implemented", Toast.LENGTH_SHORT).show());
 
-        // Theme (to be implemented)
-        addThemeBtn.setOnClickListener(v ->
-                Toast.makeText(this, "Theme - to be implemented", Toast.LENGTH_SHORT).show());
-
+        // Theme
+        addThemeBtn.setOnClickListener(v -> toggleColorPicker());
         // Subpage
         addSubpageBtn.setOnClickListener(v -> addSubpageBlock());
     }
@@ -513,6 +528,66 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         blocks.add(block);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(block);
+    }
+
+    //COLOR PICKER
+    private void setupColorPicker() {
+        findViewById(R.id.colorDefault).setOnClickListener(v -> changeNoteColor("#FAFAFA"));
+        findViewById(R.id.colorRed).setOnClickListener(v -> changeNoteColor("#FFCDD2"));
+        findViewById(R.id.colorPink).setOnClickListener(v -> changeNoteColor("#F8BBD0"));
+        findViewById(R.id.colorPurple).setOnClickListener(v -> changeNoteColor("#E1BEE7"));
+        findViewById(R.id.colorBlue).setOnClickListener(v -> changeNoteColor("#BBDEFB"));
+        findViewById(R.id.colorCyan).setOnClickListener(v -> changeNoteColor("#B2EBF2"));
+        findViewById(R.id.colorGreen).setOnClickListener(v -> changeNoteColor("#C8E6C9"));
+        findViewById(R.id.colorYellow).setOnClickListener(v -> changeNoteColor("#FFF9C4"));
+        findViewById(R.id.colorOrange).setOnClickListener(v -> changeNoteColor("#FFE0B2"));
+        findViewById(R.id.colorBrown).setOnClickListener(v -> changeNoteColor("#D7CCC8"));
+        findViewById(R.id.colorGrey).setOnClickListener(v -> changeNoteColor("#CFD8DC"));
+    }
+
+    private void toggleColorPicker() {
+        if (colorPickerPanel.getVisibility() == View.VISIBLE) {
+            colorPickerPanel.setVisibility(View.GONE);
+        } else {
+            colorPickerPanel.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void changeNoteColor(String color) {
+        noteLayout.setBackgroundColor(Color.parseColor(color));
+        currentNoteColor = color;
+        colorPickerPanel.setVisibility(View.GONE);
+        saveNoteColor(color);
+    }
+
+    private void saveNoteColor(String color) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .update("color", color)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Color saved", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void loadNoteColor() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        String color = doc.getString("color");
+                        if (color != null) {
+                            currentNoteColor = color;
+                            noteLayout.setBackgroundColor(Color.parseColor(color));
+                        }
+                    }
+                });
     }
 
     //IMAGESSSS
@@ -831,7 +906,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         });
     }
     //subPage
-private void addSubpageBlock() {
+    private void addSubpageBlock() {
     FirebaseUser user = auth.getCurrentUser();
     if (user == null) return;
 

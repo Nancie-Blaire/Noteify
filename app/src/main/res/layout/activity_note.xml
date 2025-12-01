@@ -33,12 +33,45 @@
 
     </LinearLayout>
 
+    <!-- ✅ COLOR PICKER PANEL (ADD THIS HERE - AFTER topBar) -->
+    <HorizontalScrollView
+        android:id="@+id/colorPickerPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/topBar"
+        android:background="#FFFFFF"
+        android:elevation="4dp"
+        android:padding="12dp"
+        android:visibility="gone"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <View android:id="@+id/colorDefault" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FAFAFA" android:tag="#FAFAFA" />
+            <View android:id="@+id/colorRed" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFCDD2" android:tag="#FFCDD2" />
+            <View android:id="@+id/colorPink" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#F8BBD0" android:tag="#F8BBD0" />
+            <View android:id="@+id/colorPurple" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#E1BEE7" android:tag="#E1BEE7" />
+            <View android:id="@+id/colorBlue" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#BBDEFB" android:tag="#BBDEFB" />
+            <View android:id="@+id/colorCyan" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#B2EBF2" android:tag="#B2EBF2" />
+            <View android:id="@+id/colorGreen" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#C8E6C9" android:tag="#C8E6C9" />
+            <View android:id="@+id/colorYellow" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFF9C4" android:tag="#FFF9C4" />
+            <View android:id="@+id/colorOrange" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFE0B2" android:tag="#FFE0B2" />
+            <View android:id="@+id/colorBrown" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#D7CCC8" android:tag="#D7CCC8" />
+            <View android:id="@+id/colorGrey" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#CFD8DC" android:tag="#CFD8DC" />
+
+        </LinearLayout>
+    </HorizontalScrollView>
+
     <!-- Note Title -->
     <EditText
         android:id="@+id/noteTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/topBar"
+        android:layout_below="@id/colorPickerPanel"
         android:hint="Title"
         android:textSize="24sp"
         android:textStyle="bold"

@@ -554,12 +554,17 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
 
     private void changeNoteColor(String color) {
+        // ✅ Change both noteLayout AND topBar background
         noteLayout.setBackgroundColor(Color.parseColor(color));
+
+        // ✅ NEW: Change top bar color too
+        View topBar = findViewById(R.id.topBar);
+        topBar.setBackgroundColor(Color.parseColor(color));
+
         currentNoteColor = color;
         colorPickerPanel.setVisibility(View.GONE);
         saveNoteColor(color);
     }
-
     private void saveNoteColor(String color) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) return;
@@ -585,6 +590,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                         if (color != null) {
                             currentNoteColor = color;
                             noteLayout.setBackgroundColor(Color.parseColor(color));
+
+                            // ✅ NEW: Set top bar color when loading
+                            View topBar = findViewById(R.id.topBar);
+                            topBar.setBackgroundColor(Color.parseColor(color));
                         }
                     }
                 });

@@ -33,7 +33,7 @@
 
     </LinearLayout>
 
-    <!-- ✅ COLOR PICKER PANEL (ADD THIS HERE - AFTER topBar) -->
+    <!-- Color Picker Panel -->
     <HorizontalScrollView
         android:id="@+id/colorPickerPanel"
         android:layout_width="match_parent"
@@ -81,16 +81,42 @@
         android:textColor="#000"
         android:maxLines="2" />
 
-    <!-- Blocks RecyclerView -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/blocksRecycler"
+    <!-- ✅ NEW: NestedScrollView wrapper for RecyclerView + Empty Space -->
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/noteTitle"
         android:layout_above="@id/keyboardToolbar"
-        android:paddingHorizontal="16dp"
-        android:paddingBottom="16dp"
-        android:clipToPadding="false" />
+        android:fillViewport="true"
+        android:overScrollMode="never">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Blocks RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/blocksRecycler"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="16dp"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="never"
+                android:clipToPadding="false" />
+
+            <!-- ✅ NEW: Clickable Empty Space -->
+            <View
+                android:id="@+id/emptySpace"
+                android:layout_width="match_parent"
+                android:layout_height="400dp"
+                android:background="#FAFAFA"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
 
     <!-- Keyboard Toolbar (Always Visible at Bottom) -->
     <HorizontalScrollView

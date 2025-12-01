@@ -207,14 +207,23 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         // Image
         insertImageBtn.setOnClickListener(v -> addImageBlock());
 
-        // Indent (to be implemented)
-        indentBtn.setOnClickListener(v ->
-                Toast.makeText(this, "Indent - to be implemented", Toast.LENGTH_SHORT).show());
-
+        indentBtn.setOnClickListener(v -> {
+            int focusedPosition = findFocusedBlockPosition();
+            if (focusedPosition != -1) {
+                indentBlock(focusedPosition);
+            } else {
+                Toast.makeText(this, "Focus on a block to indent", Toast.LENGTH_SHORT).show();
+            }
+        });
         // Outdent (to be implemented)
-        outdentBtn.setOnClickListener(v ->
-                Toast.makeText(this, "Outdent - to be implemented", Toast.LENGTH_SHORT).show());
-
+        outdentBtn.setOnClickListener(v -> {
+            int focusedPosition = findFocusedBlockPosition();
+            if (focusedPosition != -1) {
+                outdentBlock(focusedPosition);
+            } else {
+                Toast.makeText(this, "Focus on a block to outdent", Toast.LENGTH_SHORT).show();
+            }
+        });
         // Theme
         addThemeBtn.setOnClickListener(v -> toggleColorPicker());
         // Subpage
@@ -528,6 +537,76 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         blocks.add(block);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(block);
+    }
+
+    private int findFocusedBlockPosition() {
+        // Find which block currently has focus
+        for (int i = 0; i < blocks.size(); i++) {
+            View view = blocksRecycler.getLayoutManager().findViewByPosition(i);
+            if (view != null && view.hasFocus()) {
+                return i;
+            }
+
+            // Check if any child view has focus (for EditText inside blocks)
+            if (view != null && view.findFocus() != null) {
+                View focusedView = view.findFocus();
+                if (focusedView.getParent() == view ||
+                        ((View)focusedView.getParent()).getParent() == view) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private void indentBlock(int position) {
+        NoteBlock block = blocks.get(position);
+
+        // Maximum indent level is 3
+        if (block.getIndentLevel() >= 3) {
+            Toast.makeText(this, "Maximum indent level reached", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Some block types shouldn't be indented
+        if (block.getType() == NoteBlock.BlockType.DIVIDER ||
+                block.getType() == NoteBlock.BlockType.IMAGE ||
+                block.getType() == NoteBlock.BlockType.SUBPAGE) {
+            Toast.makeText(this, "This block type cannot be indented", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        block.setIndentLevel(block.getIndentLevel() + 1);
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        // If it's a numbered list, renumber
+        if (block.getType() == NoteBlock.BlockType.NUMBERED) {
+            renumberLists();
+        }
+
+        Toast.makeText(this, "Indented", Toast.LENGTH_SHORT).show();
+    }
+
+    private void outdentBlock(int position) {
+        NoteBlock block = blocks.get(position);
+
+        // Can't outdent if already at level 0
+        if (block.getIndentLevel() <= 0) {
+            Toast.makeText(this, "Already at minimum indent", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        block.setIndentLevel(block.getIndentLevel() - 1);
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        // If it's a numbered list, renumber
+        if (block.getType() == NoteBlock.BlockType.NUMBERED) {
+            renumberLists();
+        }
+
+        Toast.makeText(this, "Outdented", Toast.LENGTH_SHORT).show();
     }
 
     //COLOR PICKER

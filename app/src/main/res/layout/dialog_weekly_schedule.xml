@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="@drawable/light_orange_background">
+    android:background="@drawable/calendar_popup_window">
 
     <!-- Title -->
     <TextView

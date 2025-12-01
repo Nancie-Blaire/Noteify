@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- Top Bar with Curved Background -->
+    <!-- Top Bar -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="120dp"
@@ -51,10 +51,10 @@
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="16dp"
             android:background="@android:color/transparent"
-            android:hint="Title of List 01"
+            android:hint="Title of Todo List"
             android:inputType="textCapWords"
             android:maxLines="1"
-            android:text="Title of List 01"
+            android:text="Title of Todo List"
             android:textColor="#000000"
             android:textSize="16sp"
             android:textAlignment="viewEnd"
@@ -191,5 +191,170 @@
         </LinearLayout>
 
     </ScrollView>
+
+    <!-- ✅ KEYBOARD TOOLBAR (Notion-style, attached to keyboard) -->
+    <HorizontalScrollView
+        android:id="@+id/keyboardToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="#8daaa6"
+        android:elevation="4dp"
+        android:visibility="gone"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="1dp"
+            android:gravity="center_vertical">
+
+            <!-- Headings & Fonts -->
+            <ImageButton
+                android:id="@+id/headingsandfont"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/headings_fonts"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Text Style"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Divider -->
+            <ImageButton
+                android:id="@+id/addDividerOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_notes_feature_divider"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Divider"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Bullet List -->
+            <ImageButton
+                android:id="@+id/addBulletListOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/bullet_points"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Bullet List"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Numbered List -->
+            <ImageButton
+                android:id="@+id/addNumberedListOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/numbered_list"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Numbered List"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Toggle List -->
+            <ImageButton
+                android:id="@+id/addToggleListOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/toggle_list"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Toggle"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Checkbox -->
+            <ImageButton
+                android:id="@+id/addCheckboxOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/checkbox"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Checkbox"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Link -->
+            <ImageButton
+                android:id="@+id/addLinkOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/link"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Link"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Image -->
+            <ImageButton
+                android:id="@+id/insertImage"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_insert_image"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Image"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Table -->
+            <ImageButton
+                android:id="@+id/addTableOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/table_list"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Table"
+                app:tint="#FFFFFF" />
+
+            <!-- Indent -->
+            <ImageButton
+                android:id="@+id/indentOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/indent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Indent"
+                app:tint="#FFFFFF" />
+
+            <!-- Outdent -->
+            <ImageButton
+                android:id="@+id/outdentOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/outdent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Outdent"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Theme -->
+            <ImageButton
+                android:id="@+id/addThemeOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_notes_feature_palette"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Theme"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Subpage -->
+            <ImageButton
+                android:id="@+id/addSubpageOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_fab_notes"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Subpage"
+                app:tint="#FFFFFFFF" />
+
+        </LinearLayout>
+
+    </HorizontalScrollView>
 
 </LinearLayout>

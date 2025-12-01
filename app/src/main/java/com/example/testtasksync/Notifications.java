@@ -28,8 +28,10 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class Notifications extends Fragment {
@@ -287,18 +289,16 @@ public class Notifications extends Fragment {
                 .get()
                 .addOnSuccessListener(weeklySnapshots -> {
 
-                    // List to hold all async task fetches for individual weekly plans <-- ADDED
                     final List<Task<QuerySnapshot>> taskFetchTasks = new ArrayList<>();
 
                     if (weeklySnapshots.isEmpty()) {
-                        checkAndCallUpdateUI(); // No plans, signal completion immediately
+                        checkAndCallUpdateUI();
                         return;
                     }
 
                     for (QueryDocumentSnapshot weeklyDoc : weeklySnapshots) {
                         String planId = weeklyDoc.getId();
 
-                        // Skip if this weekly plan is marked as deleted
                         if (deletedWeeklyPlans.contains(planId)) {
                             Log.d(TAG, "Skipping deleted weekly plan: " + planId);
                             continue;
@@ -306,90 +306,159 @@ public class Notifications extends Fragment {
 
                         String planTitle = weeklyDoc.getString("title");
                         Timestamp startTimestamp = weeklyDoc.getTimestamp("startDate");
-                        String time = weeklyDoc.getString("time");
 
-                        if (startTimestamp == null || time == null || time.isEmpty()) {
+                        if (startTimestamp == null) {
                             continue;
                         }
 
-                        // Get tasks from this weekly plan and add the Task to the list <-- CHANGED
+                        // ✅ Load day schedules for this plan (NOW SUPPORTS MULTIPLE PER DAY)
                         Task<QuerySnapshot> fetchTasksTask = db.collection("users")
                                 .document(user.getUid())
                                 .collection("weeklyPlans")
                                 .document(planId)
                                 .collection("tasks")
                                 .get()
-                                .addOnSuccessListener(taskSnapshots -> {
-                                    for (QueryDocumentSnapshot taskDoc : taskSnapshots) {
-                                        Boolean isCompleted = taskDoc.getBoolean("isCompleted");
+                                .continueWithTask(taskResult -> {
+                                    // Load ALL day schedules (not just one per day)
+                                    return db.collection("users")
+                                            .document(user.getUid())
+                                            .collection("weeklyPlans")
+                                            .document(planId)
+                                            .collection("daySchedules")
+                                            .orderBy("scheduleNumber")
+                                            .get()
+                                            .addOnSuccessListener(dayScheduleSnapshots -> {
+                                                // ✅ Group schedules by day (List instead of single object)
+                                                Map<String, List<DaySchedule>> daySchedulesMap = new HashMap<>();
 
-                                        // Only show incomplete tasks
-                                        if (Boolean.TRUE.equals(isCompleted)) {
-                                            continue;
-                                        }
+                                                for (QueryDocumentSnapshot dayDoc : dayScheduleSnapshots) {
+                                                    DaySchedule schedule = dayDoc.toObject(DaySchedule.class);
+                                                    String day = schedule.getDay();
 
-                                        String day = taskDoc.getString("day");
-                                        String taskText = taskDoc.getString("taskText");
-
-                                        if (day != null) {
-                                            // Calculate the date for this day
-                                            Calendar taskDate = Calendar.getInstance();
-                                            taskDate.setTime(startTimestamp.toDate());
-
-                                            int targetDay = getDayOfWeek(day);
-                                            while (taskDate.get(Calendar.DAY_OF_WEEK) != targetDay) {
-                                                taskDate.add(Calendar.DAY_OF_MONTH, 1);
-                                            }
-
-                                            // Set time
-                                            try {
-                                                String[] timeParts = time.split(":");
-                                                taskDate.set(Calendar.HOUR_OF_DAY,
-                                                        Integer.parseInt(timeParts[0]));
-                                                taskDate.set(Calendar.MINUTE,
-                                                        Integer.parseInt(timeParts[1]));
-                                            } catch (Exception e) {
-                                                Log.e(TAG, "Error parsing time", e);
-                                            }
-
-                                            NotificationItem item = new NotificationItem(
-                                                    planId,
-                                                    planTitle + " - " + day,
-                                                    taskText,
-                                                    taskDate.getTime(),
-                                                    time,
-                                                    "weekly"
-                                            );
-
-                                            // Categorize as upcoming or overdue
-                                            if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
-                                                // Ang .contains() ay gumagana na ng tama dahil sa pagbabago sa NotificationItem.java
-                                                if (!overdueList.contains(item)) {
-                                                    overdueList.add(item);
+                                                    if (!daySchedulesMap.containsKey(day)) {
+                                                        daySchedulesMap.put(day, new ArrayList<>());
+                                                    }
+                                                    daySchedulesMap.get(day).add(schedule);
                                                 }
-                                            } else {
-                                                if (!upcomingList.contains(item)) {
-                                                    upcomingList.add(item);
+
+                                                // Process tasks with day schedules
+                                                QuerySnapshot taskSnapshots = taskResult.getResult();
+                                                if (taskSnapshots != null) {
+                                                    for (QueryDocumentSnapshot taskDoc : taskSnapshots) {
+                                                        Boolean isCompleted = taskDoc.getBoolean("isCompleted");
+
+                                                        if (Boolean.TRUE.equals(isCompleted)) {
+                                                            continue;
+                                                        }
+
+                                                        String day = taskDoc.getString("day");
+                                                        String taskText = taskDoc.getString("taskText");
+
+                                                        if (day != null) {
+                                                            // ✅ Check if this day has specific schedules (plural)
+                                                            List<DaySchedule> daySchedules = daySchedulesMap.get(day);
+
+                                                            if (daySchedules != null && !daySchedules.isEmpty()) {
+                                                                // ✅ Create notification item for EACH schedule
+                                                                for (DaySchedule daySchedule : daySchedules) {
+                                                                    if (daySchedule.getDate() != null) {
+                                                                        Calendar taskDate = Calendar.getInstance();
+                                                                        taskDate.setTime(daySchedule.getDate().toDate());
+                                                                        String time = daySchedule.getTime();
+
+                                                                        // Set time if available
+                                                                        if (time != null && !time.isEmpty()) {
+                                                                            try {
+                                                                                String[] timeParts = time.split(":");
+                                                                                taskDate.set(Calendar.HOUR_OF_DAY,
+                                                                                        Integer.parseInt(timeParts[0]));
+                                                                                taskDate.set(Calendar.MINUTE,
+                                                                                        Integer.parseInt(timeParts[1]));
+                                                                            } catch (Exception e) {
+                                                                                Log.e(TAG, "Error parsing time", e);
+                                                                            }
+                                                                        }
+
+                                                                        // ✅ Include schedule number in title
+                                                                        String itemTitle = planTitle + " - " + day;
+                                                                        if (daySchedules.size() > 1) {
+                                                                            itemTitle += " (Schedule " +
+                                                                                    daySchedule.getScheduleNumber() + ")";
+                                                                        }
+
+                                                                        NotificationItem item = new NotificationItem(
+                                                                                planId,
+                                                                                itemTitle,
+                                                                                taskText,
+                                                                                taskDate.getTime(),
+                                                                                time,
+                                                                                "weekly"
+                                                                        );
+
+                                                                        if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
+                                                                            if (!overdueList.contains(item)) {
+                                                                                overdueList.add(item);
+                                                                            }
+                                                                        } else {
+                                                                            if (!upcomingList.contains(item)) {
+                                                                                upcomingList.add(item);
+                                                                            }
+                                                                        }
+
+                                                                        Log.d(TAG, "✅ Added notification for " + day +
+                                                                                " - Schedule " + daySchedule.getScheduleNumber());
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                // ✅ No specific schedules - use default start date
+                                                                Calendar taskDate = Calendar.getInstance();
+                                                                taskDate.setTime(startTimestamp.toDate());
+                                                                int targetDay = getDayOfWeek(day);
+
+                                                                while (taskDate.get(Calendar.DAY_OF_WEEK) != targetDay) {
+                                                                    taskDate.add(Calendar.DAY_OF_MONTH, 1);
+                                                                }
+
+                                                                NotificationItem item = new NotificationItem(
+                                                                        planId,
+                                                                        planTitle + " - " + day,
+                                                                        taskText,
+                                                                        taskDate.getTime(),
+                                                                        "",
+                                                                        "weekly"
+                                                                );
+
+                                                                if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
+                                                                    if (!overdueList.contains(item)) {
+                                                                        overdueList.add(item);
+                                                                    }
+                                                                } else {
+                                                                    if (!upcomingList.contains(item)) {
+                                                                        upcomingList.add(item);
+                                                                    }
+                                                                }
+
+                                                                Log.d(TAG, "✅ Added notification for " + day +
+                                                                        " (using default schedule)");
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            }
-                                        }
-                                    }
-                                    // REMOVED: updateUI();
+                                            });
                                 });
 
                         taskFetchTasks.add(fetchTasksTask);
                     }
 
-                    // Wait for all inner tasks (task fetches) to complete before signaling loadWeeklyTasks completion <-- ADDED
                     Tasks.whenAllComplete(taskFetchTasks)
                             .addOnCompleteListener(task -> {
-                                checkAndCallUpdateUI(); // loadWeeklyTasks is complete
+                                checkAndCallUpdateUI();
                             });
 
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error loading weekly plans", e);
-                    checkAndCallUpdateUI(); // Signal completion even on failure
+                    checkAndCallUpdateUI();
                 });
     }
 

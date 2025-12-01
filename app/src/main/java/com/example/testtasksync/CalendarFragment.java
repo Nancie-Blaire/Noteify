@@ -22,6 +22,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -421,10 +422,18 @@ public class CalendarFragment extends Fragment {
 
                     Log.d(TAG, "📋 Found " + queryDocumentSnapshots.size() + " weekly plan(s)");
 
+                    // ✅ NEW: Track how many plans we need to process
+                    final int totalPlans = queryDocumentSnapshots.size();
+                    final int[] processedPlans = {0};
+
                     for (com.google.firebase.firestore.QueryDocumentSnapshot doc : queryDocumentSnapshots) {
                         // ✅ SKIP DELETED WEEKLY PLANS
                         if (doc.get("deletedAt") != null) {
                             Log.d(TAG, "⭕️ Skipping deleted weekly plan: " + doc.getId());
+                            processedPlans[0]++;
+                            if (processedPlans[0] == totalPlans) {
+                                calendarAdapter.notifyDataSetChanged();
+                            }
                             continue;
                         }
 
@@ -457,23 +466,40 @@ public class CalendarFragment extends Fragment {
 
                             if (!planEnd.before(monthStart) && !planStart.after(monthEnd)) {
                                 Log.d(TAG, "✅ Plan overlaps with current month - loading tasks");
-                                loadWeeklyPlanTasks(doc.getId(), planStart, planEnd, monthStart, monthEnd);
+                                loadWeeklyPlanTasks(doc.getId(), planStart, planEnd, monthStart, monthEnd,
+                                        () -> {
+                                            // ✅ Callback when done loading this plan
+                                            processedPlans[0]++;
+                                            Log.d(TAG, "✅ Processed plan " + processedPlans[0] + "/" + totalPlans);
+                                            if (processedPlans[0] == totalPlans) {
+                                                calendarAdapter.notifyDataSetChanged();
+                                            }
+                                        });
                             } else {
                                 Log.d(TAG, "⭕️ Plan doesn't overlap with current month - skipping");
+                                processedPlans[0]++;
+                                if (processedPlans[0] == totalPlans) {
+                                    calendarAdapter.notifyDataSetChanged();
+                                }
                             }
                         } else {
                             Log.e(TAG, "❌ Plan missing start/end date");
+                            processedPlans[0]++;
+                            if (processedPlans[0] == totalPlans) {
+                                calendarAdapter.notifyDataSetChanged();
+                            }
                         }
                     }
-
-                    calendarAdapter.notifyDataSetChanged();
                 });
     }
 
     private void loadWeeklyPlanTasks(String planId, Calendar planStart, Calendar planEnd,
-                                     Calendar monthStart, Calendar monthEnd) {
+                                     Calendar monthStart, Calendar monthEnd, Runnable onComplete) {
         FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
+        if (user == null) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
 
         db.collection("users")
                 .document(user.getUid())
@@ -482,12 +508,25 @@ public class CalendarFragment extends Fragment {
                 .collection("tasks")
                 .get()
                 .addOnSuccessListener(taskSnapshots -> {
+                    // ✅ Track tasks to process
+                    final int totalTasks = taskSnapshots.size();
+                    final int[] processedTasks = {0};
+
+                    if (totalTasks == 0) {
+                        if (onComplete != null) onComplete.run();
+                        return;
+                    }
+
                     for (com.google.firebase.firestore.QueryDocumentSnapshot taskDoc : taskSnapshots) {
                         String day = taskDoc.getString("day");
                         String taskText = taskDoc.getString("taskText");
                         Boolean isCompleted = taskDoc.getBoolean("isCompleted");
 
                         if (taskText == null || taskText.trim().isEmpty()) {
+                            processedTasks[0]++;
+                            if (processedTasks[0] == totalTasks && onComplete != null) {
+                                onComplete.run();
+                            }
                             continue;
                         }
 
@@ -500,14 +539,20 @@ public class CalendarFragment extends Fragment {
                                 planStart,
                                 planEnd,
                                 monthStart,
-                                monthEnd
+                                monthEnd,
+                                () -> {
+                                    // ✅ Callback when this task is distributed
+                                    processedTasks[0]++;
+                                    if (processedTasks[0] == totalTasks && onComplete != null) {
+                                        onComplete.run();
+                                    }
+                                }
                         );
                     }
-
-                    calendarAdapter.notifyDataSetChanged();
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load weekly plan tasks", e);
+                    if (onComplete != null) onComplete.run();
                 });
     }
 
@@ -520,7 +565,119 @@ public class CalendarFragment extends Fragment {
             Calendar planStart,
             Calendar planEnd,
             Calendar monthStart,
-            Calendar monthEnd) {
+            Calendar monthEnd,
+            Runnable onComplete) {
+
+        // ✅ Load ALL day schedules for this specific day
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document(planId)
+                .collection("daySchedules")
+                .whereEqualTo("day", dayName)
+                .orderBy("scheduleNumber")
+                .get()
+                .addOnSuccessListener(dayScheduleDocs -> {
+                    List<DaySchedule> daySchedules = new ArrayList<>();
+
+                    for (QueryDocumentSnapshot doc : dayScheduleDocs) {
+                        DaySchedule schedule = doc.toObject(DaySchedule.class);
+                        daySchedules.add(schedule);
+                    }
+
+                    // ✅ If this day has specific schedules, add task for each schedule
+                    if (!daySchedules.isEmpty()) {
+                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+
+                        for (DaySchedule schedule : daySchedules) {
+                            if (schedule.getDate() != null) {
+                                Calendar scheduleCalendar = Calendar.getInstance();
+                                scheduleCalendar.setTime(schedule.getDate().toDate());
+
+                                // Check if scheduled date is in current month
+                                if (!scheduleCalendar.before(monthStart) &&
+                                        !scheduleCalendar.after(monthEnd)) {
+                                    String dateKey = sdf.format(scheduleCalendar.getTime());
+
+                                    if (!dateSchedulesMap.containsKey(dateKey)) {
+                                        dateSchedulesMap.put(dateKey, new ArrayList<>());
+                                    }
+
+                                    // Skip completed tasks
+                                    if (isCompleted != null && isCompleted) {
+                                        continue;
+                                    }
+
+                                    // ✅ Create unique ID with schedule number
+                                    String uniqueId = planId + "_" + taskDocId + "_" +
+                                            dateKey + "_sched_" + schedule.getScheduleNumber();
+
+                                    Schedule taskSchedule = new Schedule();
+                                    taskSchedule.setId(uniqueId);
+                                    taskSchedule.setTitle(taskText);
+                                    taskSchedule.setCategory("weekly");
+                                    taskSchedule.setSourceId(planId);
+                                    taskSchedule.setCompleted(false);
+                                    taskSchedule.setDate(new Timestamp(scheduleCalendar.getTime()));
+                                    taskSchedule.setTime(schedule.getTime());
+
+                                    boolean exists = false;
+                                    for (Schedule s : dateSchedulesMap.get(dateKey)) {
+                                        if (s.getId().equals(taskSchedule.getId())) {
+                                            exists = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if (!exists) {
+                                        dateSchedulesMap.get(dateKey).add(taskSchedule);
+                                        Log.d(TAG, "✅ Added scheduled task for " + dayName +
+                                                " on " + dateKey + " (Schedule " +
+                                                schedule.getScheduleNumber() + ")");
+                                    }
+                                }
+                            }
+                        }
+
+                        // ✅ Done processing this task
+                        if (onComplete != null) onComplete.run();
+                    } else {
+                        // No specific schedule - use original logic
+                        distributeTaskAcrossWeekRange(planId, taskDocId, dayName, taskText,
+                                isCompleted, planStart, planEnd, monthStart, monthEnd, null);
+
+                        // ✅ Done processing this task
+                        if (onComplete != null) onComplete.run();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to load day schedules for " + dayName, e);
+
+                    // On failure, use fallback
+                    distributeTaskAcrossWeekRange(planId, taskDocId, dayName, taskText,
+                            isCompleted, planStart, planEnd, monthStart, monthEnd, null);
+
+                    if (onComplete != null) onComplete.run();
+                });
+    }
+    // ✅ ADD original distribution logic as separate method
+    private void distributeTaskAcrossWeekRange(
+            String planId,
+            String taskDocId,
+            String dayName,
+            String taskText,
+            Boolean isCompleted,
+            Calendar planStart,
+            Calendar planEnd,
+            Calendar monthStart,
+            Calendar monthEnd,
+            String scheduleTime) {
 
         int targetDayOfWeek = getDayOfWeekFromName(dayName);
         if (targetDayOfWeek == -1) {
@@ -528,35 +685,11 @@ public class CalendarFragment extends Fragment {
             return;
         }
 
-        Calendar planStartNorm = (Calendar) planStart.clone();
-        planStartNorm.set(Calendar.HOUR_OF_DAY, 0);
-        planStartNorm.set(Calendar.MINUTE, 0);
-        planStartNorm.set(Calendar.SECOND, 0);
-        planStartNorm.set(Calendar.MILLISECOND, 0);
-
-        Calendar planEndNorm = (Calendar) planEnd.clone();
-        planEndNorm.set(Calendar.HOUR_OF_DAY, 23);
-        planEndNorm.set(Calendar.MINUTE, 59);
-        planEndNorm.set(Calendar.SECOND, 59);
-        planEndNorm.set(Calendar.MILLISECOND, 999);
-
-        Calendar monthStartNorm = (Calendar) monthStart.clone();
-        monthStartNorm.set(Calendar.HOUR_OF_DAY, 0);
-        monthStartNorm.set(Calendar.MINUTE, 0);
-        monthStartNorm.set(Calendar.SECOND, 0);
-        monthStartNorm.set(Calendar.MILLISECOND, 0);
-
-        Calendar monthEndNorm = (Calendar) monthEnd.clone();
-        monthEndNorm.set(Calendar.HOUR_OF_DAY, 23);
-        monthEndNorm.set(Calendar.MINUTE, 59);
-        monthEndNorm.set(Calendar.SECOND, 59);
-        monthEndNorm.set(Calendar.MILLISECOND, 999);
-
         Calendar current = Calendar.getInstance();
-        if (planStartNorm.after(monthStartNorm)) {
-            current.setTime(planStartNorm.getTime());
+        if (planStart.after(monthStart)) {
+            current.setTime(planStart.getTime());
         } else {
-            current.setTime(monthStartNorm.getTime());
+            current.setTime(monthStart.getTime());
         }
 
         current.set(Calendar.HOUR_OF_DAY, 0);
@@ -565,28 +698,22 @@ public class CalendarFragment extends Fragment {
         current.set(Calendar.MILLISECOND, 0);
 
         Calendar endLimit = Calendar.getInstance();
-        if (planEndNorm.before(monthEndNorm)) {
-            endLimit.setTime(planEndNorm.getTime());
+        if (planEnd.before(monthEnd)) {
+            endLimit.setTime(planEnd.getTime());
         } else {
-            endLimit.setTime(monthEndNorm.getTime());
+            endLimit.setTime(monthEnd.getTime());
         }
-        endLimit.set(Calendar.HOUR_OF_DAY, 23);
-        endLimit.set(Calendar.MINUTE, 59);
-        endLimit.set(Calendar.SECOND, 59);
-        endLimit.set(Calendar.MILLISECOND, 999);
 
         int daysSearched = 0;
         while (current.get(Calendar.DAY_OF_WEEK) != targetDayOfWeek && !current.after(endLimit)) {
             current.add(Calendar.DAY_OF_MONTH, 1);
             daysSearched++;
             if (daysSearched > 7) {
-                Log.e(TAG, "❌ Couldn't find " + dayName + " in the first week");
                 return;
             }
         }
 
         if (current.after(endLimit)) {
-            Log.d(TAG, "⚠️ No " + dayName + " found in range");
             return;
         }
 
@@ -594,56 +721,44 @@ public class CalendarFragment extends Fragment {
         int occurrencesAdded = 0;
 
         while (!current.after(endLimit)) {
-            Calendar currentNorm = (Calendar) current.clone();
-            currentNorm.set(Calendar.HOUR_OF_DAY, 12);
-            currentNorm.set(Calendar.MINUTE, 0);
-            currentNorm.set(Calendar.SECOND, 0);
-            currentNorm.set(Calendar.MILLISECOND, 0);
+            String dateKey = sdf.format(current.getTime());
 
-            boolean isInPlanRange = !currentNorm.before(planStartNorm) && !currentNorm.after(planEndNorm);
-            boolean isInMonthRange = !currentNorm.before(monthStartNorm) && !currentNorm.after(monthEndNorm);
+            if (!dateSchedulesMap.containsKey(dateKey)) {
+                dateSchedulesMap.put(dateKey, new ArrayList<>());
+            }
 
-            if (isInPlanRange && isInMonthRange) {
-                String dateKey = sdf.format(currentNorm.getTime());
+            if (isCompleted != null && isCompleted) {
+                current.add(Calendar.DAY_OF_MONTH, 7);
+                continue;
+            }
 
-                if (!dateSchedulesMap.containsKey(dateKey)) {
-                    dateSchedulesMap.put(dateKey, new ArrayList<>());
+            Schedule taskSchedule = new Schedule();
+            taskSchedule.setId(planId + "_" + taskDocId + "_" + dateKey);
+            taskSchedule.setTitle(taskText);
+            taskSchedule.setCategory("weekly");
+            taskSchedule.setSourceId(planId);
+            taskSchedule.setCompleted(false);
+            taskSchedule.setDate(new Timestamp(current.getTime()));
+            taskSchedule.setTime(scheduleTime);
+
+            boolean exists = false;
+            for (Schedule s : dateSchedulesMap.get(dateKey)) {
+                if (s.getId().equals(taskSchedule.getId())) {
+                    exists = true;
+                    break;
                 }
+            }
 
-                // ✅ SKIP COMPLETED TASKS - don't show them in calendar
-                if (isCompleted != null && isCompleted) {
-                    Log.d(TAG, "⏭️ Skipping completed task: " + taskText + " on " + dateKey);
-                    current.add(Calendar.DAY_OF_MONTH, 7);
-                    continue;
-                }
-
-                Schedule taskSchedule = new Schedule();
-                taskSchedule.setId(planId + "_" + taskDocId + "_" + dateKey);
-                taskSchedule.setTitle(taskText);
-                taskSchedule.setCategory("weekly");
-                taskSchedule.setSourceId(planId);
-                taskSchedule.setCompleted(false); // Always false since we're filtering completed ones
-                taskSchedule.setDate(new Timestamp(currentNorm.getTime()));
-
-                boolean exists = false;
-                for (Schedule s : dateSchedulesMap.get(dateKey)) {
-                    if (s.getId().equals(taskSchedule.getId())) {
-                        exists = true;
-                        break;
-                    }
-                }
-
-                if (!exists) {
-                    dateSchedulesMap.get(dateKey).add(taskSchedule);
-                    occurrencesAdded++;
-                }
+            if (!exists) {
+                dateSchedulesMap.get(dateKey).add(taskSchedule);
+                occurrencesAdded++;
             }
 
             current.add(Calendar.DAY_OF_MONTH, 7);
         }
 
         if (occurrencesAdded > 0) {
-            Log.d(TAG, "🎉 Distributed " + occurrencesAdded + " occurrences of '" + taskText + "' for " + dayName);
+            Log.d(TAG, "🎉 Distributed " + occurrencesAdded + " occurrences for " + dayName);
         }
     }
 

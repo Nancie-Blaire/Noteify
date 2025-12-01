@@ -425,11 +425,36 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
+        // ✅ Check if last block is empty text block
+        boolean shouldReplaceLastBlock = false;
+        int insertPosition = blocks.size();
+
+        if (!blocks.isEmpty()) {
+            NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+
+            // If last block is an empty text block, replace it instead of adding new line
+            if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                    (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+
+                shouldReplaceLastBlock = true;
+                insertPosition = blocks.size() - 1;
+
+                // Remove the empty block from Firestore
+                db.collection("users").document(user.getUid())
+                        .collection("notes").document(noteId)
+                        .collection("blocks").document(lastBlock.getId())
+                        .delete();
+
+                // Remove from list
+                blocks.remove(blocks.size() - 1);
+            }
+        }
+
         // Generate a unique subpage ID
         String newSubpageId = db.collection("users").document(user.getUid())
                 .collection("notes").document().getId();
 
-        // Create the subpage document first
+        // Create the subpage document
         Map<String, Object> subpageData = new HashMap<>();
         subpageData.put("title", "");
         subpageData.put("content", "");
@@ -441,25 +466,56 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("subpages").document(newSubpageId)
                 .set(subpageData);
 
-        // Create the block that references this subpage
+        // Create the subpage block
         NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.SUBPAGE);
-        block.setPosition(blocks.size());
+        block.setPosition(insertPosition);
         block.setContent("Untitled Subpage");
         block.setSubpageId(newSubpageId);
-        blocks.add(block);
-        adapter.notifyItemInserted(blocks.size() - 1);
+        blocks.add(insertPosition, block);
+
+        if (shouldReplaceLastBlock) {
+            adapter.notifyItemChanged(insertPosition);  // ✅ Replace animation
+        } else {
+            adapter.notifyItemInserted(insertPosition);  // ✅ Insert animation
+        }
+
         saveBlock(block);
 
-        // ✅ ADD THIS: Open the subpage immediately
+        // Add text block after subpage
+        NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
+        textBlock.setPosition(blocks.size());
+        blocks.add(textBlock);
+        adapter.notifyItemInserted(blocks.size() - 1);
+        saveBlock(textBlock);
+
+        // Update positions of all blocks after insertion
+        updateBlockPositions();
+
+        // Open subpage
         Intent intent = new Intent(this, SubpageActivity.class);
         intent.putExtra("noteId", noteId);
         intent.putExtra("subpageId", newSubpageId);
         intent.putExtra("subpageTitle", "Untitled Subpage");
-        startActivityForResult(intent, 100);  // ✅ Use startActivityForResult
-
-        // ❌ REMOVE or COMMENT OUT the text block addition
-        // Para hindi na mag-focus sa text block, derecho na sa subpage
+        startActivityForResult(intent, 100);
     }
+
+    // ✅ Add this helper method to update all block positions
+    private void updateBlockPositions() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        for (int i = 0; i < blocks.size(); i++) {
+            NoteBlock block = blocks.get(i);
+            block.setPosition(i);
+
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("blocks").document(block.getId())
+                    .update("position", i);
+        }
+    }
+
+
     private void addLinkBlock() {
         // Show dialog to enter URL
         Toast.makeText(this, "Link dialog - to be implemented", Toast.LENGTH_SHORT).show();
@@ -490,6 +546,18 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock block = blocks.get(position);
 
+        // ✅ If it's a subpage block, delete the subpage document too
+        if (block.getType() == NoteBlock.BlockType.SUBPAGE && block.getSubpageId() != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("subpages").document(block.getSubpageId())
+                    .delete()
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(this, "Subpage deleted", Toast.LENGTH_SHORT).show();
+                    });
+        }
+
+        // Delete the block
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .collection("blocks").document(block.getId())

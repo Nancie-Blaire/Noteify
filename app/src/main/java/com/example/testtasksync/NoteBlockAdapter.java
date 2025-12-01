@@ -426,6 +426,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             super(view);
             titleText = view.findViewById(R.id.titleText);
 
+            // ✅ Regular click - open subpage
             itemView.setOnClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
@@ -433,13 +434,34 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     listener.onSubpageClick(block.getSubpageId());
                 }
             });
+
+            // ✅ Long press - show delete dialog
+            itemView.setOnLongClickListener(v -> {
+                int pos = getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) {
+                    showDeleteDialog(v, pos);
+                }
+                return true;  // Consume the event
+            });
+        }
+
+        private void showDeleteDialog(View view, int position) {
+            android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(view.getContext());
+            builder.setTitle("Delete Subpage?");
+            builder.setMessage("This will delete the subpage and all its content.");
+
+            builder.setPositiveButton("Delete", (dialog, which) -> {
+                listener.onBlockDeleted(position);
+            });
+
+            builder.setNegativeButton("Cancel", null);
+            builder.show();
         }
 
         void bind(NoteBlock block) {
             titleText.setText(block.getContent());
         }
     }
-
     class LinkViewHolder extends RecyclerView.ViewHolder {
         TextView linkText;
 

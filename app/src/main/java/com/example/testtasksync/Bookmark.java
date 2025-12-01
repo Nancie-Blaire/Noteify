@@ -2,6 +2,7 @@ package com.example.testtasksync;
 
 public class Bookmark {
     private String id;
+    private String blockId;
     private String text;
     private String note;
     private String color;
@@ -9,7 +10,8 @@ public class Bookmark {
     private long timestamp;
     private int startIndex;
     private int endIndex;
-
+    public String getBlockId() { return blockId; }
+    public void setBlockId(String blockId) { this.blockId = blockId; }
     public Bookmark() {
         // Required empty constructor for Firestore
     }

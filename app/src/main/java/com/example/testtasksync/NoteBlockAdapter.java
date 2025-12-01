@@ -21,6 +21,7 @@ import java.util.List;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Base64;
+import android.widget.Toast;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.firebase.auth.FirebaseAuth;
@@ -182,9 +183,60 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         EditText contentEdit;
         private boolean isProcessingEnter = false;
 
+        private long lastTapTime = 0;
+        private static final long DOUBLE_TAP_DELAY = 300;
+
         TextViewHolder(View view) {
             super(view);
             contentEdit = view.findViewById(R.id.contentEdit);
+
+            // ✅ ADD: Double tap to bookmark
+            contentEdit.setOnClickListener(v -> {
+                long currentTime = System.currentTimeMillis();
+
+                if (currentTime - lastTapTime < DOUBLE_TAP_DELAY) {
+                    // Double tap detected!
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return;
+
+                    NoteBlock block = blocks.get(pos);
+                    int start = contentEdit.getSelectionStart();
+                    int end = contentEdit.getSelectionEnd();
+
+                    // ✅ If no selection, auto-select word at cursor
+                    if (start == end) {
+                        String text = contentEdit.getText().toString();
+                        int wordStart = start;
+                        int wordEnd = end;
+
+                        // Find word boundaries
+                        while (wordStart > 0 && !Character.isWhitespace(text.charAt(wordStart - 1))) {
+                            wordStart--;
+                        }
+                        while (wordEnd < text.length() && !Character.isWhitespace(text.charAt(wordEnd))) {
+                            wordEnd++;
+                        }
+
+                        if (wordStart < wordEnd) {
+                            contentEdit.setSelection(wordStart, wordEnd);
+                            start = wordStart;
+                            end = wordEnd;
+                        }
+                    }
+
+                    if (start != end && start >= 0 && end <= contentEdit.getText().length()) {
+                        String selectedText = contentEdit.getText().toString().substring(start, end);
+                        showBookmarkBottomSheet(selectedText, block.getId(), start, end);
+                    } else {
+                        Toast.makeText(v.getContext(), "Select text first, then double tap",
+                                Toast.LENGTH_SHORT).show();
+                    }
+
+                    lastTapTime = 0;
+                } else {
+                    lastTapTime = currentTime;
+                }
+            });
 
             contentEdit.addTextChangedListener(new TextWatcher() {
                 private String textBeforeChange = "";
@@ -212,28 +264,25 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                         contentEdit.setText(textWithoutNewline);
                         contentEdit.setSelection(Math.min(start, textWithoutNewline.length()));
 
-                        // ✅ Split text at cursor (kahit empty)
                         String textBefore = start > 0 ? textWithoutNewline.substring(0, start) : "";
                         String textAfter = start < textWithoutNewline.length() ? textWithoutNewline.substring(start) : "";
 
-                        // Update current block
                         NoteBlock block = blocks.get(pos);
                         block.setContent(textBefore);
 
-                        // ✅ ALWAYS notify activity to create new block (even if empty)
                         listener.onEnterPressed(pos, textBefore, textAfter);
 
                         isProcessingEnter = false;
                         return;
                     }
 
-                    // ✅ Regular text change (NOT Enter key)
                     if (!isProcessingEnter) {
                         NoteBlock block = blocks.get(pos);
                         block.setContent(s.toString());
                         listener.onBlockChanged(block);
                     }
                 }
+
 
                 @Override
                 public void afterTextChanged(Editable s) {}
@@ -267,6 +316,14 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             });
         }
 
+        private void showBookmarkBottomSheet(String selectedText, String blockId,
+                                             int startIndex, int endIndex) {
+            if (listener instanceof NoteActivity) {
+                ((NoteActivity) listener).showBookmarkBottomSheet(selectedText, blockId,
+                        startIndex, endIndex);
+            }
+        }
+
         void bind(NoteBlock block) {
             contentEdit.setText(block.getContent());
 
@@ -294,6 +351,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
         }
     }
+
+
     class HeadingViewHolder extends RecyclerView.ViewHolder {
         EditText contentEdit;
 
@@ -362,49 +421,60 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         private boolean isProcessingEnter = false;
         private boolean isProcessingBackspace = false;
 
+        private long lastTapTime = 0;
+        private static final long DOUBLE_TAP_DELAY = 300;
+
         BulletViewHolder(View view) {
             super(view);
             bulletIcon = view.findViewById(R.id.bulletIcon);
             contentEdit = view.findViewById(R.id.contentEdit);
 
-            // ✅ ADD: KeyListener to detect backspace on empty bullet
-            contentEdit.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
-                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+            contentEdit.setOnClickListener(v -> {
+                long currentTime = System.currentTimeMillis();
 
+                if (currentTime - lastTapTime < DOUBLE_TAP_DELAY) {
+                    // Double tap detected!
                     int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
+                    if (pos == RecyclerView.NO_POSITION) return;
 
-                    String currentText = contentEdit.getText().toString();
-                    int cursorPosition = contentEdit.getSelectionStart();
+                    NoteBlock block = blocks.get(pos);
+                    int start = contentEdit.getSelectionStart();
+                    int end = contentEdit.getSelectionEnd();
 
-                    // ✅ CASE 1: Empty bullet + backspace
-                    if (currentText.isEmpty()) {
-                        NoteBlock block = blocks.get(pos);
+                    // ✅ If no selection, auto-select word at cursor
+                    if (start == end) {
+                        String text = contentEdit.getText().toString();
+                        int wordStart = start;
+                        int wordEnd = end;
 
-                        // ✅ If indented, OUTDENT first before deleting
-                        if (block.getIndentLevel() > 0) {
-                            block.setIndentLevel(block.getIndentLevel() - 1);
-                            notifyItemChanged(pos);
-                            listener.onBlockChanged(block);
-                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
-                            return true; // Consume - don't delete yet
-                        } else {
-                            // ✅ Already at indent 0, convert to TEXT (stay on same line)
-                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
-                            return true;
+                        // Find word boundaries
+                        while (wordStart > 0 && !Character.isWhitespace(text.charAt(wordStart - 1))) {
+                            wordStart--;
+                        }
+                        while (wordEnd < text.length() && !Character.isWhitespace(text.charAt(wordEnd))) {
+                            wordEnd++;
+                        }
+
+                        if (wordStart < wordEnd) {
+                            contentEdit.setSelection(wordStart, wordEnd);
+                            start = wordStart;
+                            end = wordEnd;
                         }
                     }
 
-                    // ✅ CASE 2: Cursor at start + backspace = merge with previous
-                    if (cursorPosition == 0 && !currentText.isEmpty()) {
-                        listener.onBackspaceAtStart(pos, currentText);
-                        return true;
+                    if (start != end && start >= 0 && end <= contentEdit.getText().length()) {
+                        String selectedText = contentEdit.getText().toString().substring(start, end);
+                        showBookmarkBottomSheet(selectedText, block.getId(), start, end);
+                    } else {
+                        Toast.makeText(v.getContext(), "Select text first, then double tap",
+                                Toast.LENGTH_SHORT).show();
                     }
-                }
-                return false;
-            });
 
+                    lastTapTime = 0;
+                } else {
+                    lastTapTime = currentTime;
+                }
+            });
             contentEdit.addTextChangedListener(new TextWatcher() {
                 private String textBeforeChange = "";
                 private int cursorBeforeChange = 0;
@@ -467,7 +537,13 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
             });
         }
-
+        private void showBookmarkBottomSheet(String selectedText, String blockId,
+                                             int startIndex, int endIndex) {
+            if (listener instanceof NoteActivity) {
+                ((NoteActivity) listener).showBookmarkBottomSheet(selectedText, blockId,
+                        startIndex, endIndex);
+            }
+        }
         void bind(NoteBlock block) {
             contentEdit.setText(block.getContent());
             contentEdit.setHint("List item");
@@ -1474,5 +1550,22 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             editText.setTypeface(null, android.graphics.Typeface.NORMAL);
         }
     }
+    // Add this method sa NoteBlockAdapter class (before the ViewHolder classes)
+    private void showBookmarkContextMenu(View anchorView, String selectedText,
+                                         String blockId, int startIndex, int endIndex) {
+        android.widget.PopupMenu popup = new android.widget.PopupMenu(anchorView.getContext(), anchorView);
+        popup.getMenu().add("📌 Bookmark this");
+
+        popup.setOnMenuItemClickListener(item -> {
+            if (listener instanceof NoteActivity) {
+                ((NoteActivity) listener).showBookmarkBottomSheet(selectedText, blockId, startIndex, endIndex);
+            }
+            return true;
+        });
+
+        popup.show();
+    }
+
+
 
 }

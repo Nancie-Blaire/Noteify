@@ -99,7 +99,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
     @Override
     public void onBookmarkClick(Bookmark bookmark) {
         // Create intent to go back to NoteActivity with scroll position
-        Intent intent = new Intent(BookmarksActivity.this, NoteActivity_1.class);
+        Intent intent = new Intent(BookmarksActivity.this, NoteActivity.class);
         intent.putExtra("noteId", noteId);
         intent.putExtra("scrollToPosition", bookmark.getStartIndex());
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);

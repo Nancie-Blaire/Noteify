@@ -101,6 +101,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private View colorPickerPanel;
     private RelativeLayout noteLayout;
     private String currentNoteColor = "#FAFAFA";
+    private boolean isSelectingForBookmark = false;
+    private int bookmarkStartIndex = -1;
+    private int bookmarkEndIndex = -1;
+    private String selectedBlockIdForBookmark = null;
+    private String selectedTextForBookmark = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -193,6 +198,13 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Show keyboard toolbar
         keyboardToolbar.setVisibility(View.VISIBLE);
+
+        ImageView viewBookmarksBtn = findViewById(R.id.viewBookmarksBtn);
+        viewBookmarksBtn.setOnClickListener(v -> {
+            Intent intent = new Intent(this, BookmarksActivity.class);
+            intent.putExtra("noteId", noteId);
+            startActivity(intent);
+        });
     }
 
     private void setupKeyboardToolbar() {
@@ -1888,4 +1900,162 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
     }
 
+    // ====================================================
+// BOOKMARK FEATURE
+// ====================================================
+
+    public void showBookmarkBottomSheet(String selectedText, String blockId, int startIndex, int endIndex) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Color options
+        View colorViolet = sheetView.findViewById(R.id.colorViolet);
+        View colorYellow = sheetView.findViewById(R.id.colorYellow);
+        View colorPink = sheetView.findViewById(R.id.colorPink);
+        View colorGreen = sheetView.findViewById(R.id.colorGreen);
+        View colorBlue = sheetView.findViewById(R.id.colorBlue);
+        View colorOrange = sheetView.findViewById(R.id.colorOrange);
+        View colorRed = sheetView.findViewById(R.id.colorRed);
+        View colorCyan = sheetView.findViewById(R.id.colorCyan);
+
+        // Set tags for each color view
+        colorViolet.setTag("#E1BEE7");
+        colorYellow.setTag("#FFF9C4");
+        colorPink.setTag("#F8BBD0");
+        colorGreen.setTag("#C8E6C9");
+        colorBlue.setTag("#BBDEFB");
+        colorOrange.setTag("#FFE0B2");
+        colorRed.setTag("#FFCDD2");
+        colorCyan.setTag("#B2EBF2");
+
+        // Style options
+        TextView styleHighlight = sheetView.findViewById(R.id.styleHighlight);
+        TextView styleUnderline = sheetView.findViewById(R.id.styleUnderline);
+
+        com.google.android.material.textfield.TextInputEditText noteInput =
+                sheetView.findViewById(R.id.bookmarkNoteInput);
+        TextView cancelBtn = sheetView.findViewById(R.id.cancelBtn);
+        TextView okBtn = sheetView.findViewById(R.id.okBtn);
+
+        final String[] selectedColor = {"#FFF9C4"}; // Default yellow
+        final String[] selectedStyle = {"highlight"}; // Default highlight
+
+        // Set initial selection (yellow, highlight)
+        setColorScale(colorViolet, colorYellow, colorPink, colorGreen, colorBlue,
+                colorOrange, colorRed, colorCyan, selectedColor[0]);
+        styleHighlight.setBackgroundResource(R.drawable.style_selected);
+        styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+
+        // Color selection listeners
+        View.OnClickListener colorListener = v -> {
+            resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen,
+                    colorBlue, colorOrange, colorRed, colorCyan);
+            v.setScaleX(1.2f);
+            v.setScaleY(1.2f);
+            selectedColor[0] = (String) v.getTag();
+        };
+
+        colorViolet.setOnClickListener(colorListener);
+        colorYellow.setOnClickListener(colorListener);
+        colorPink.setOnClickListener(colorListener);
+        colorGreen.setOnClickListener(colorListener);
+        colorBlue.setOnClickListener(colorListener);
+        colorOrange.setOnClickListener(colorListener);
+        colorRed.setOnClickListener(colorListener);
+        colorCyan.setOnClickListener(colorListener);
+
+        // Style selection
+        styleHighlight.setOnClickListener(v -> {
+            selectedStyle[0] = "highlight";
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        styleUnderline.setOnClickListener(v -> {
+            selectedStyle[0] = "underline";
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        cancelBtn.setOnClickListener(v -> bottomSheet.dismiss());
+
+        okBtn.setOnClickListener(v -> {
+            String note = noteInput.getText().toString().trim();
+            saveBookmark(selectedText, note, selectedColor[0], selectedStyle[0],
+                    blockId, startIndex, endIndex);
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+
+    private void setColorScale(View violet, View yellow, View pink, View green,
+                               View blue, View orange, View red, View cyan, String currentColor) {
+        resetColorSelection(violet, yellow, pink, green, blue, orange, red, cyan);
+
+        View selectedView = null;
+        switch (currentColor) {
+            case "#E1BEE7": selectedView = violet; break;
+            case "#FFF9C4": selectedView = yellow; break;
+            case "#F8BBD0": selectedView = pink; break;
+            case "#C8E6C9": selectedView = green; break;
+            case "#BBDEFB": selectedView = blue; break;
+            case "#FFE0B2": selectedView = orange; break;
+            case "#FFCDD2": selectedView = red; break;
+            case "#B2EBF2": selectedView = cyan; break;
+        }
+
+        if (selectedView != null) {
+            selectedView.setScaleX(1.2f);
+            selectedView.setScaleY(1.2f);
+        }
+    }
+
+    private void resetColorSelection(View... views) {
+        for (View v : views) {
+            v.setScaleX(1.0f);
+            v.setScaleY(1.0f);
+        }
+    }
+
+    private void saveBookmark(String text, String note, String color, String style,
+                              String blockId, int startIndex, int endIndex) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        String bookmarkId = db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks").document().getId();
+
+        Bookmark bookmark = new Bookmark(text, note, color, style, startIndex, endIndex);
+        bookmark.setId(bookmarkId);
+        bookmark.setBlockId(blockId);
+
+        Map<String, Object> bookmarkData = new HashMap<>();
+        bookmarkData.put("text", text);
+        bookmarkData.put("note", note);
+        bookmarkData.put("color", color);
+        bookmarkData.put("style", style);
+        bookmarkData.put("startIndex", startIndex);
+        bookmarkData.put("endIndex", endIndex);
+        bookmarkData.put("blockId", blockId);
+        bookmarkData.put("timestamp", System.currentTimeMillis());
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks").document(bookmarkId)
+                .set(bookmarkData)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
+                    adapter.notifyDataSetChanged(); // Refresh to show highlights
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error saving bookmark", Toast.LENGTH_SHORT).show();
+                });
+    }
 }

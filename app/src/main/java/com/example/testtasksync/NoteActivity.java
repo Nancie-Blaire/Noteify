@@ -1,10 +1,10 @@
 package com.example.testtasksync;
 
 import android.content.Intent;
-import android.graphics.Canvas;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
@@ -12,13 +12,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +27,21 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private RecyclerView blocksRecycler;
     private NoteBlockAdapter adapter;
     private List<NoteBlock> blocks;
-    private FloatingActionButton addBlockFab;
     private ImageView backBtn;
+    private View keyboardToolbar;
+
+    // Keyboard toolbar buttons
+    private ImageButton headingsAndFont;
+    private ImageButton addDividerBtn;
+    private ImageButton addBulletBtn;
+    private ImageButton addNumberedBtn;
+    private ImageButton addCheckboxBtn;
+    private ImageButton addLinkBtn;
+    private ImageButton insertImageBtn;
+    private ImageButton indentBtn;
+    private ImageButton outdentBtn;
+    private ImageButton addThemeBtn;
+    private ImageButton addSubpageBtn;
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
@@ -53,8 +64,21 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         // Initialize views
         noteTitle = findViewById(R.id.noteTitle);
         blocksRecycler = findViewById(R.id.blocksRecycler);
-        addBlockFab = findViewById(R.id.addBlockFab);
         backBtn = findViewById(R.id.checkBtn);
+        keyboardToolbar = findViewById(R.id.keyboardToolbar);
+
+        // Initialize keyboard toolbar buttons
+        headingsAndFont = findViewById(R.id.headingsandfont);
+        addDividerBtn = findViewById(R.id.addDividerOption);
+        addBulletBtn = findViewById(R.id.addBulletListOption);
+        addNumberedBtn = findViewById(R.id.addNumberedListOption);
+        addCheckboxBtn = findViewById(R.id.addCheckboxOption);
+        addLinkBtn = findViewById(R.id.addLinkOption);
+        insertImageBtn = findViewById(R.id.insertImage);
+        indentBtn = findViewById(R.id.indentOption);
+        outdentBtn = findViewById(R.id.outdentOption);
+        addThemeBtn = findViewById(R.id.addThemeOption);
+        addSubpageBtn = findViewById(R.id.addSubpageOption);
 
         // Setup RecyclerView
         blocks = new ArrayList<>();
@@ -69,7 +93,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (noteId != null) {
             loadNote();
         } else {
-            // Create new note
             createNewNote();
         }
 
@@ -80,20 +103,81 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Setup listeners
         backBtn.setOnClickListener(v -> saveAndExit());
-        addBlockFab.setOnClickListener(v -> showAddBlockMenu());
+        setupKeyboardToolbar();
+
+        // Show keyboard toolbar
+        keyboardToolbar.setVisibility(View.VISIBLE);
+    }
+
+    private void setupKeyboardToolbar() {
+        // Headings & Font
+        headingsAndFont.setOnClickListener(v -> showHeadingOptions());
+
+        // Divider
+        addDividerBtn.setOnClickListener(v -> addDividerBlock());
+
+        // Bullet List
+        addBulletBtn.setOnClickListener(v -> addBulletBlock());
+
+        // Numbered List
+        addNumberedBtn.setOnClickListener(v -> addNumberedBlock());
+
+        // Checkbox
+        addCheckboxBtn.setOnClickListener(v -> addCheckboxBlock());
+
+        // Link
+        addLinkBtn.setOnClickListener(v -> addLinkBlock());
+
+        // Image
+        insertImageBtn.setOnClickListener(v -> addImageBlock());
+
+        // Indent (to be implemented)
+        indentBtn.setOnClickListener(v ->
+                Toast.makeText(this, "Indent - to be implemented", Toast.LENGTH_SHORT).show());
+
+        // Outdent (to be implemented)
+        outdentBtn.setOnClickListener(v ->
+                Toast.makeText(this, "Outdent - to be implemented", Toast.LENGTH_SHORT).show());
+
+        // Theme (to be implemented)
+        addThemeBtn.setOnClickListener(v ->
+                Toast.makeText(this, "Theme - to be implemented", Toast.LENGTH_SHORT).show());
+
+        // Subpage
+        addSubpageBtn.setOnClickListener(v -> addSubpageBlock());
+    }
+
+    private void showHeadingOptions() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Select Heading");
+
+        String[] options = {
+                "Normal Text",
+                "Heading 1",
+                "Heading 2",
+                "Heading 3"
+        };
+
+        builder.setItems(options, (dialog, which) -> {
+            switch (which) {
+                case 0: addTextBlock(); break;
+                case 1: addHeadingBlock(NoteBlock.BlockType.HEADING_1); break;
+                case 2: addHeadingBlock(NoteBlock.BlockType.HEADING_2); break;
+                case 3: addHeadingBlock(NoteBlock.BlockType.HEADING_3); break;
+            }
+        });
+
+        builder.show();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Reload blocks to reflect any title changes made in SubpageActivity
         if (noteId != null) {
             loadBlocks();
-
         }
     }
 
-    // Add this helper method to reload just the blocks
     private void loadBlocks() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -111,9 +195,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                         blocks.add(block);
                     }
 
-                    // ✅ After loading blocks, refresh subpage titles
                     refreshSubpageTitlesAfterLoad();
-
                     adapter.notifyDataSetChanged();
                     renumberLists();
                 })
@@ -122,7 +204,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 });
     }
 
-    // ✅ ADD THIS HELPER METHOD
     private void refreshSubpageTitlesAfterLoad() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -150,6 +231,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             }
         }
     }
+
     private void setupDragAndDrop() {
         DragDropHelper dragHelper = new DragDropHelper(new DragDropHelper.DragListener() {
             @Override
@@ -185,7 +267,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("notes").document(noteId)
                 .set(newNote);
 
-        // Add initial text block
         addTextBlock();
     }
 
@@ -193,7 +274,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
-        // Load note metadata
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .get()
@@ -204,12 +284,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                             noteTitle.setText(title);
                         }
                     } else {
-                        // Note doesn't exist yet, create it
                         createNoteDocument();
                     }
                 });
 
-        // Load blocks
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .collection("blocks")
@@ -219,7 +297,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     blocks.clear();
 
                     if (querySnapshot.isEmpty()) {
-                        // Add initial text block if no blocks exist
                         addTextBlock();
                     } else {
                         for (QueryDocumentSnapshot doc : querySnapshot) {
@@ -260,10 +337,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         String title = noteTitle.getText().toString();
 
-
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
-
                 .update("title", title, "timestamp", System.currentTimeMillis());
     }
 
@@ -283,7 +358,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
-        // Update positions in Firestore
         for (int i = 0; i < blocks.size(); i++) {
             NoteBlock block = blocks.get(i);
             block.setPosition(i);
@@ -306,12 +380,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             NoteBlock block = blocks.get(i);
 
             if (block.getType() == NoteBlock.BlockType.NUMBERED) {
-                // Check if we're continuing the same list
                 if (currentListType == NoteBlock.BlockType.NUMBERED &&
                         block.getIndentLevel() == currentIndent) {
                     currentNumber++;
                 } else {
-                    // New list or different indent level
                     currentNumber = 1;
                     currentIndent = block.getIndentLevel();
                     currentListType = NoteBlock.BlockType.NUMBERED;
@@ -320,49 +392,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 block.setListNumber(currentNumber);
                 adapter.notifyItemChanged(i);
             } else if (block.getType() != NoteBlock.BlockType.NUMBERED) {
-                // Reset when we encounter a non-numbered block
                 currentListType = null;
                 currentIndent = -1;
             }
         }
-    }
-
-    private void showAddBlockMenu() {
-        // Create bottom sheet with block type options
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle("Add Block");
-
-        String[] options = {
-                "Text",
-                "Heading 1",
-                "Heading 2",
-                "Heading 3",
-                "Bullet List",
-                "Numbered List",
-                "Checkbox",
-                "Divider",
-                "Image",
-                "Subpage",
-                "Link"
-        };
-
-        builder.setItems(options, (dialog, which) -> {
-            switch (which) {
-                case 0: addTextBlock(); break;
-                case 1: addHeadingBlock(NoteBlock.BlockType.HEADING_1); break;
-                case 2: addHeadingBlock(NoteBlock.BlockType.HEADING_2); break;
-                case 3: addHeadingBlock(NoteBlock.BlockType.HEADING_3); break;
-                case 4: addBulletBlock(); break;
-                case 5: addNumberedBlock(); break;
-                case 6: addCheckboxBlock(); break;
-                case 7: addDividerBlock(); break;
-                case 8: addImageBlock(); break;
-                case 9: addSubpageBlock(); break;
-                case 10: addLinkBlock(); break;
-            }
-        });
-
-        builder.show();
     }
 
     private void addTextBlock() {
@@ -417,7 +450,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
 
     private void addImageBlock() {
-        // Launch image picker
         Toast.makeText(this, "Image picker - to be implemented", Toast.LENGTH_SHORT).show();
     }
 
@@ -425,36 +457,30 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
-        // ✅ Check if last block is empty text block
         boolean shouldReplaceLastBlock = false;
         int insertPosition = blocks.size();
 
         if (!blocks.isEmpty()) {
             NoteBlock lastBlock = blocks.get(blocks.size() - 1);
 
-            // If last block is an empty text block, replace it instead of adding new line
             if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
                     (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
 
                 shouldReplaceLastBlock = true;
                 insertPosition = blocks.size() - 1;
 
-                // Remove the empty block from Firestore
                 db.collection("users").document(user.getUid())
                         .collection("notes").document(noteId)
                         .collection("blocks").document(lastBlock.getId())
                         .delete();
 
-                // Remove from list
                 blocks.remove(blocks.size() - 1);
             }
         }
 
-        // Generate a unique subpage ID
         String newSubpageId = db.collection("users").document(user.getUid())
                 .collection("notes").document().getId();
 
-        // Create the subpage document
         Map<String, Object> subpageData = new HashMap<>();
         subpageData.put("title", "");
         subpageData.put("content", "");
@@ -466,7 +492,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("subpages").document(newSubpageId)
                 .set(subpageData);
 
-        // Create the subpage block
         NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.SUBPAGE);
         block.setPosition(insertPosition);
         block.setContent("Untitled Subpage");
@@ -474,24 +499,21 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         blocks.add(insertPosition, block);
 
         if (shouldReplaceLastBlock) {
-            adapter.notifyItemChanged(insertPosition);  // ✅ Replace animation
+            adapter.notifyItemChanged(insertPosition);
         } else {
-            adapter.notifyItemInserted(insertPosition);  // ✅ Insert animation
+            adapter.notifyItemInserted(insertPosition);
         }
 
         saveBlock(block);
 
-        // Add text block after subpage
         NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
         textBlock.setPosition(blocks.size());
         blocks.add(textBlock);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(textBlock);
 
-        // Update positions of all blocks after insertion
         updateBlockPositions();
 
-        // Open subpage
         Intent intent = new Intent(this, SubpageActivity.class);
         intent.putExtra("noteId", noteId);
         intent.putExtra("subpageId", newSubpageId);
@@ -499,7 +521,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         startActivityForResult(intent, 100);
     }
 
-    // ✅ Add this helper method to update all block positions
     private void updateBlockPositions() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -515,9 +536,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         }
     }
 
-
     private void addLinkBlock() {
-        // Show dialog to enter URL
         Toast.makeText(this, "Link dialog - to be implemented", Toast.LENGTH_SHORT).show();
     }
 
@@ -531,7 +550,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .set(block.toMap());
     }
 
-    // OnBlockChangeListener callbacks
     @Override
     public void onBlockChanged(NoteBlock block) {
         if (!isReordering) {
@@ -546,7 +564,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock block = blocks.get(position);
 
-        // ✅ If it's a subpage block, delete the subpage document too
         if (block.getType() == NoteBlock.BlockType.SUBPAGE && block.getSubpageId() != null) {
             db.collection("users").document(user.getUid())
                     .collection("notes").document(noteId)
@@ -557,7 +574,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     });
         }
 
-        // Delete the block
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .collection("blocks").document(block.getId())
@@ -579,27 +595,20 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
     @Override
     public void onImageClick(String imageId) {
-        // Handle image click
         Toast.makeText(this, "Image clicked", Toast.LENGTH_SHORT).show();
     }
 
     @Override
     public void onSubpageClick(String subpageId) {
-        // Get the subpage block to get its content (title)
         NoteBlock subpageBlock = null;
-        int blockPosition = -1;
         for (int i = 0; i < blocks.size(); i++) {
             NoteBlock block = blocks.get(i);
             if (block.getSubpageId() != null && block.getSubpageId().equals(subpageId)) {
                 subpageBlock = block;
-                blockPosition = i;
                 break;
             }
         }
 
-        final int finalBlockPosition = blockPosition;
-
-        // Open subpage
         Intent intent = new Intent(this, SubpageActivity.class);
         intent.putExtra("noteId", noteId);
         intent.putExtra("subpageId", subpageId);
@@ -613,7 +622,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 100) {
-            // Returning from SubpageActivity - reload blocks
             if (noteId != null) {
                 loadBlocks();
             }
@@ -622,14 +630,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
     @Override
     public void onLinkClick(String url) {
-        // Open link in browser
         Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
         startActivity(browserIntent);
     }
 
     @Override
     public void onDividerClick(int position) {
-        // Show divider style options
         Toast.makeText(this, "Divider options", Toast.LENGTH_SHORT).show();
     }
 

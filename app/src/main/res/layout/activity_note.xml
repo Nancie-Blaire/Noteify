@@ -56,22 +56,10 @@
         android:layout_below="@id/noteTitle"
         android:layout_above="@id/keyboardToolbar"
         android:paddingHorizontal="16dp"
-        android:paddingBottom="80dp"
+        android:paddingBottom="16dp"
         android:clipToPadding="false" />
 
-    <!-- Add Block FAB -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/addBlockFab"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_margin="24dp"
-        android:src="@android:drawable/ic_input_add"
-        app:tint="@android:color/white"
-        app:backgroundTint="#4CAF50" />
-
-    <!-- Keyboard Toolbar -->
+    <!-- Keyboard Toolbar (Always Visible at Bottom) -->
     <HorizontalScrollView
         android:id="@+id/keyboardToolbar"
         android:layout_width="match_parent"
@@ -79,7 +67,6 @@
         android:layout_alignParentBottom="true"
         android:background="#8daaa6"
         android:elevation="4dp"
-        android:visibility="gone"
         android:scrollbars="none">
 
         <LinearLayout

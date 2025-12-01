@@ -2,11 +2,22 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="@android:color/transparent">
 
-    <View
+    <!-- ✅ Changed from View to TextView for text-based dividers -->
+    <TextView
         android:id="@+id/dividerView"
         android:layout_width="match_parent"
-        android:layout_height="2dp"
-        android:background="#CCCCCC" />
+        android:layout_height="wrap_content"
+        android:text="━━━━━━━━━━━━━━━━━━━━"
+        android:textSize="16sp"
+        android:textColor="#333333"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:letterSpacing="0.1"
+        android:clickable="true"
+        android:focusable="true" />
 </FrameLayout>

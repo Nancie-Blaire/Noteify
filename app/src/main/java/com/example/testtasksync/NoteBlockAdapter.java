@@ -27,6 +27,8 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import org.json.JSONObject;
+import org.json.JSONException;
 
 public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -199,47 +201,69 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return;
 
-                    // Detect Enter key press
+                    // ✅ FIX: Detect Enter key press
                     if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
                         isProcessingEnter = true;
 
                         // Remove the newline character
-                        String textWithoutNewline = s.toString().substring(0, start) + s.toString().substring(start + 1);
-                        contentEdit.setText(textWithoutNewline);
-                        contentEdit.setSelection(start);
+                        String textWithoutNewline = s.toString().substring(0, start) +
+                                (start + 1 < s.length() ? s.toString().substring(start + 1) : "");
 
-                        // Split text at cursor
-                        String textBefore = textWithoutNewline.substring(0, start);
+                        contentEdit.setText(textWithoutNewline);
+                        contentEdit.setSelection(Math.min(start, textWithoutNewline.length()));
+
+                        // ✅ Split text at cursor (kahit empty)
+                        String textBefore = start > 0 ? textWithoutNewline.substring(0, start) : "";
                         String textAfter = start < textWithoutNewline.length() ? textWithoutNewline.substring(start) : "";
 
                         // Update current block
                         NoteBlock block = blocks.get(pos);
                         block.setContent(textBefore);
 
-                        // Notify activity to create new block
+                        // ✅ ALWAYS notify activity to create new block (even if empty)
                         listener.onEnterPressed(pos, textBefore, textAfter);
 
                         isProcessingEnter = false;
                         return;
                     }
 
-                    // Detect backspace on empty block
-                    if (before == 1 && after == 0 && s.length() == 0) {
+                    // ✅ Regular text change (NOT Enter key)
+                    if (!isProcessingEnter) {
                         NoteBlock block = blocks.get(pos);
-                        if (block.getContent().isEmpty()) {
-                            listener.onBackspaceOnEmptyBlock(pos);
-                            return;
-                        }
+                        block.setContent(s.toString());
+                        listener.onBlockChanged(block);
                     }
-
-                    // Regular text change
-                    NoteBlock block = blocks.get(pos);
-                    block.setContent(s.toString());
-                    listener.onBlockChanged(block);
                 }
 
                 @Override
                 public void afterTextChanged(Editable s) {}
+            });
+
+            // ✅ OPTIONAL: Add KeyListener for better Enter handling
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                        keyCode == KeyEvent.KEYCODE_ENTER) {
+
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    int cursorPos = contentEdit.getSelectionStart();
+                    String currentText = contentEdit.getText().toString();
+
+                    // ✅ Split at cursor
+                    String textBefore = cursorPos > 0 ? currentText.substring(0, cursorPos) : "";
+                    String textAfter = cursorPos < currentText.length() ? currentText.substring(cursorPos) : "";
+
+                    // Update current block
+                    NoteBlock block = blocks.get(pos);
+                    block.setContent(textBefore);
+
+                    // Notify to create new block
+                    listener.onEnterPressed(pos, textBefore, textAfter);
+
+                    return true; // Consume the event
+                }
+                return false;
             });
         }
 
@@ -262,6 +286,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) contentEdit.getLayoutParams();
             params.leftMargin = marginLeft;
             contentEdit.setLayoutParams(params);
+
+            applyFontStyle(contentEdit, block.getStyleData());
         }
 
         private int dpToPx(int dp) {
@@ -304,6 +330,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 case HEADING_3: textSize = 20f; break;
             }
             contentEdit.setTextSize(textSize);
+
+            // ✅ ADD THIS LINE:
+            applyFontStyle(contentEdit, block.getStyleData());
         }
     }
 
@@ -443,17 +472,18 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             contentEdit.setText(block.getContent());
             contentEdit.setHint("List item");
 
-            // ✅ Set bullet style based on indent
             String bullet = "●";
             if (block.getIndentLevel() == 1) bullet = "○";
             else if (block.getIndentLevel() >= 2) bullet = "■";
             bulletIcon.setText(bullet);
 
-            // ✅ Apply indent margin (24dp per level)
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
+
+            // ✅ ADD THIS LINE:
+            applyFontStyle(contentEdit, block.getStyleData());
         }
 
         private int dpToPx(int dp) {
@@ -575,7 +605,11 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
+
+            // ✅ ADD THIS LINE:
+            applyFontStyle(contentEdit, block.getStyleData());
         }
+
 
         private String toRoman(int number) {
             String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
@@ -693,6 +727,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
+
+            // ✅ ADD THIS LINE:
+            applyFontStyle(contentEdit, block.getStyleData());
         }
 
         private int dpToPx(int dp) {
@@ -851,25 +888,252 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     class DividerViewHolder extends RecyclerView.ViewHolder {
-        View dividerView;
+        TextView dividerView;  // Changed from View to TextView for text-based dividers
 
         DividerViewHolder(View view) {
             super(view);
             dividerView = view.findViewById(R.id.dividerView);
 
-            dividerView.setOnClickListener(v -> {
-                int pos = getAdapterPosition();
-                if (pos != RecyclerView.NO_POSITION) {
-                    listener.onDividerClick(pos);
-                }
-            });
+            // Click divider to change style
+            if (dividerView != null) {
+                dividerView.setOnClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        showDividerStyleSheet(v, pos);
+                    }
+                });
+
+                // Long press for more actions
+                dividerView.setOnLongClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        showDividerActionsSheet(v, pos);
+                    }
+                    return true;
+                });
+            }
         }
 
         void bind(NoteBlock block) {
+            if (dividerView == null) return;
+
+            String style = block.getDividerStyle();
+            if (style == null || style.isEmpty()) {
+                style = "solid";
+            }
+
             // Apply divider style
+            switch (style) {
+                case "solid":
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setTextColor(0xFF333333);
+                    break;
+                case "dashed":
+                    dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
+                    dividerView.setTextColor(0xFF333333);
+                    break;
+                case "dotted":
+                    dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
+                    dividerView.setTextColor(0xFF333333);
+                    break;
+                case "double":
+                    dividerView.setText("═══════════════════");
+                    dividerView.setTextColor(0xFF333333);
+                    break;
+                case "arrows":
+                    dividerView.setText("→→→→→→→ ✱ ←←←←←←←");
+                    dividerView.setTextColor(0xFF666666);
+                    break;
+                case "stars":
+                    dividerView.setText("✦✦✦✦✦ ⋄ ✦✦✦✦✦");
+                    dividerView.setTextColor(0xFF666666);
+                    break;
+                case "wave":
+                    dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
+                    dividerView.setTextColor(0xFF666666);
+                    break;
+                case "diamond":
+                    dividerView.setText("◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈");
+                    dividerView.setTextColor(0xFF666666);
+                    break;
+                default:
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setTextColor(0xFF333333);
+                    break;
+            }
+
+            dividerView.setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER);
+            dividerView.setTextSize(16);
+        }
+
+        private void showDividerStyleSheet(View view, int position) {
+            NoteBlock block = blocks.get(position);
+
+            BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+            View sheetView = LayoutInflater.from(view.getContext())
+                    .inflate(R.layout.divider_bottom_sheet, null);
+            bottomSheet.setContentView(sheetView);
+
+            // Get all style options
+            LinearLayout dividerSolid = sheetView.findViewById(R.id.dividerSolid);
+            LinearLayout dividerDashed = sheetView.findViewById(R.id.dividerDashed);
+            LinearLayout dividerDotted = sheetView.findViewById(R.id.dividerDotted);
+            LinearLayout dividerDouble = sheetView.findViewById(R.id.dividerDouble);
+            LinearLayout dividerArrows = sheetView.findViewById(R.id.dividerArrows);
+            LinearLayout dividerStars = sheetView.findViewById(R.id.dividerStars);
+            LinearLayout dividerWave = sheetView.findViewById(R.id.dividerWave);
+            LinearLayout dividerDiamond = sheetView.findViewById(R.id.dividerDiamond);
+
+            // Set click listeners
+            if (dividerSolid != null) {
+                dividerSolid.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "solid");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (dividerDashed != null) {
+                dividerDashed.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "dashed");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (dividerDotted != null) {
+                dividerDotted.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "dotted");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (dividerDouble != null) {
+                dividerDouble.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "double");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (dividerArrows != null) {
+                dividerArrows.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "arrows");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (dividerStars != null) {
+                dividerStars.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "stars");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (dividerWave != null) {
+                dividerWave.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "wave");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            if (dividerDiamond != null) {
+                dividerDiamond.setOnClickListener(v -> {
+                    updateDividerStyle(block, position, "diamond");
+                    bottomSheet.dismiss();
+                });
+            }
+
+            bottomSheet.show();
+        }
+
+        private void showDividerActionsSheet(View view, int position) {
+            BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+            View sheetView = LayoutInflater.from(view.getContext())
+                    .inflate(R.layout.divider_action_bottom_sheet, null);
+            bottomSheet.setContentView(sheetView);
+
+            LinearLayout moveUpBtn = sheetView.findViewById(R.id.moveUpBtn);
+            LinearLayout moveDownBtn = sheetView.findViewById(R.id.moveDownBtn);
+            LinearLayout duplicateBtn = sheetView.findViewById(R.id.duplicateBtn);
+            LinearLayout deleteBtn = sheetView.findViewById(R.id.deleteBtn);
+
+            if (moveUpBtn != null) {
+                moveUpBtn.setOnClickListener(v -> {
+                    bottomSheet.dismiss();
+                    if (position > 0) {
+                        moveBlock(position, position - 1);
+                        listener.onBlockChanged(blocks.get(position - 1));
+                        android.widget.Toast.makeText(view.getContext(),
+                                "Moved up", android.widget.Toast.LENGTH_SHORT).show();
+                    } else {
+                        android.widget.Toast.makeText(view.getContext(),
+                                "Already at top", android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            if (moveDownBtn != null) {
+                moveDownBtn.setOnClickListener(v -> {
+                    bottomSheet.dismiss();
+                    if (position < blocks.size() - 1) {
+                        moveBlock(position, position + 1);
+                        listener.onBlockChanged(blocks.get(position + 1));
+                        android.widget.Toast.makeText(view.getContext(),
+                                "Moved down", android.widget.Toast.LENGTH_SHORT).show();
+                    } else {
+                        android.widget.Toast.makeText(view.getContext(),
+                                "Already at bottom", android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            if (duplicateBtn != null) {
+                duplicateBtn.setOnClickListener(v -> {
+                    bottomSheet.dismiss();
+                    duplicateDivider(position);
+                });
+            }
+
+            if (deleteBtn != null) {
+                deleteBtn.setOnClickListener(v -> {
+                    bottomSheet.dismiss();
+                    listener.onBlockDeleted(position);
+                });
+            }
+
+            bottomSheet.show();
+        }
+
+        private void updateDividerStyle(NoteBlock block, int position, String style) {
+            block.setDividerStyle(style);
+            notifyItemChanged(position);
+            listener.onBlockChanged(block);
+        }
+
+        private void duplicateDivider(int position) {
+            NoteBlock originalBlock = blocks.get(position);
+
+            // Create duplicate
+            NoteBlock newBlock = new NoteBlock(
+                    System.currentTimeMillis() + "",
+                    NoteBlock.BlockType.DIVIDER
+            );
+            newBlock.setDividerStyle(originalBlock.getDividerStyle());
+            newBlock.setPosition(position + 1);
+
+            // Insert after current divider
+            blocks.add(position + 1, newBlock);
+
+            // Update positions
+            for (int i = position + 1; i < blocks.size(); i++) {
+                blocks.get(i).setPosition(i);
+            }
+
+            notifyItemInserted(position + 1);
+            listener.onBlockChanged(newBlock);
+
+            android.widget.Toast.makeText(itemView.getContext(),
+                    "Divider duplicated", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
-
     class SubpageViewHolder extends RecyclerView.ViewHolder {
         TextView titleText;
 
@@ -1178,6 +1442,36 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             }
 
             bottomSheet.show();
+        }
+    }
+    private void applyFontStyle(EditText editText, String styleData) {
+        if (styleData == null || styleData.isEmpty()) {
+            // Default: normal
+            editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+            return;
+        }
+
+        try {
+            org.json.JSONObject styleJson = new org.json.JSONObject(styleData);
+            String fontStyle = styleJson.optString("fontStyle", "normal");
+
+            switch (fontStyle) {
+                case "bold":
+                    editText.setTypeface(null, android.graphics.Typeface.BOLD);
+                    break;
+                case "italic":
+                    editText.setTypeface(null, android.graphics.Typeface.ITALIC);
+                    break;
+                case "boldItalic":
+                    editText.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                    break;
+                case "normal":
+                default:
+                    editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+                    break;
+            }
+        } catch (org.json.JSONException e) {
+            editText.setTypeface(null, android.graphics.Typeface.NORMAL);
         }
     }
 

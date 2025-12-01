@@ -6,6 +6,7 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -48,6 +49,8 @@ import android.graphics.Color;
 
 //COLOR PICKER
 import android.graphics.Color;
+import org.json.JSONObject;
+import org.json.JSONException;
 
 public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.OnBlockChangeListener {
 
@@ -224,29 +227,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         addThemeBtn.setOnClickListener(v -> toggleColorPicker());
         // Subpage
         addSubpageBtn.setOnClickListener(v -> addSubpageBlock());
-    }
-
-    private void showHeadingOptions() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle("Select Heading");
-
-        String[] options = {
-                "Normal Text",
-                "Heading 1",
-                "Heading 2",
-                "Heading 3"
-        };
-
-        builder.setItems(options, (dialog, which) -> {
-            switch (which) {
-                case 0: addTextBlock(); break;
-                case 1: addHeadingBlock(NoteBlock.BlockType.HEADING_1); break;
-                case 2: addHeadingBlock(NoteBlock.BlockType.HEADING_2); break;
-                case 3: addHeadingBlock(NoteBlock.BlockType.HEADING_3); break;
-            }
-        });
-
-        builder.show();
     }
 
     @Override
@@ -1348,9 +1328,24 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
     @Override
     public void onDividerClick(int position) {
-        Toast.makeText(this, "Divider options", Toast.LENGTH_SHORT).show();
+        // This is handled in the adapter now
+        // But you can add additional logic here if needed
+        NoteBlock block = blocks.get(position);
+        Toast.makeText(this, "Tap to change style, long press for options",
+                Toast.LENGTH_SHORT).show();
     }
 
+    // ✅ OPTIONAL: Add helper method to handle divider style changes
+    public void updateDividerStyle(int position, String newStyle) {
+        if (position >= 0 && position < blocks.size()) {
+            NoteBlock block = blocks.get(position);
+            if (block.getType() == NoteBlock.BlockType.DIVIDER) {
+                block.setDividerStyle(newStyle);
+                adapter.notifyItemChanged(position);
+                saveBlock(block);
+            }
+        }
+    }
     @Override
     protected void onPause() {
         super.onPause();
@@ -1364,64 +1359,41 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock currentBlock = blocks.get(position);
 
-        // Update current block with text before cursor
+        // ✅ Update current block with text before cursor
         currentBlock.setContent(textBeforeCursor);
         saveBlock(currentBlock);
-
-        // ✅ CHECK: Is current block empty?
-        boolean isCurrentBlockEmpty = textBeforeCursor.trim().isEmpty();
 
         NoteBlock newBlock;
         int insertPosition = position + 1;
 
         switch (currentBlock.getType()) {
             case BULLET:
-                if (isCurrentBlockEmpty) {
-                    // ✅ FIX: Empty bullet + Enter = Convert to TEXT (no new block)
-                    convertBlockToText(position);
-                } else {
-                    // ✅ Has content - create new bullet
-                    newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
-                    newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                    newBlock.setContent(textAfterCursor);
-                    newBlock.setPosition(insertPosition);
-                    insertBlockAt(newBlock, insertPosition);
-
-                    // Focus new bullet
-                    focusBlock(insertPosition, 0);
-                }
+                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
+                newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                newBlock.setPosition(insertPosition);
+                insertBlockAt(newBlock, insertPosition);
+                focusBlock(insertPosition, 0);
                 break;
 
             case NUMBERED:
-                if (isCurrentBlockEmpty) {
-                    // Empty numbered + Enter = Convert to TEXT
-                    convertBlockToText(position);
-                } else {
-                    newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
-                    newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                    newBlock.setContent(textAfterCursor);
-                    newBlock.setPosition(insertPosition);
-                    insertBlockAt(newBlock, insertPosition);
-                    renumberLists();
-
-                    focusBlock(insertPosition, 0);
-                }
+                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
+                newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                newBlock.setPosition(insertPosition);
+                insertBlockAt(newBlock, insertPosition);
+                renumberLists();
+                focusBlock(insertPosition, 0);
                 break;
 
             case CHECKBOX:
-                if (isCurrentBlockEmpty) {
-                    // Empty checkbox + Enter = Convert to TEXT
-                    convertBlockToText(position);
-                } else {
-                    newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
-                    newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                    newBlock.setChecked(false);
-                    newBlock.setContent(textAfterCursor);
-                    newBlock.setPosition(insertPosition);
-                    insertBlockAt(newBlock, insertPosition);
-
-                    focusBlock(insertPosition, 0);
-                }
+                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
+                newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                newBlock.setChecked(false);
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                newBlock.setPosition(insertPosition);
+                insertBlockAt(newBlock, insertPosition);
+                focusBlock(insertPosition, 0);
                 break;
 
             case TEXT:
@@ -1429,18 +1401,15 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             case HEADING_2:
             case HEADING_3:
             default:
-                // Create new TEXT block
                 newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
                 newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setContent(textAfterCursor);
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
                 newBlock.setPosition(insertPosition);
                 insertBlockAt(newBlock, insertPosition);
-
                 focusBlock(insertPosition, 0);
                 break;
         }
     }
-
     // ===============================================
 // HELPER: Focus a specific block
 // ===============================================
@@ -1770,4 +1739,153 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         return false; // No empty text block to replace
     }
+
+    // ✅ REPLACE ang showHeadingOptions() method sa NoteActivity.java with this:
+
+    private void showHeadingOptions() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all option views
+        LinearLayout heading1Option = sheetView.findViewById(R.id.heading1Option);
+        LinearLayout heading2Option = sheetView.findViewById(R.id.heading2Option);
+        LinearLayout heading3Option = sheetView.findViewById(R.id.heading3Option);
+        LinearLayout boldOption = sheetView.findViewById(R.id.boldOption);
+        LinearLayout italicOption = sheetView.findViewById(R.id.italicOption);
+        LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
+        LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
+
+        // ✅ HEADING OPTIONS
+        if (heading1Option != null) {
+            heading1Option.setOnClickListener(v -> {
+                addHeadingBlock(NoteBlock.BlockType.HEADING_1);
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading2Option != null) {
+            heading2Option.setOnClickListener(v -> {
+                addHeadingBlock(NoteBlock.BlockType.HEADING_2);
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading3Option != null) {
+            heading3Option.setOnClickListener(v -> {
+                addHeadingBlock(NoteBlock.BlockType.HEADING_3);
+                bottomSheet.dismiss();
+            });
+        }
+
+        // ✅ FONT STYLE OPTIONS
+        if (boldOption != null) {
+            boldOption.setOnClickListener(v -> {
+                applyFontStyle("bold");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (italicOption != null) {
+            italicOption.setOnClickListener(v -> {
+                applyFontStyle("italic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (boldItalicOption != null) {
+            boldItalicOption.setOnClickListener(v -> {
+                applyFontStyle("boldItalic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (normalOption != null) {
+            normalOption.setOnClickListener(v -> {
+                convertToNormalText();
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+
+    private void applyFontStyle(String style) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        // Store the style in styleData as JSON
+        try {
+            org.json.JSONObject styleJson = new org.json.JSONObject();
+            styleJson.put("fontStyle", style);
+            block.setStyleData(styleJson.toString());
+
+            adapter.notifyItemChanged(position);
+            saveBlock(block);
+
+            Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+        } catch (org.json.JSONException e) {
+            Toast.makeText(this, "Error applying style", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ✅ NEW METHOD: Convert current block to normal TEXT
+    private void convertToNormalText() {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        // Check if it's a heading - need to convert to TEXT type
+        if (block.getType() == NoteBlock.BlockType.HEADING_1 ||
+                block.getType() == NoteBlock.BlockType.HEADING_2 ||
+                block.getType() == NoteBlock.BlockType.HEADING_3) {
+
+            // Convert heading to normal text
+            block.setType(NoteBlock.BlockType.TEXT);
+        }
+
+        // Clear any font styling
+        block.setStyleData(null);
+
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        // Refocus the block
+        focusBlock(position, block.getContent().length());
+
+        Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
+    }
+
 }

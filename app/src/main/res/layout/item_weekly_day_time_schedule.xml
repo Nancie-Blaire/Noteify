@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="#f4e8df"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    android:padding="16dp"
+    android:gravity="center_vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Time Schedule Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/scheduleNumberText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Schedule 1"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#000000" />
+
+            <ImageView
+                android:id="@+id/removeScheduleButton"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:contentDescription="Remove schedule"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="#FF5252" />
+
+        </LinearLayout>
+
+        <!-- Date Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Date"
+            android:textSize="12sp"
+            android:textColor="#808080"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:id="@+id/datePickerButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/input_background"
+            android:padding="12dp"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginBottom="12dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_calendar"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/selectedDateText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Select date"
+                android:textSize="14sp"
+                android:textColor="#000000" />
+
+        </LinearLayout>
+
+        <!-- Time Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Time"
+            android:textSize="12sp"
+            android:textColor="#808080"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:id="@+id/timePickerButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/input_background"
+            android:padding="12dp"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginBottom="12dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_lock_idle_alarm"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/selectedTimeText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Select time"
+                android:textSize="14sp"
+                android:textColor="#000000" />
+
+        </LinearLayout>
+
+        <!-- Notification Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <CheckBox
+                android:id="@+id/notificationCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:buttonTint="#000000" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Set notification"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Notification Time Selector -->
+        <LinearLayout
+            android:id="@+id/notificationTimeSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:layout_marginStart="40dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Notify me"
+                android:textSize="12sp"
+                android:textColor="#808080"
+                android:layout_marginEnd="8dp" />
+
+            <Spinner
+                android:id="@+id/notificationTimeSpinner"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="before"
+                android:textSize="12sp"
+                android:textColor="#808080"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

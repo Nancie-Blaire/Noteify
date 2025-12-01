@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="20dp"
-    android:background="#f4e8df">
+    android:background="@drawable/calendar_popup_window">
 
     <!-- Year Selector -->
     <LinearLayout

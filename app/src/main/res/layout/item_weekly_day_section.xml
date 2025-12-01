@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     android:layout_marginBottom="16dp">
 
@@ -18,16 +19,30 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Mon"
+            android:layout_marginStart="8dp"
+            android:text="MONDAY"
+            android:letterSpacing=".2"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#000000" />
+
+        <!-- Calendar Icon Button (NEW) -->
+        <ImageView
+            android:id="@+id/scheduleButton"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_calendar"
+            android:contentDescription="Set schedule"
+            android:padding="4dp"
+            android:layout_marginEnd="4dp"
+            app:tint="#000000"
+            android:background="?attr/selectableItemBackgroundBorderless" />
 
         <ImageView
             android:id="@+id/addDayTaskButton"
             android:layout_width="28dp"
             android:layout_height="28dp"
-            android:src="@android:drawable/ic_input_add"
+            android:src="@drawable/ic_fab_add"
             android:contentDescription="Add task"
             android:padding="4dp"
             android:clickable="true"

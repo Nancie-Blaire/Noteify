@@ -301,11 +301,7 @@ public class SignUp extends AppCompatActivity {
                     Toast.makeText(SignUp.this, "Google Sign-In Successful!", Toast.LENGTH_SHORT).show();
                     Log.d(TAG, "Google user data saved");
 
-                    // Mark biometric setup as seen
-                    android.content.SharedPreferences prefs = getSharedPreferences("NoteSecurityPrefs", MODE_PRIVATE);
-                    prefs.edit().putBoolean(user.getUid() + "_has_seen_biometric_setup", true).apply();
-
-                    Intent intent = new Intent(SignUp.this, BiometricSetupActivity.class);
+                    Intent intent = new Intent(SignUp.this, MainActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(intent);
                     finish();
@@ -629,13 +625,7 @@ public class SignUp extends AppCompatActivity {
                     Toast.makeText(SignUp.this, "Email verified! Account created successfully!", Toast.LENGTH_SHORT).show();
                     Log.d(TAG, "User data saved to Firestore");
 
-                    FirebaseUser user = auth.getCurrentUser();
-                    if (user != null) {
-                        android.content.SharedPreferences prefs = getSharedPreferences("NoteSecurityPrefs", MODE_PRIVATE);
-                        prefs.edit().putBoolean(user.getUid() + "_has_seen_biometric_setup", true).apply();
-                    }
-
-                    Intent intent = new Intent(SignUp.this, BiometricSetupActivity.class);
+                    Intent intent = new Intent(SignUp.this, MainActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(intent);
                     finish();

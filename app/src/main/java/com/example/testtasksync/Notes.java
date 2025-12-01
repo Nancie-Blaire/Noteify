@@ -410,17 +410,31 @@ public class Notes extends Fragment {
     private void updateTimeAndDate(TextView timeText, TextView amPmText, TextView dateText) {
         java.util.Calendar calendar = java.util.Calendar.getInstance();
 
-        // Format time
-        int hour = calendar.get(java.util.Calendar.HOUR);
-        if (hour == 0) hour = 12;
-        int minute = calendar.get(java.util.Calendar.MINUTE);
-        String time = String.format("%d:%02d", hour, minute);
-        timeText.setText(time);
+        // Get time format preference
+        String timeFormat = Settings.getTimeFormat(requireContext());
 
-        // Format AM/PM
-        int hourOfDay = calendar.get(java.util.Calendar.HOUR_OF_DAY);
-        String amPm = hourOfDay < 12 ? "A.M." : "P.M.";
-        amPmText.setText(amPm);
+        // Format time based on preference
+        if (timeFormat.equals("military")) {
+            // Military time (24-hour format)
+            int hour = calendar.get(java.util.Calendar.HOUR_OF_DAY);
+            int minute = calendar.get(java.util.Calendar.MINUTE);
+            String time = String.format("%02d:%02d", hour, minute);
+            timeText.setText(time);
+            amPmText.setVisibility(View.GONE); // Hide AM/PM in military time
+        } else {
+            // Civilian time (12-hour format)
+            int hour = calendar.get(java.util.Calendar.HOUR);
+            if (hour == 0) hour = 12;
+            int minute = calendar.get(java.util.Calendar.MINUTE);
+            String time = String.format("%d:%02d", hour, minute);
+            timeText.setText(time);
+
+            // Format AM/PM
+            int hourOfDay = calendar.get(java.util.Calendar.HOUR_OF_DAY);
+            String amPm = hourOfDay < 12 ? "A.M." : "P.M.";
+            amPmText.setText(amPm);
+            amPmText.setVisibility(View.VISIBLE); // Show AM/PM in civilian time
+        }
 
         // Format date
         String[] months = {"JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
@@ -590,15 +604,14 @@ public class Notes extends Fragment {
                                 Log.w(TAG, "Timestamp not in Firestore format, using fallback", ex);
                             }
 
+                            // ✅ CRITICAL FIX: Always explicitly set starred state from Firebase
                             Boolean isStarred = doc.getBoolean("isStarred");
-                            if (isStarred != null && isStarred) {
-                                note.setStarred(true);
-                            }
+                            note.setStarred(isStarred != null && isStarred);
+
+                            Log.d(TAG, "📄 Loaded note: " + note.getTitle() + " | starred=" + note.isStarred());
 
                             Boolean isLocked = doc.getBoolean("isLocked");
-                            if (isLocked != null && isLocked) {
-                                note.setLocked(true);
-                            }
+                            note.setLocked(isLocked != null && isLocked);
 
                             noteList.add(note);
                         }
@@ -703,15 +716,14 @@ public class Notes extends Fragment {
             }
         }
 
+        // ✅ CRITICAL FIX: Always explicitly set starred state from Firebase
         Boolean isStarred = doc.getBoolean("isStarred");
-        if (isStarred != null && isStarred) {
-            note.setStarred(true);
-        }
+        note.setStarred(isStarred != null && isStarred);
+
+        Log.d(TAG, "📅 Loaded schedule: " + note.getTitle() + " | starred=" + note.isStarred());
 
         Boolean isLocked = doc.getBoolean("isLocked");
-        if (isLocked != null && isLocked) {
-            note.setLocked(true);
-        }
+        note.setLocked(isLocked != null && isLocked);
 
         return note;
     }
@@ -777,5 +789,5 @@ public class Notes extends Fragment {
             updateRecentsLayout();
             Log.d(TAG, "✅ UI Updated successfully!");
         }
-    }
+    }//
 }

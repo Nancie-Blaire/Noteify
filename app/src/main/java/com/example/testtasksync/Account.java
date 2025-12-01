@@ -75,7 +75,6 @@ public class Account extends AppCompatActivity {
         tvUserName = findViewById(R.id.tvUserName);
         tvUserEmail = findViewById(R.id.tvUserEmail);
         btnLogout = findViewById(R.id.btnLogout);
-        btnEditProfile = findViewById(R.id.btnEditProfile);
         tvChangePassword = findViewById(R.id.tvChangePassword);
         tvDeleteAccount = findViewById(R.id.tvDeleteAccount);
         tvSwitchAccount = findViewById(R.id.tvSwitchAccount);
@@ -93,12 +92,6 @@ public class Account extends AppCompatActivity {
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
             finish();
-        });
-
-        // Edit Profile Button
-        btnEditProfile.setOnClickListener(v -> {
-            Intent intent = new Intent(Account.this, EditProfileActivity.class);
-            startActivity(intent);
         });
 
         // Change Password Button

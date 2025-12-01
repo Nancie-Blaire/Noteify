@@ -1,19 +1,17 @@
 package com.example.testtasksync;
+// COMMENT
 
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
-import android.graphics.Paint;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,10 +42,6 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.recyclerview.widget.ItemTouchHelper;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.annotation.NonNull;
 
 
 public class WeeklyActivity extends AppCompatActivity {
@@ -78,8 +72,11 @@ public class WeeklyActivity extends AppCompatActivity {
     private Map<String, WeeklyTaskAdapter> dayAdapters = new HashMap<>();
     private Map<String, ItemTouchHelper> dayTouchHelpers = new HashMap<>();
 
+    // ✅ Weekly day schedule
+    private Map<String, List<DaySchedule>> daySchedules = new HashMap<>();
+
     @Override
-    protected void onCreate(Bundle savedInstanceState)  {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_weekly);
 
@@ -99,11 +96,11 @@ public class WeeklyActivity extends AppCompatActivity {
 
         NotificationHelper.createNotificationChannel(this);
         requestNotificationPermission();
+
         // Initialize with current week by default
         setCurrentWeek();
 
-// In onCreate(), replace the dayContainers initialization:
-// Initialize day containers (NOW RecyclerViews)
+        // Initialize day containers (RecyclerViews)
         dayContainers.put("Mon", findViewById(R.id.monTasksContainer));
         dayContainers.put("Tues", findViewById(R.id.tuesTasksContainer));
         dayContainers.put("Wed", findViewById(R.id.wedTasksContainer));
@@ -112,12 +109,12 @@ public class WeeklyActivity extends AppCompatActivity {
         dayContainers.put("Sat", findViewById(R.id.satTasksContainer));
         dayContainers.put("Sun", findViewById(R.id.sunTasksContainer));
 
-// Initialize task lists
+        // Initialize task lists
         for (String day : days) {
             dayTasks.put(day, new ArrayList<>());
         }
 
-// ✅ NEW: Setup RecyclerViews with adapters
+        // Setup RecyclerViews with adapters
         setupRecyclerViews();
 
         // Set up add task buttons
@@ -128,6 +125,15 @@ public class WeeklyActivity extends AppCompatActivity {
         findViewById(R.id.addFriTask).setOnClickListener(v -> addTask("Fri"));
         findViewById(R.id.addSatTask).setOnClickListener(v -> addTask("Sat"));
         findViewById(R.id.addSunTask).setOnClickListener(v -> addTask("Sun"));
+
+        // ✅ NEW: Setup per-day schedule buttons
+        findViewById(R.id.mondayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Mon"));
+        findViewById(R.id.tuesdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Tues"));
+        findViewById(R.id.wednesdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Wed"));
+        findViewById(R.id.thursdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Thur"));
+        findViewById(R.id.fridayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Fri"));
+        findViewById(R.id.saturdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Sat"));
+        findViewById(R.id.sundayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Sun"));
 
         // Set up save, back, and schedule buttons
         saveButton.setOnClickListener(v -> saveWeeklyPlan());
@@ -145,7 +151,6 @@ public class WeeklyActivity extends AppCompatActivity {
         } else {
             loadWeeklyPlan();
         }
-
     }
     private void setupRecyclerViews() {
         for (String day : days) {
@@ -658,6 +663,9 @@ public class WeeklyActivity extends AppCompatActivity {
                         }
                     }
 
+                    // ✅ Load day schedules
+                    loadDaySchedules(userId);
+
                     setupTasksRealtimeListener(userId);
                 })
                 .addOnFailureListener(e -> {
@@ -667,6 +675,37 @@ public class WeeklyActivity extends AppCompatActivity {
                             addTask(day);
                         }
                     }
+                });
+    }
+
+    // ✅ ADD new method to load day schedules
+    private void loadDaySchedules(String userId) {
+        db.collection("users")
+                .document(userId)
+                .collection("weeklyPlans")
+                .document(planId)
+                .collection("daySchedules")
+                .orderBy("scheduleNumber")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    daySchedules.clear();
+
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        DaySchedule schedule = doc.toObject(DaySchedule.class);
+                        String day = schedule.getDay();
+
+                        // ✅ Add to list for this day
+                        if (!daySchedules.containsKey(day)) {
+                            daySchedules.put(day, new ArrayList<>());
+                        }
+                        daySchedules.get(day).add(schedule);
+
+                        Log.d(TAG, "✅ Loaded schedule " + schedule.getScheduleNumber() +
+                                " for " + day);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to load day schedules", e);
                 });
     }
 
@@ -835,6 +874,8 @@ public class WeeklyActivity extends AppCompatActivity {
                     // If no tasks, just create main schedule and finish
                     if (tasksToSave == 0) {
                         createOrUpdateMainSchedule(userId, planId, mainScheduleData);
+                        // ✅ Save day schedules
+                        saveDaySchedules(userId, planId);
                         return;
                     }
 
@@ -858,39 +899,20 @@ public class WeeklyActivity extends AppCompatActivity {
                                             .collection("tasks")
                                             .add(taskData)
                                             .addOnSuccessListener(documentReference -> {
+                                                String taskId = documentReference.getId();
+                                                task.setId(taskId);
+
                                                 savedCount[0]++;
 
-                                                // 1. Tiyakin na na-save na ang lahat ng tasks
                                                 if (savedCount[0] == finalTasksToSave) {
-                                                    // All tasks saved, now create main schedule
+                                                    // All tasks saved
                                                     createOrUpdateMainSchedule(userId, planId, mainScheduleData);
 
-                                                    // 2. ✅ DITO ILALAGAY ANG NEW CODE: Schedule notifications
-                                                    if (hasReminder && selectedTime != null && !selectedTime.isEmpty() && startDate != null) {
-                                                        for (String d : days) { // Gumamit ng 'd' para maiwasan ang conflict sa variable na 'day' sa labas
-                                                            List<WeeklyTask> loopTasks = dayTasks.get(d);
-                                                            if (loopTasks != null) {
-                                                                for (WeeklyTask loopTask : loopTasks) {
-                                                                    if (!loopTask.getTaskText().trim().isEmpty() && !loopTask.isCompleted()) {
-                                                                        // Schedule notification for this day's task
-                                                                        NotificationHelper.scheduleWeeklyTaskNotification(
-                                                                                this,
-                                                                                loopTask.getId(),
-                                                                                planTitle,
-                                                                                loopTask.getTaskText(),
-                                                                                d,
-                                                                                startDate.getTime(),
-                                                                                selectedTime,
-                                                                                reminderMinutes
-                                                                        );
+                                                    // ✅ Save day schedules
+                                                    saveDaySchedules(userId, planId);
 
-                                                                        Log.d(TAG, "📢 Scheduled notification for " + d + ": " + loopTask.getTaskText());
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    // ✅ END OF NEW CODE
+                                                    // ✅ Schedule notifications per day
+                                                    schedulePerDayNotifications(userId, planId, planTitle);
                                                 }
                                             })
                                             .addOnFailureListener(e -> {
@@ -905,6 +927,96 @@ public class WeeklyActivity extends AppCompatActivity {
                     Log.e(TAG, "Failed to delete old tasks", e);
                     Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
                 });
+    }
+
+    // ✅ ADD new method to save day schedules
+    private void saveDaySchedules(String userId, String planId) {
+        // First, delete existing day schedules
+        db.collection("users")
+                .document(userId)
+                .collection("weeklyPlans")
+                .document(planId)
+                .collection("daySchedules")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                        doc.getReference().delete();
+                    }
+
+                    // ✅ Save new day schedules (now supports multiple per day)
+                    for (Map.Entry<String, List<DaySchedule>> entry : daySchedules.entrySet()) {
+                        String day = entry.getKey();
+                        List<DaySchedule> schedules = entry.getValue();
+
+                        for (int i = 0; i < schedules.size(); i++) {
+                            DaySchedule schedule = schedules.get(i);
+
+                            Map<String, Object> scheduleData = new HashMap<>();
+                            scheduleData.put("day", schedule.getDay());
+                            scheduleData.put("date", schedule.getDate());
+                            scheduleData.put("time", schedule.getTime());
+                            scheduleData.put("hasReminder", schedule.isHasReminder());
+                            scheduleData.put("reminderMinutes", schedule.getReminderMinutes());
+                            scheduleData.put("scheduleNumber", i + 1);
+
+                            // ✅ Use auto-generated ID instead of day name (to support multiple)
+                            int finalI = i;
+                            db.collection("users")
+                                    .document(userId)
+                                    .collection("weeklyPlans")
+                                    .document(planId)
+                                    .collection("daySchedules")
+                                    .add(scheduleData)
+                                    .addOnSuccessListener(documentReference -> {
+                                        Log.d(TAG, "✅ Day schedule saved for " + day +
+                                                " (Schedule " + (finalI + 1) + ")");
+                                    })
+                                    .addOnFailureListener(e -> {
+                                        Log.e(TAG, "Failed to save day schedule for " + day, e);
+                                    });
+                        }
+                    }
+                });
+    }
+
+    // ✅ ADD new method to schedule per-day notifications
+    private void schedulePerDayNotifications(String userId, String planId, String planTitle) {
+        for (String day : days) {
+            List<DaySchedule> dayScheduleList = daySchedules.get(day);
+
+            if (dayScheduleList != null && !dayScheduleList.isEmpty()) {
+                for (DaySchedule daySchedule : dayScheduleList) {
+                    if (daySchedule.isHasReminder()) {
+                        List<WeeklyTask> dayTaskList = dayTasks.get(day);
+
+                        if (dayTaskList != null) {
+                            for (WeeklyTask task : dayTaskList) {
+                                if (!task.getTaskText().trim().isEmpty() && !task.isCompleted()) {
+                                    // ✅ Create unique notification ID with schedule number
+                                    String notificationId = task.getId() + "_sched_" +
+                                            daySchedule.getScheduleNumber();
+
+                                    NotificationHelper.scheduleWeeklyTaskNotification(
+                                            this,
+                                            notificationId,
+                                            planTitle,
+                                            task.getTaskText(),
+                                            day,
+                                            daySchedule.getDate().toDate(),
+                                            daySchedule.getTime(),
+                                            daySchedule.getReminderMinutes()
+                                    );
+
+                                    Log.d(TAG, "📢 Scheduled notification for " + day +
+                                            " (Schedule " + daySchedule.getScheduleNumber() +
+                                            "): " + task.getTaskText());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     private void createOrUpdateMainSchedule(String userId, String planId,
                                             Map<String, Object> mainScheduleData) {
@@ -975,6 +1087,313 @@ public class WeeklyActivity extends AppCompatActivity {
         // Calculate end of week (Sunday)
         calendar.add(Calendar.DAY_OF_MONTH, 6);
         endDate = (Calendar) calendar.clone();
+    }
+
+    // ✅ ADD this new method for per-day schedule dialog
+    private void showDayScheduleDialog(String day) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_weekly_day_schedule, null);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        // Get views
+        TextView dayNameTitle = dialogView.findViewById(R.id.dayNameTitle);
+        LinearLayout timeSchedulesContainer = dialogView.findViewById(R.id.timeSchedulesContainer);
+        Button addTimeScheduleButton = dialogView.findViewById(R.id.addTimeScheduleButton);
+        Button clearScheduleButton = dialogView.findViewById(R.id.clearScheduleButton);
+        Button cancelButton = dialogView.findViewById(R.id.cancelButton);
+        Button saveDayScheduleButton = dialogView.findViewById(R.id.saveDayScheduleButton);
+
+        // Set title
+        String fullDayName = getFullDayName(day);
+        dayNameTitle.setText(fullDayName + " Schedule");
+
+        // ✅ Initialize schedules list for this day if needed
+        if (!daySchedules.containsKey(day)) {
+            daySchedules.put(day, new ArrayList<>());
+        }
+
+        List<DaySchedule> existingSchedules = daySchedules.get(day);
+
+        // ✅ Load existing schedules or add first one
+        if (existingSchedules.isEmpty()) {
+            addTimeScheduleView(timeSchedulesContainer, day, null, 1);
+        } else {
+            int scheduleNum = 1;
+            for (DaySchedule schedule : existingSchedules) {
+                addTimeScheduleView(timeSchedulesContainer, day, schedule, scheduleNum);
+                scheduleNum++;
+            }
+            clearScheduleButton.setVisibility(View.VISIBLE);
+        }
+
+        // ✅ Add time schedule button
+        addTimeScheduleButton.setOnClickListener(v -> {
+            int newScheduleNum = timeSchedulesContainer.getChildCount() + 1;
+            addTimeScheduleView(timeSchedulesContainer, day, null, newScheduleNum);
+            clearScheduleButton.setVisibility(View.VISIBLE);
+        });
+
+        // Clear all schedules button
+        clearScheduleButton.setOnClickListener(v -> {
+            daySchedules.get(day).clear();
+            Toast.makeText(this, fullDayName + " schedules cleared", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+
+        // Cancel button
+        cancelButton.setOnClickListener(v -> dialog.dismiss());
+
+        // Save button
+        saveDayScheduleButton.setOnClickListener(v -> {
+            List<DaySchedule> newSchedules = new ArrayList<>();
+            boolean allValid = true;
+
+            // ✅ Collect all schedules from views
+            for (int i = 0; i < timeSchedulesContainer.getChildCount(); i++) {
+                View scheduleView = timeSchedulesContainer.getChildAt(i);
+
+                TextView selectedDateText = scheduleView.findViewById(R.id.selectedDateText);
+                TextView selectedTimeText = scheduleView.findViewById(R.id.selectedTimeText);
+                CheckBox notificationCheckbox = scheduleView.findViewById(R.id.notificationCheckbox);
+                android.widget.Spinner notificationTimeSpinner = scheduleView.findViewById(R.id.notificationTimeSpinner);
+
+                // Get stored data from view tag
+                Object tag = scheduleView.getTag();
+                if (tag instanceof DayScheduleViewData) {
+                    DayScheduleViewData data = (DayScheduleViewData) tag;
+
+                    if (data.selectedDate == null) {
+                        Toast.makeText(this, "Please select date for Schedule " + (i + 1),
+                                Toast.LENGTH_SHORT).show();
+                        allValid = false;
+                        break;
+                    }
+
+                    if (data.selectedTime == null || data.selectedTime.isEmpty()) {
+                        Toast.makeText(this, "Please select time for Schedule " + (i + 1),
+                                Toast.LENGTH_SHORT).show();
+                        allValid = false;
+                        break;
+                    }
+
+                    int reminderMinutes = 60;
+                    if (notificationCheckbox.isChecked()) {
+                        int[] notificationMinutesArray = {5, 10, 15, 30, 60, 120, 1440};
+                        reminderMinutes = notificationMinutesArray[notificationTimeSpinner.getSelectedItemPosition()];
+                    }
+
+                    DaySchedule schedule = new DaySchedule(
+                            day,
+                            new Timestamp(data.selectedDate.getTime()),
+                            data.selectedTime,
+                            notificationCheckbox.isChecked(),
+                            reminderMinutes,
+                            i + 1
+                    );
+
+                    newSchedules.add(schedule);
+                }
+            }
+
+            if (allValid && !newSchedules.isEmpty()) {
+                daySchedules.put(day, newSchedules);
+
+                String message = fullDayName + ": " + newSchedules.size() +
+                        " schedule(s) saved";
+
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                dialog.dismiss();
+            }
+        });
+
+        dialog.show();
+    }
+
+    // ✅ NEW: Helper class to store view data
+    private static class DayScheduleViewData {
+        Calendar selectedDate;
+        String selectedTime;
+    }
+
+    // ✅ NEW: Method to add a time schedule view
+    private void addTimeScheduleView(LinearLayout container, String day,
+                                     DaySchedule existingSchedule, int scheduleNumber) {
+        View scheduleView = LayoutInflater.from(this)
+                .inflate(R.layout.item_weekly_day_time_schedule, container, false);
+
+        TextView scheduleNumberText = scheduleView.findViewById(R.id.scheduleNumberText);
+        LinearLayout datePickerButton = scheduleView.findViewById(R.id.datePickerButton);
+        TextView selectedDateText = scheduleView.findViewById(R.id.selectedDateText);
+        LinearLayout timePickerButton = scheduleView.findViewById(R.id.timePickerButton);
+        TextView selectedTimeText = scheduleView.findViewById(R.id.selectedTimeText);
+        CheckBox notificationCheckbox = scheduleView.findViewById(R.id.notificationCheckbox);
+        LinearLayout notificationTimeSection = scheduleView.findViewById(R.id.notificationTimeSection);
+        android.widget.Spinner notificationTimeSpinner = scheduleView.findViewById(R.id.notificationTimeSpinner);
+        ImageView removeScheduleButton = scheduleView.findViewById(R.id.removeScheduleButton);
+
+        // Set schedule number
+        scheduleNumberText.setText("Schedule " + scheduleNumber);
+
+        // Setup notification spinner
+        String[] notificationTimes = {"5 minutes", "10 minutes", "15 minutes", "30 minutes",
+                "1 hour", "2 hours", "1 day"};
+        int[] notificationMinutes = {5, 10, 15, 30, 60, 120, 1440};
+
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, notificationTimes);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        notificationTimeSpinner.setAdapter(adapter);
+
+        // Create view data holder
+        DayScheduleViewData viewData = new DayScheduleViewData();
+        scheduleView.setTag(viewData);
+
+        // Load existing data if available
+        if (existingSchedule != null) {
+            if (existingSchedule.getDate() != null) {
+                viewData.selectedDate = Calendar.getInstance();
+                viewData.selectedDate.setTime(existingSchedule.getDate().toDate());
+                SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM dd, yyyy", Locale.getDefault());
+                selectedDateText.setText(sdf.format(viewData.selectedDate.getTime()));
+            }
+
+            if (existingSchedule.getTime() != null && !existingSchedule.getTime().isEmpty()) {
+                viewData.selectedTime = existingSchedule.getTime();
+                selectedTimeText.setText(viewData.selectedTime);
+            }
+
+            notificationCheckbox.setChecked(existingSchedule.isHasReminder());
+            notificationTimeSection.setVisibility(existingSchedule.isHasReminder() ?
+                    View.VISIBLE : View.GONE);
+
+            for (int i = 0; i < notificationMinutes.length; i++) {
+                if (notificationMinutes[i] == existingSchedule.getReminderMinutes()) {
+                    notificationTimeSpinner.setSelection(i);
+                    break;
+                }
+            }
+        } else {
+            // Set default date for new schedule
+            if (startDate != null) {
+                Calendar defaultDate = getDateForDayInWeek(day, startDate);
+                if (defaultDate != null) {
+                    viewData.selectedDate = defaultDate;
+                    SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM dd, yyyy", Locale.getDefault());
+                    selectedDateText.setText(sdf.format(defaultDate.getTime()));
+                }
+            }
+        }
+
+        // Date picker
+        datePickerButton.setOnClickListener(v -> {
+            Calendar initialDate = viewData.selectedDate != null ?
+                    viewData.selectedDate : Calendar.getInstance();
+
+            DatePickerDialog dateDialog = new DatePickerDialog(
+                    this,
+                    (view, year, month, dayOfMonth) -> {
+                        viewData.selectedDate = Calendar.getInstance();
+                        viewData.selectedDate.set(year, month, dayOfMonth);
+                        SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM dd, yyyy", Locale.getDefault());
+                        selectedDateText.setText(sdf.format(viewData.selectedDate.getTime()));
+                    },
+                    initialDate.get(Calendar.YEAR),
+                    initialDate.get(Calendar.MONTH),
+                    initialDate.get(Calendar.DAY_OF_MONTH)
+            );
+            dateDialog.show();
+        });
+
+        // Time picker
+        timePickerButton.setOnClickListener(v -> {
+            Calendar cal = Calendar.getInstance();
+            int hour = cal.get(Calendar.HOUR_OF_DAY);
+            int minute = cal.get(Calendar.MINUTE);
+
+            android.app.TimePickerDialog timeDialog = new android.app.TimePickerDialog(
+                    this,
+                    (view, hourOfDay, minuteOfHour) -> {
+                        viewData.selectedTime = String.format(Locale.getDefault(),
+                                "%02d:%02d", hourOfDay, minuteOfHour);
+                        selectedTimeText.setText(viewData.selectedTime);
+                    },
+                    hour, minute, false
+            );
+            timeDialog.show();
+        });
+
+        // Notification checkbox
+        notificationCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            notificationTimeSection.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        // Remove button
+        removeScheduleButton.setOnClickListener(v -> {
+            if (container.getChildCount() > 1) {
+                container.removeView(scheduleView);
+                // Update schedule numbers
+                updateScheduleNumbers(container);
+            } else {
+                Toast.makeText(this, "Keep at least one schedule", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        container.addView(scheduleView);
+    }
+
+    // ✅ NEW: Update schedule numbers after removal
+    private void updateScheduleNumbers(LinearLayout container) {
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View scheduleView = container.getChildAt(i);
+            TextView scheduleNumberText = scheduleView.findViewById(R.id.scheduleNumberText);
+            scheduleNumberText.setText("Schedule " + (i + 1));
+        }
+    }
+
+    // ✅ ADD helper method to get date for specific day in week
+    private Calendar getDateForDayInWeek(String day, Calendar weekStart) {
+        int targetDayOfWeek = getDayOfWeekFromName(day);
+        if (targetDayOfWeek == -1) return null;
+
+        Calendar result = (Calendar) weekStart.clone();
+
+        // Move to the target day
+        while (result.get(Calendar.DAY_OF_WEEK) != targetDayOfWeek) {
+            result.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        return result;
+    }
+
+    // ✅ ADD helper method to get full day name
+    private String getFullDayName(String shortDay) {
+        switch (shortDay) {
+            case "Mon": return "Monday";
+            case "Tues": return "Tuesday";
+            case "Wed": return "Wednesday";
+            case "Thur": return "Thursday";
+            case "Fri": return "Friday";
+            case "Sat": return "Saturday";
+            case "Sun": return "Sunday";
+            default: return shortDay;
+        }
+    }
+
+    // ✅ KEEP the existing getDayOfWeekFromName method but ensure it exists:
+    private int getDayOfWeekFromName(String dayName) {
+        if (dayName == null) return -1;
+
+        switch (dayName) {
+            case "Sun": return Calendar.SUNDAY;
+            case "Mon": return Calendar.MONDAY;
+            case "Tues": return Calendar.TUESDAY;
+            case "Wed": return Calendar.WEDNESDAY;
+            case "Thur": return Calendar.THURSDAY;
+            case "Fri": return Calendar.FRIDAY;
+            case "Sat": return Calendar.SATURDAY;
+            default: return -1;
+        }
     }
 
     // SCHEDULE DIALOG METHODS

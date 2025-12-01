@@ -27,7 +27,7 @@
                 android:layout_width="17dp"
                 android:layout_height="24dp"
                 android:contentDescription="Back button"
-                android:src="@android:drawable/ic_menu_revert"
+                android:src="@drawable/ic_revert_back_btn"
                 android:tint="#000000" />
 
             <TextView
@@ -65,27 +65,10 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:layout_marginTop="16dp"
-            android:text=""
+            android:text=" "
             android:textColor="#000000"
             android:textSize="22sp"
             android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/btnEditProfile"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginTop="8dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:fontFamily="@font/inter_regular"
-            android:letterSpacing=".1"
-            android:padding="8dp"
-            android:text="@string/underlined_text_edtProfile"
-            android:textColor="#000000"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
         <!-- Email Label -->
         <TextView
             android:layout_width="wrap_content"

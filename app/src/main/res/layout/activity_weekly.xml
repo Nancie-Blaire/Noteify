@@ -7,52 +7,97 @@
     android:background="#F5F5F5">
 
     <!-- Top Bar -->
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="#FFFFFF"
-        android:elevation="2dp"
-        android:paddingStart="8dp"
-        android:paddingEnd="16dp">
+        android:layout_height="120dp"
+        android:layout_marginTop="20dp">
 
+        <!-- Back Button -->
         <ImageView
             android:id="@+id/backButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="@drawable/ic_revert_back_btn"
             android:contentDescription="Back"
             app:tint="#000000"
             android:padding="8dp"
+            android:layout_alignParentStart="true"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
-        <View
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1" />
+        <!-- Title -->
+        <TextView
+            android:id="@+id/weeklyHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Weekly Planner"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:layout_toEndOf="@id/backButton"
+            android:layout_alignTop="@id/backButton"
+            android:layout_alignBottom="@id/backButton"
+            android:gravity="center_vertical"
+            android:layout_marginStart="8dp" />
 
-        <!-- Calendar Icon -->
-        <ImageView
-            android:id="@+id/scheduleButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_calendar"
-            android:contentDescription="Set Schedule"
-            android:padding="8dp"
+        <!-- Secondary Title (editable) -->
+        <EditText
+            android:id="@+id/weeklyTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@android:color/transparent"
+            android:hint="Title of Weekly Planner"
+            android:inputType="textCapWords"
+            android:maxLines="1"
+            android:text="Title of Weekly Planner"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            android:textAlignment="viewEnd"
+            android:gravity="end"/>
+
+        <!-- Action Buttons Container -->
+        <RelativeLayout
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@id/backButton"
+            android:layout_alignParentEnd="true"
+            android:layout_marginTop="-1dp"
             android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:orientation="horizontal">
 
-        <ImageView
-            android:id="@+id/saveButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_check"
-            android:contentDescription="Save"
-            android:padding="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            <!-- Due Date Calendar Button -->
 
-    </LinearLayout>
+            <!-- Save Button -->
+            <ImageView
+                android:id="@+id/scheduleButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Set Due Date"
+                android:padding="8dp"
+                android:src="@drawable/ic_calendar" />
+
+            <ImageView
+                android:id="@+id/saveButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentEnd="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Save"
+                android:padding="8dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_check" />
+
+        </RelativeLayout>
+
+    </RelativeLayout>
 
     <!-- NestedScrollView for Content (CHANGED FROM ScrollView) -->
     <androidx.core.widget.NestedScrollView
@@ -61,36 +106,6 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <!-- Icon -->
-            <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/ic_fab_weeklyplanner"
-                android:contentDescription="Todo icon"
-                android:layout_gravity="start"
-                android:layout_marginBottom="16dp"
-                app:tint="#000000" />
-
-            <!-- Title -->
-            <EditText
-                android:id="@+id/weeklyTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Weekly Plan"
-                android:textSize="32sp"
-                android:textStyle="bold"
-                android:textColor="#000000"
-                android:background="@android:color/transparent"
-                android:inputType="textCapWords"
-                android:maxLines="2"
-                android:layout_marginBottom="16dp" />
 
             <!-- Days Container -->
             <LinearLayout
@@ -116,16 +131,27 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Mon"
+                            android:layout_marginStart="8dp"
+                            android:text="MONDAY"
+                            android:letterSpacing=".2"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:textColor="#000000" />
-
+                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
                         <ImageView
+                            android:id="@+id/mondayScheduleButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_calendar"
+                            android:contentDescription="Set schedule"
+                            android:padding="4dp"
+                            android:layout_marginEnd="4dp"
+                            app:tint="#000000"
+                            android:background="?attr/selectableItemBackgroundBorderless" />
+                                                <ImageView
                             android:id="@+id/addMonTask"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
-                            android:src="@android:drawable/ic_input_add"
+                            android:src="@drawable/ic_fab_add"
                             android:contentDescription="Add task"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="4dp" />
@@ -157,16 +183,27 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Tues"
+                            android:layout_marginStart="8dp"
+                            android:text="TUESDAY"
+                            android:letterSpacing=".2"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:textColor="#000000" />
-
+                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                        <ImageView
+                            android:id="@+id/tuesdayScheduleButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_calendar"
+                            android:contentDescription="Set schedule"
+                            android:padding="4dp"
+                            android:layout_marginEnd="4dp"
+                            app:tint="#000000"
+                            android:background="?attr/selectableItemBackgroundBorderless" />
                         <ImageView
                             android:id="@+id/addTuesTask"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
-                            android:src="@android:drawable/ic_input_add"
+                            android:src="@drawable/ic_fab_add"
                             android:contentDescription="Add task"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="4dp" />
@@ -198,16 +235,27 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Wed"
+                            android:layout_marginStart="8dp"
+                            android:text="WEDNESDAY"
+                            android:letterSpacing=".2"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:textColor="#000000" />
-
+                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                        <ImageView
+                            android:id="@+id/wednesdayScheduleButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_calendar"
+                            android:contentDescription="Set schedule"
+                            android:padding="4dp"
+                            android:layout_marginEnd="4dp"
+                            app:tint="#000000"
+                            android:background="?attr/selectableItemBackgroundBorderless" />
                         <ImageView
                             android:id="@+id/addWedTask"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
-                            android:src="@android:drawable/ic_input_add"
+                            android:src="@drawable/ic_fab_add"
                             android:contentDescription="Add task"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="4dp" />
@@ -239,16 +287,27 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Thur"
+                            android:layout_marginStart="8dp"
+                            android:text="THURSDAY"
+                            android:letterSpacing=".2"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:textColor="#000000" />
-
+                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                        <ImageView
+                            android:id="@+id/thursdayScheduleButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_calendar"
+                            android:contentDescription="Set schedule"
+                            android:padding="4dp"
+                            android:layout_marginEnd="4dp"
+                            app:tint="#000000"
+                            android:background="?attr/selectableItemBackgroundBorderless" />
                         <ImageView
                             android:id="@+id/addThurTask"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
-                            android:src="@android:drawable/ic_input_add"
+                            android:src="@drawable/ic_fab_add"
                             android:contentDescription="Add task"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="4dp" />
@@ -280,16 +339,27 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Fri"
+                            android:layout_marginStart="8dp"
+                            android:text="FRIDAY"
+                            android:letterSpacing=".2"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:textColor="#000000" />
-
+                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                        <ImageView
+                            android:id="@+id/fridayScheduleButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_calendar"
+                            android:contentDescription="Set schedule"
+                            android:padding="4dp"
+                            android:layout_marginEnd="4dp"
+                            app:tint="#000000"
+                            android:background="?attr/selectableItemBackgroundBorderless" />
                         <ImageView
                             android:id="@+id/addFriTask"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
-                            android:src="@android:drawable/ic_input_add"
+                            android:src="@drawable/ic_fab_add"
                             android:contentDescription="Add task"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="4dp" />
@@ -321,16 +391,27 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Sat"
+                            android:layout_marginStart="8dp"
+                            android:text="SATURDAY"
+                            android:letterSpacing=".2"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:textColor="#000000" />
-
+                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                        <ImageView
+                            android:id="@+id/saturdayScheduleButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_calendar"
+                            android:contentDescription="Set schedule"
+                            android:padding="4dp"
+                            android:layout_marginEnd="4dp"
+                            app:tint="#000000"
+                            android:background="?attr/selectableItemBackgroundBorderless" />
                         <ImageView
                             android:id="@+id/addSatTask"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
-                            android:src="@android:drawable/ic_input_add"
+                            android:src="@drawable/ic_fab_add"
                             android:contentDescription="Add task"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="4dp" />
@@ -362,16 +443,27 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Sun"
+                            android:layout_marginStart="8dp"
+                            android:text="SUNDAY"
+                            android:letterSpacing=".2"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:textColor="#000000" />
-
+                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                        <ImageView
+                            android:id="@+id/sundayScheduleButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_calendar"
+                            android:contentDescription="Set schedule"
+                            android:padding="4dp"
+                            android:layout_marginEnd="4dp"
+                            app:tint="#000000"
+                            android:background="?attr/selectableItemBackgroundBorderless" />
                         <ImageView
                             android:id="@+id/addSunTask"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
-                            android:src="@android:drawable/ic_input_add"
+                            android:src="@drawable/ic_fab_add"
                             android:contentDescription="Add task"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:padding="4dp" />
@@ -388,8 +480,171 @@
 
             </LinearLayout>
 
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- ✅ KEYBOARD TOOLBAR (Notion-style, attached to keyboard) -->
+    <HorizontalScrollView
+        android:id="@+id/keyboardToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="#8daaa6"
+        android:elevation="4dp"
+        android:visibility="gone"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="1dp"
+            android:gravity="center_vertical">
+
+            <!-- Headings & Fonts -->
+            <ImageButton
+                android:id="@+id/headingsandfont"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/headings_fonts"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Text Style"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Divider -->
+            <ImageButton
+                android:id="@+id/addDividerOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_notes_feature_divider"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Divider"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Bullet List -->
+            <ImageButton
+                android:id="@+id/addBulletListOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/bullet_points"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Bullet List"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Numbered List -->
+            <ImageButton
+                android:id="@+id/addNumberedListOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/numbered_list"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Numbered List"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Toggle List -->
+            <ImageButton
+                android:id="@+id/addToggleListOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/toggle_list"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Toggle"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Checkbox -->
+            <ImageButton
+                android:id="@+id/addCheckboxOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/checkbox"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Checkbox"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Link -->
+            <ImageButton
+                android:id="@+id/addLinkOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/link"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Link"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Image -->
+            <ImageButton
+                android:id="@+id/insertImage"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_insert_image"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Image"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Table -->
+            <ImageButton
+                android:id="@+id/addTableOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/table_list"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Table"
+                app:tint="#FFFFFF" />
+
+            <!-- Indent -->
+            <ImageButton
+                android:id="@+id/indentOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/indent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Indent"
+                app:tint="#FFFFFF" />
+
+            <!-- Outdent -->
+            <ImageButton
+                android:id="@+id/outdentOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/outdent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Outdent"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Theme -->
+            <ImageButton
+                android:id="@+id/addThemeOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_notes_feature_palette"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Theme"
+                app:tint="#FFFFFFFF" />
+
+            <!-- Subpage -->
+            <ImageButton
+                android:id="@+id/addSubpageOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_fab_notes"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Subpage"
+                app:tint="#FFFFFFFF" />
+
         </LinearLayout>
 
-    </androidx.core.widget.NestedScrollView>
+    </HorizontalScrollView>
 
 </LinearLayout>

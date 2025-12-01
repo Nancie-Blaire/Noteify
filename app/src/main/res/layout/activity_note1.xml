@@ -1,192 +1,165 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/noteLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:background="#FAFAFA"
+    tools:context=".NoteActivity_1">
 
-    <!-- Top Bar -->
-    <RelativeLayout
+    <!-- Top Bar with Check Button -->
+    <LinearLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginTop="20dp">
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:background="#FAFAFA"
+        android:elevation="2dp">
 
-        <!-- Back Button -->
         <ImageView
-            android:id="@+id/backButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_revert_back_btn"
+            android:id="@+id/checkBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_check"
             android:contentDescription="Back"
-            app:tint="#000000"
-            android:padding="8dp"
-            android:layout_alignParentStart="true"
-            android:layout_marginStart="8dp"
-            android:layout_marginTop="16dp"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
-        <!-- Title -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- Bookmarks Link -->
         <TextView
-            android:id="@+id/todoHeader"
+            android:id="@+id/bookmarksLink"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="To-Do List"
-            android:textSize="20sp"
+            android:text="Bookmarks"
+            android:textSize="14sp"
+            android:textColor="#4CAF50"
             android:textStyle="bold"
-            android:textColor="#000000"
-            android:layout_toEndOf="@id/backButton"
-            android:layout_alignTop="@id/backButton"
-            android:layout_alignBottom="@id/backButton"
-            android:gravity="center_vertical"
-            android:layout_marginStart="8dp" />
+            android:padding="8dp"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
 
-        <!-- Secondary Title (editable) -->
-        <EditText
-            android:id="@+id/todoTitle"
+    </LinearLayout>
+
+    <!-- Color Picker Panel (Initially Hidden) -->
+    <HorizontalScrollView
+        android:id="@+id/colorPickerPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/topBar"
+        android:background="#FFFFFF"
+        android:elevation="4dp"
+        android:padding="12dp"
+        android:visibility="gone"
+        android:scrollbars="none">
+
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentBottom="true"
-            android:layout_marginTop="10dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="16dp"
-            android:background="@android:color/transparent"
-            android:hint="Title of Todo List"
-            android:inputType="textCapWords"
-            android:maxLines="1"
-            android:text="Title of Todo List"
-            android:textColor="#000000"
-            android:textSize="16sp"
-            android:textAlignment="viewEnd"
-            android:gravity="end"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <!-- Action Buttons Container -->
-        <RelativeLayout
-            android:layout_width="90dp"
-            android:layout_height="wrap_content"
-            android:layout_alignTop="@id/backButton"
-            android:layout_alignParentEnd="true"
-            android:layout_marginTop="-1dp"
-            android:layout_marginEnd="8dp"
-            android:orientation="horizontal">
+            <View android:id="@+id/colorDefault" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FAFAFA" android:tag="#FAFAFA" />
+            <View android:id="@+id/colorRed" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFCDD2" android:tag="#FFCDD2" />
+            <View android:id="@+id/colorPink" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#F8BBD0" android:tag="#F8BBD0" />
+            <View android:id="@+id/colorPurple" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#E1BEE7" android:tag="#E1BEE7" />
+            <View android:id="@+id/colorBlue" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#BBDEFB" android:tag="#BBDEFB" />
+            <View android:id="@+id/colorCyan" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#B2EBF2" android:tag="#B2EBF2" />
+            <View android:id="@+id/colorGreen" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#C8E6C9" android:tag="#C8E6C9" />
+            <View android:id="@+id/colorYellow" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFF9C4" android:tag="#FFF9C4" />
+            <View android:id="@+id/colorOrange" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFE0B2" android:tag="#FFE0B2" />
+            <View android:id="@+id/colorBrown" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#D7CCC8" android:tag="#D7CCC8" />
+            <View android:id="@+id/colorGrey" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#CFD8DC" android:tag="#CFD8DC" />
 
-            <!-- Due Date Calendar Button -->
+        </LinearLayout>
+    </HorizontalScrollView>
 
-            <!-- Save Button -->
-            <ImageView
-                android:id="@+id/dueDateButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="4dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Set Due Date"
-                android:padding="8dp"
-                android:src="@drawable/ic_calendar" />
-
-            <ImageView
-                android:id="@+id/saveButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_alignParentEnd="true"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Save"
-                android:padding="8dp"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_check" />
-
-        </RelativeLayout>
-
-    </RelativeLayout>
-
-    <!-- ScrollView for Content -->
+    <!-- ✅ MAIN CONTENT (Adjusted to sit above keyboard toolbar) -->
     <ScrollView
+        android:id="@+id/scrollView"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
+        android:layout_below="@id/topBar"
+        android:layout_above="@id/keyboardToolbar"
         android:fillViewport="true">
 
         <LinearLayout
+            android:id="@+id/noteContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="20dp">
 
-            <!-- Due Date Display (shown when due date is set) -->
-            <LinearLayout
-                android:id="@+id/dueDateDisplay"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="@drawable/input_background"
-                android:padding="12dp"
+            <!-- Icon -->
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/ic_fab_notes"
+                android:contentDescription="Todo icon"
+                android:layout_gravity="start"
                 android:layout_marginBottom="16dp"
-                android:gravity="center_vertical"
-                android:visibility="gone">
+                app:tint="#000000" />
 
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_calendar"
-                    android:layout_marginEnd="8dp"
-                    app:tint="#2196F3" />
-
-                <TextView
-                    android:id="@+id/dueDateText"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Due: Nov 15, 2:30 PM"
-                    android:textSize="14sp"
-                    android:textColor="#2196F3" />
-
-                <ImageView
-                    android:id="@+id/clearDateButton"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@android:drawable/ic_menu_close_clear_cancel"
-                    android:padding="2dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    app:tint="#808080" />
-
-            </LinearLayout>
-
-            <!-- Tasks RecyclerView (with drag & drop) -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/tasksContainer"
+            <!-- Note Title -->
+            <EditText
+                android:id="@+id/noteTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+                android:hint="Title"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:inputType="textCapSentences"
+                android:background="@android:color/transparent"
+                android:padding="8dp"
+                android:textColor="#000"
+                android:layout_marginBottom="12dp" />
 
-            <!-- Add Task Button -->
+            <!-- Note Content -->
+            <EditText
+                android:id="@+id/noteContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:gravity="top"
+                android:hint="Start typing your note..."
+                android:inputType="textMultiLine"
+                android:minHeight="200dp"
+                android:padding="8dp"
+                android:textColor="#333"
+                android:textSize="16sp"
+                android:textIsSelectable="true" />
+
             <LinearLayout
-                android:id="@+id/addTaskButton"
+                android:id="@+id/weblinksContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:padding="12dp"
-                android:background="?attr/selectableItemBackground"
+                android:orientation="vertical"
+                android:padding="16dp"/>
+
+            <!-- Subpages Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
                 android:layout_marginTop="8dp">
 
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_fab_add"
-                    android:contentDescription="Add task"
-                    app:tint="#000000" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Add task"
-                    android:textSize="14sp"
-                    android:textColor="#808080"
-                    android:layout_marginStart="8dp" />
 
             </LinearLayout>
+
+            <!-- Bottom padding for keyboard -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="80dp" />
 
         </LinearLayout>
 
@@ -263,6 +236,7 @@
                 android:src="@drawable/toggle_list"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Toggle"
+                android:visibility="gone"
                 app:tint="#FFFFFFFF" />
 
             <!-- Checkbox -->
@@ -307,6 +281,7 @@
                 android:src="@drawable/table_list"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Table"
+                android:visibility="gone"
                 app:tint="#FFFFFF" />
 
             <!-- Indent -->
@@ -357,4 +332,4 @@
 
     </HorizontalScrollView>
 
-</LinearLayout>
+</RelativeLayout>

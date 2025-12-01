@@ -22,7 +22,7 @@ import java.util.Set;
 
 public class BinAdapter extends RecyclerView.Adapter<BinAdapter.BinViewHolder> {
 
-    private List<NotePreview> items;
+    private List<Note> items;
     private Set<String> selectedIds;
     private OnSelectionChangeListener selectionListener;
     private SimpleDateFormat dateFormat;
@@ -31,7 +31,7 @@ public class BinAdapter extends RecyclerView.Adapter<BinAdapter.BinViewHolder> {
         void onSelectionChanged(int selectedCount);
     }
 
-    public BinAdapter(List<NotePreview> items, OnSelectionChangeListener listener) {
+    public BinAdapter(List<Note> items, OnSelectionChangeListener listener) {
         this.items = items;
         this.selectedIds = new HashSet<>();
         this.selectionListener = listener;
@@ -48,7 +48,7 @@ public class BinAdapter extends RecyclerView.Adapter<BinAdapter.BinViewHolder> {
 
     @Override
     public void onBindViewHolder(@NonNull BinViewHolder holder, int position) {
-        NotePreview note = items.get(position);
+        Note note = items.get(position);
         String noteId = note.getId();
 
         // Set title
@@ -116,9 +116,9 @@ public class BinAdapter extends RecyclerView.Adapter<BinAdapter.BinViewHolder> {
         return items.size();
     }
 
-    public List<NotePreview> getSelectedItems() {
-        List<NotePreview> selected = new ArrayList<>();
-        for (NotePreview note : items) {
+    public List<Note> getSelectedItems() {
+        List<Note> selected = new ArrayList<>();
+        for (Note note : items) {
             if (selectedIds.contains(note.getId())) {
                 selected.add(note);
             }

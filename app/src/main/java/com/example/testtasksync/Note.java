@@ -3,7 +3,7 @@ package com.example.testtasksync;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NotePreview {
+public class Note {
     private String id;
     private String title;
     private String content;
@@ -19,12 +19,12 @@ public class NotePreview {
     private String category;  // For schedules: "todo" or "weekly"
 
     // Empty constructor for Firestore
-    public NotePreview() {
+    public Note() {
         this.subpageIds = new ArrayList<>();
         this.isLocked = false;
     }
 
-    public NotePreview(String id, String title, String content) {
+    public Note(String id, String title, String content) {
         this.id = id;
         this.title = title;
         this.content = content;
@@ -32,7 +32,7 @@ public class NotePreview {
         this.isLocked = false;
     }
 
-    public NotePreview(String id, String title, String content, boolean isPrio) {
+    public Note(String id, String title, String content, boolean isPrio) {
         this.id = id;
         this.title = title;
         this.content = content;

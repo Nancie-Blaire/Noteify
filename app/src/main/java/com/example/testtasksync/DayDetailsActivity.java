@@ -166,9 +166,6 @@ public class DayDetailsActivity extends AppCompatActivity {
 
     private void handleTaskCompletion(Schedule schedule) {
         Log.d(TAG, "🔥 handleTaskCompletion CALLED for: " + schedule.getTitle());
-        Log.d(TAG, "🔥 Schedule ID: " + schedule.getId());
-        Log.d(TAG, "🔥 Category: " + schedule.getCategory());
-        Log.d(TAG, "🔥 Current list size: " + scheduleList.size());
 
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
@@ -179,50 +176,44 @@ public class DayDetailsActivity extends AppCompatActivity {
         String category = schedule.getCategory();
         String sourceId = schedule.getSourceId();
 
-        // ✅ Find the position first (DON'T remove yet - animate first!)
-        int removedPosition = -1;
-        for (int i = scheduleList.size() - 1; i >= 0; i--) {
+        // ✅ CRITICAL FIX: Find and remove from list IMMEDIATELY
+        int positionIndex = -1;
+        for (int i = 0; i < scheduleList.size(); i++) {
             if (scheduleList.get(i).getId().equals(schedule.getId())) {
-                Log.d(TAG, "✅ Found item at position: " + i);
-                removedPosition = i;
+                positionIndex = i;
                 break;
             }
         }
 
-        if (removedPosition == -1) {
+        if (positionIndex == -1) {
             Log.e(TAG, "❌ Item not found in list!");
             return;
         }
 
-        final int finalPosition = removedPosition;
+        // ✅ Make final for lambda
+        final int finalPosition = positionIndex;
 
-        // ✅ Add smooth animation BEFORE removing
-        View itemView = schedulesRecyclerView.getLayoutManager().findViewByPosition(finalPosition);
-        if (itemView != null) {
-            itemView.animate()
-                    .alpha(0f)
-                    .translationX(-itemView.getWidth())
-                    .setDuration(REMOVAL_DELAY_MS)
-                    .withEndAction(() -> {
-                        // Remove from list AFTER animation
-                        scheduleList.remove(finalPosition);
-                        adapter.notifyItemRemoved(finalPosition);
-                        updateScheduleDisplay();
-                        Log.d(TAG, "📊 After removal, list size: " + scheduleList.size());
-                    })
-                    .start();
-        } else {
-            // Fallback if view not found (just remove immediately)
+        // ✅ IMPORTANT: Use Handler.post to ensure UI update happens after current pass
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            // Remove from list
             scheduleList.remove(finalPosition);
-            adapter.notifyItemRemoved(finalPosition);
-            updateScheduleDisplay();
-        }
 
-        // ✅ Update Firestore (happens in parallel with animation)
+            // Notify adapter
+            adapter.notifyItemRemoved(finalPosition);
+
+            // ✅ CRITICAL: Update all remaining items
+            if (finalPosition < scheduleList.size()) {
+                adapter.notifyItemRangeChanged(finalPosition, scheduleList.size());
+            }
+
+            updateScheduleDisplay();
+
+            Log.d(TAG, "📊 After removal, list size: " + scheduleList.size());
+        });
+
+        // ✅ Update Firestore in parallel
         if ("weekly".equals(category)) {
-            // Mark weekly task as completed
             String taskId = schedule.getId().replace(sourceId + "_", "");
-            Log.d(TAG, "📝 Updating weekly task: " + taskId);
 
             db.collection("users")
                     .document(user.getUid())
@@ -232,28 +223,23 @@ public class DayDetailsActivity extends AppCompatActivity {
                     .document(taskId)
                     .update("isCompleted", true)
                     .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "✅ Weekly task marked as completed in Firestore");
+                        Log.d(TAG, "✅ Weekly task marked as completed");
                         Toast.makeText(this, "✓ Task completed", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "❌ Failed to complete weekly task", e);
                         Toast.makeText(this, "Failed to complete task", Toast.LENGTH_SHORT).show();
 
-                        // ✅ Rollback: Re-add the item if Firestore update failed
-                        scheduleList.add(schedule);
-                        Collections.sort(scheduleList, (s1, s2) -> {
-                            String t1 = s1.getTime() != null ? s1.getTime() : "";
-                            String t2 = s2.getTime() != null ? s2.getTime() : "";
-                            return t1.compareTo(t2);
+                        // ✅ Rollback: Re-add the item
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            scheduleList.add(finalPosition, schedule);
+                            adapter.notifyItemInserted(finalPosition);
+                            updateScheduleDisplay();
                         });
-                        adapter.notifyDataSetChanged();
-                        updateScheduleDisplay();
                     });
 
         } else if ("todo_task".equals(category)) {
-            // Mark todo task as completed
             String taskId = schedule.getId().replace(sourceId + "_task_", "");
-            Log.d(TAG, "📝 Updating todo task: " + taskId);
 
             db.collection("users")
                     .document(user.getUid())
@@ -263,25 +249,20 @@ public class DayDetailsActivity extends AppCompatActivity {
                     .document(taskId)
                     .update("isCompleted", true)
                     .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "✅ Todo task marked as completed in Firestore");
+                        Log.d(TAG, "✅ Todo task marked as completed");
                         Toast.makeText(this, "✓ Task completed", Toast.LENGTH_SHORT).show();
-
-                        // ✅ UPDATE: Also update the todoList's completion count
                         updateTodoListCompletionCount(user.getUid(), sourceId);
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "❌ Failed to complete todo task", e);
                         Toast.makeText(this, "Failed to complete task", Toast.LENGTH_SHORT).show();
 
-                        // ✅ Rollback: Re-add the item if Firestore update failed
-                        scheduleList.add(schedule);
-                        Collections.sort(scheduleList, (s1, s2) -> {
-                            String t1 = s1.getTime() != null ? s1.getTime() : "";
-                            String t2 = s2.getTime() != null ? s2.getTime() : "";
-                            return t1.compareTo(t2);
+                        // ✅ Rollback: Re-add the item
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            scheduleList.add(finalPosition, schedule);
+                            adapter.notifyItemInserted(finalPosition);
+                            updateScheduleDisplay();
                         });
-                        adapter.notifyDataSetChanged();
-                        updateScheduleDisplay();
                     });
         } else {
             Log.e(TAG, "❌ Unknown category: " + category);
@@ -661,98 +642,146 @@ public class DayDetailsActivity extends AppCompatActivity {
 
         Log.d(TAG, "🔎 Loading tasks for plan: " + planId + ", day: " + dayName);
 
-        // ✅ First, get the weekly plan details (including time)
+        // ✅ STEP 1: Load day-specific schedules first (highest priority)
         db.collection("users")
                 .document(user.getUid())
                 .collection("weeklyPlans")
                 .document(planId)
+                .collection("daySchedules")
+                .whereEqualTo("day", dayName)
                 .get()
-                .addOnSuccessListener(planDoc -> {
-                    String weeklyPlanTime = "";
+                .addOnSuccessListener(dayScheduleSnapshots -> {
+                    // Store day schedules with their times
+                    java.util.Map<Integer, String> dayScheduleTimes = new java.util.HashMap<>();
 
-                    if (planDoc.exists()) {
-                        weeklyPlanTime = planDoc.getString("time");
-                        Log.d(TAG, "📅 Weekly plan time: " + weeklyPlanTime);
+                    for (QueryDocumentSnapshot dayScheduleDoc : dayScheduleSnapshots) {
+                        Long scheduleNumber = dayScheduleDoc.getLong("scheduleNumber");
+                        String dayTime = dayScheduleDoc.getString("time");
+
+                        if (scheduleNumber != null && dayTime != null && !dayTime.isEmpty()) {
+                            dayScheduleTimes.put(scheduleNumber.intValue(), dayTime);
+                            Log.d(TAG, "📅 Found day schedule " + scheduleNumber + " for " + dayName + ": " + dayTime);
+                        }
                     }
 
-                    final String planTime = weeklyPlanTime != null ? weeklyPlanTime : "";
-
-                    // ✅ Now load the tasks for this specific day
+                    // ✅ STEP 2: Get the weekly plan's global time as fallback
                     db.collection("users")
                             .document(user.getUid())
                             .collection("weeklyPlans")
                             .document(planId)
-                            .collection("tasks")
-                            .whereEqualTo("day", dayName)
                             .get()
-                            .addOnSuccessListener(taskSnapshots -> {
-                                if (taskSnapshots.isEmpty()) {
-                                    Log.d(TAG, "⚠️ No tasks found for " + dayName + " in plan " + planId);
-                                } else {
-                                    Log.d(TAG, "📋 Found " + taskSnapshots.size() + " task(s) for " + dayName);
+                            .addOnSuccessListener(planDoc -> {
+                                String weeklyPlanTime = "";
+
+                                if (planDoc.exists()) {
+                                    weeklyPlanTime = planDoc.getString("time");
+                                    Log.d(TAG, "📅 Weekly plan global time: " + weeklyPlanTime);
                                 }
 
-                                for (QueryDocumentSnapshot taskDoc : taskSnapshots) {
-                                    String taskText = taskDoc.getString("taskText");
-                                    Boolean isCompleted = taskDoc.getBoolean("isCompleted");
-                                    String taskDay = taskDoc.getString("day");
+                                final String planTime = weeklyPlanTime != null ? weeklyPlanTime : "";
 
-                                    Log.d(TAG, "📝 Task: '" + taskText + "', Day: " + taskDay + ", Completed: " + isCompleted);
+                                // ✅ STEP 3: Load tasks and apply the correct time
+                                db.collection("users")
+                                        .document(user.getUid())
+                                        .collection("weeklyPlans")
+                                        .document(planId)
+                                        .collection("tasks")
+                                        .whereEqualTo("day", dayName)
+                                        .get()
+                                        .addOnSuccessListener(taskSnapshots -> {
+                                            if (taskSnapshots.isEmpty()) {
+                                                Log.d(TAG, "⚠️ No tasks found for " + dayName + " in plan " + planId);
+                                            } else {
+                                                Log.d(TAG, "📋 Found " + taskSnapshots.size() + " task(s) for " + dayName);
+                                            }
 
-                                    if (taskText == null || taskText.trim().isEmpty()) {
-                                        Log.d(TAG, "⏭️ Skipping empty task");
-                                        continue;
-                                    }
+                                            for (QueryDocumentSnapshot taskDoc : taskSnapshots) {
+                                                String taskText = taskDoc.getString("taskText");
+                                                Boolean isCompleted = taskDoc.getBoolean("isCompleted");
+                                                String taskDay = taskDoc.getString("day");
 
-                                    // ✅ SKIP COMPLETED TASKS - don't show them in DayDetails
-                                    if (isCompleted != null && isCompleted) {
-                                        Log.d(TAG, "⏭️ Skipping completed task: " + taskText);
-                                        continue;
-                                    }
+                                                Log.d(TAG, "📝 Task: '" + taskText + "', Day: " + taskDay + ", Completed: " + isCompleted);
 
-                                    Schedule taskSchedule = new Schedule();
-                                    taskSchedule.setId(planId + "_" + taskDoc.getId());
-                                    taskSchedule.setTitle(taskText);
-                                    taskSchedule.setCategory("weekly");
-                                    taskSchedule.setSourceId(planId);
-                                    taskSchedule.setCompleted(false); // Always false since we filtered completed ones
-                                    taskSchedule.setDate(new Timestamp(selectedDate.getTime()));
+                                                if (taskText == null || taskText.trim().isEmpty()) {
+                                                    Log.d(TAG, "⏭️ Skipping empty task");
+                                                    continue;
+                                                }
 
-                                    // ✅ Set the time from the weekly plan
-                                    if (!planTime.isEmpty()) {
-                                        taskSchedule.setTime(planTime);
-                                        Log.d(TAG, "⏰ Set time for task: " + planTime);
-                                    }
+                                                // ✅ SKIP COMPLETED TASKS
+                                                if (isCompleted != null && isCompleted) {
+                                                    Log.d(TAG, "⏭️ Skipping completed task: " + taskText);
+                                                    continue;
+                                                }
 
-                                    boolean exists = false;
-                                    for (Schedule s : scheduleList) {
-                                        if (s.getId().equals(taskSchedule.getId())) {
-                                            exists = true;
-                                            break;
-                                        }
-                                    }
+                                                // ✅ CRITICAL FIX: Determine which time to use
+                                                // Priority: Day Schedule 1 > Day Schedule 2 > ... > Global Weekly Plan Time
+                                                String timeToUse = planTime; // Start with global time as fallback
 
-                                    if (!exists) {
-                                        scheduleList.add(taskSchedule);
-                                        Log.d(TAG, "✅ Added task to schedule list with time: " + planTime);
-                                    } else {
-                                        Log.d(TAG, "⚠️ Task already in schedule list");
-                                    }
-                                }
+                                                if (!dayScheduleTimes.isEmpty()) {
+                                                    // Use the first day schedule time (schedule number 1)
+                                                    if (dayScheduleTimes.containsKey(1)) {
+                                                        timeToUse = dayScheduleTimes.get(1);
+                                                        Log.d(TAG, "⏰ Using day schedule 1 time: " + timeToUse);
+                                                    }
 
-                                if (onComplete != null) {
-                                    onComplete.run();
-                                }
+                                                    // If you want to create multiple schedule entries per day schedule:
+                                                    // Loop through dayScheduleTimes and create a schedule for each
+                                                    // For now, we'll just use the first one for all tasks
+                                                }
+
+                                                Schedule taskSchedule = new Schedule();
+                                                taskSchedule.setId(planId + "_" + taskDoc.getId());
+                                                taskSchedule.setTitle(taskText);
+                                                taskSchedule.setCategory("weekly");
+                                                taskSchedule.setSourceId(planId);
+                                                taskSchedule.setCompleted(false);
+                                                taskSchedule.setDate(new Timestamp(selectedDate.getTime()));
+
+                                                // ✅ Set the time (day-specific or global)
+                                                if (!timeToUse.isEmpty()) {
+                                                    taskSchedule.setTime(timeToUse);
+                                                    Log.d(TAG, "⏰ Set time for task '" + taskText + "': " + timeToUse);
+                                                } else {
+                                                    Log.d(TAG, "⚠️ No time set for task '" + taskText + "'");
+                                                }
+
+                                                // Check if already exists
+                                                boolean exists = false;
+                                                for (Schedule s : scheduleList) {
+                                                    if (s.getId().equals(taskSchedule.getId())) {
+                                                        exists = true;
+                                                        break;
+                                                    }
+                                                }
+
+                                                if (!exists) {
+                                                    scheduleList.add(taskSchedule);
+                                                    Log.d(TAG, "✅ Added task to schedule list with time: " + timeToUse);
+                                                } else {
+                                                    Log.d(TAG, "⚠️ Task already in schedule list");
+                                                }
+                                            }
+
+                                            if (onComplete != null) {
+                                                onComplete.run();
+                                            }
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.e(TAG, "Failed to load weekly plan tasks for " + dayName, e);
+                                            if (onComplete != null) {
+                                                onComplete.run();
+                                            }
+                                        });
                             })
                             .addOnFailureListener(e -> {
-                                Log.e(TAG, "Failed to load weekly plan tasks for " + dayName, e);
+                                Log.e(TAG, "Failed to load weekly plan details", e);
                                 if (onComplete != null) {
                                     onComplete.run();
                                 }
                             });
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to load weekly plan details", e);
+                    Log.e(TAG, "Failed to load day schedules for " + dayName, e);
                     if (onComplete != null) {
                         onComplete.run();
                     }
@@ -862,13 +891,16 @@ public class DayDetailsActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
-        int deleteCount = 0;
+        int deleteCount = selectedSchedules.size();
 
-        for (Schedule schedule : selectedSchedules) {
+        // ✅ Create a copy to avoid concurrent modification
+        List<Schedule> schedulesToDelete = new ArrayList<>(selectedSchedules);
+
+        for (Schedule schedule : schedulesToDelete) {
             String category = schedule.getCategory();
 
             if ("weekly".equals(category)) {
-                // ✅ Delete weekly task (stays the same)
+                // ✅ Delete weekly task
                 String sourceId = schedule.getSourceId();
                 if (sourceId != null) {
                     String taskId = schedule.getId().replace(sourceId + "_", "");
@@ -881,18 +913,18 @@ public class DayDetailsActivity extends AppCompatActivity {
                             .document(taskId)
                             .delete()
                             .addOnSuccessListener(aVoid -> {
-                                Log.d(TAG, "Weekly task deleted");
-                                // ✅ Remove from local list immediately
-                                scheduleList.remove(schedule);
+                                Log.d(TAG, "✅ Weekly task deleted");
+                                // ✅ Remove from adapter using the new method
+                                adapter.removeSchedule(schedule);
                                 updateScheduleDisplay();
                             })
                             .addOnFailureListener(e -> {
-                                Log.e(TAG, "Failed to delete weekly task", e);
+                                Log.e(TAG, "❌ Failed to delete weekly task", e);
+                                Toast.makeText(this, "Failed to delete some items", Toast.LENGTH_SHORT).show();
                             });
-                    deleteCount++;
                 }
             } else if ("todo_task".equals(category)) {
-                // ✅ Delete individual todo task (immediate delete)
+                // ✅ Delete individual todo task
                 String sourceId = schedule.getSourceId();
                 if (sourceId != null) {
                     String taskId = schedule.getId().replace(sourceId + "_task_", "");
@@ -905,19 +937,18 @@ public class DayDetailsActivity extends AppCompatActivity {
                             .document(taskId)
                             .delete()
                             .addOnSuccessListener(aVoid -> {
-                                Log.d(TAG, "✅ Todo task deleted immediately");
-                                // ✅ Remove from local list immediately
-                                scheduleList.remove(schedule);
+                                Log.d(TAG, "✅ Todo task deleted");
+                                // ✅ Remove from adapter using the new method
+                                adapter.removeSchedule(schedule);
                                 updateScheduleDisplay();
                             })
                             .addOnFailureListener(e -> {
-                                Log.e(TAG, "Failed to delete todo task", e);
+                                Log.e(TAG, "❌ Failed to delete todo task", e);
+                                Toast.makeText(this, "Failed to delete some items", Toast.LENGTH_SHORT).show();
                             });
-                    deleteCount++;
                 }
             } else {
-                // ✅ FIXED: Soft delete for "todo" category (and any other category)
-                // Instead of .delete(), use soft delete by setting deletedAt
+                // ✅ Soft delete for "todo" category and others
                 db.collection("users")
                         .document(user.getUid())
                         .collection("schedules")
@@ -925,6 +956,9 @@ public class DayDetailsActivity extends AppCompatActivity {
                         .update("deletedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
                         .addOnSuccessListener(aVoid -> {
                             Log.d(TAG, "✅ Schedule soft-deleted (sent to Bin)");
+                            // ✅ Remove from adapter using the new method
+                            adapter.removeSchedule(schedule);
+                            updateScheduleDisplay();
 
                             // ✅ Also soft delete the source todoList if it exists
                             String sourceId = schedule.getSourceId();
@@ -943,9 +977,9 @@ public class DayDetailsActivity extends AppCompatActivity {
                             }
                         })
                         .addOnFailureListener(e -> {
-                            Log.e(TAG, "Failed to soft-delete schedule", e);
+                            Log.e(TAG, "❌ Failed to soft-delete schedule", e);
+                            Toast.makeText(this, "Failed to delete some items", Toast.LENGTH_SHORT).show();
                         });
-                deleteCount++;
             }
         }
 

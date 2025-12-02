@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/lightmode_bg">
-
+<!--COMMENT-->
     <!-- Header with Back Button -->
     <LinearLayout
         android:id="@+id/header"
@@ -216,6 +216,7 @@
                             android:id="@+id/rbNotificationOn"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:text="On"
                             android:textStyle="bold"
                             android:textSize="14sp"
                             android:textColor="#333333"
@@ -225,6 +226,7 @@
                             android:id="@+id/rbNotificationOff"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:text="Off"
                             android:textStyle="bold"
                             android:textSize="14sp"
                             android:textColor="#333333"/>

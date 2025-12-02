@@ -64,7 +64,8 @@ public class NoteBlock {
         this.listNumber = 1;
         this.isChunked = false;
         this.sizeKB = 0;
-        this.fontColor = "#333333"; // Default black color
+        this.fontColor = "#333333";
+        this.styleData = null;// Default black color
     }
 
     // Empty constructor for Firestore

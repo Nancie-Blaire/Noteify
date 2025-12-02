@@ -489,11 +489,29 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private void addTextBlock() {
         NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
         block.setPosition(blocks.size());
+
+        // ✅ FIX: Set default to "normal" style (same as clicking "normal" button)
+        block.setStyleData(null); // No special styling
+        block.setFontColor("#333333"); // Default black color
+
         blocks.add(block);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(block);
 
-        focusBlock(blocks.size() - 1, 0);
+        // ✅ CRITICAL: Apply the same "normal" treatment as convertToNormalText()
+        // This makes text selection work immediately
+        blocksRecycler.post(() -> {
+            blocksRecycler.postDelayed(() -> {
+                int position = blocks.size() - 1;
+                if (position >= 0 && position < blocks.size()) {
+                    // Force refresh the block to apply "normal" state
+                    adapter.notifyItemChanged(position);
+
+                    // Focus with proper cursor position (this activates selection)
+                    focusBlock(position, 0);
+                }
+            }, 100);
+        });
     }
 
     // ✅ UPDATED: addHeadingBlock - Replace empty text
@@ -766,7 +784,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 return 0;
         }
     }
+
+
     //COLOR PICKER
+
+
     private void setupColorPicker() {
         findViewById(R.id.colorDefault).setOnClickListener(v -> changeNoteColor("#FAFAFA"));
         findViewById(R.id.colorRed).setOnClickListener(v -> changeNoteColor("#FFCDD2"));
@@ -2361,5 +2383,29 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 });
     }
 
+    private void forceEnableTextSelection() {
+        blocksRecycler.post(() -> {
+            // Loop through all visible ViewHolders
+            for (int i = 0; i < blocksRecycler.getChildCount(); i++) {
+                View child = blocksRecycler.getChildAt(i);
+                RecyclerView.ViewHolder holder = blocksRecycler.getChildViewHolder(child);
+
+                // Find the EditText in the ViewHolder
+                EditText editText = child.findViewById(R.id.contentEdit);
+                if (editText != null) {
+                    // Force enable selection
+                    editText.setEnabled(true);
+                    editText.setFocusable(true);
+                    editText.setFocusableInTouchMode(true);
+                    editText.setLongClickable(true);
+                    editText.setClickable(true);
+                    editText.setCursorVisible(true);
+
+                    // ✅ CRITICAL: Request layout to refresh state
+                    editText.requestLayout();
+                }
+            }
+        });
+    }
 
 }

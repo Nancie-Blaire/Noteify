@@ -12,14 +12,17 @@ import android.text.Editable;
 import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextWatcher;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.ImageSpan;
+import android.text.style.UnderlineSpan;
 import android.util.Log;
 import android.view.ActionMode;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -8248,4 +8251,6 @@ public class NoteActivity_1 extends AppCompatActivity {
     }
 
     //
+
+
 }

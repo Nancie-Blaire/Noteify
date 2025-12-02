@@ -1488,13 +1488,14 @@ public class TodoActivity extends AppCompatActivity {
                                                 !task.isCompleted() &&
                                                 task.getScheduleDate() != null) {
 
-                                            NotificationHelper.scheduleTodoTaskNotification(  // ✅ CHANGED METHOD NAME
+                                            NotificationHelper.scheduleTodoTaskNotification(
                                                     this,
-                                                    newTaskId,
-                                                    task.getTaskText(),  // ✅ REMOVED listTitle parameter
-                                                    task.getScheduleDate(),
-                                                    task.getScheduleTime(),
-                                                    task.getNotificationMinutes()
+                                                    listId,              // ✅ ADDED: Pass listId first
+                                                    newTaskId,           // Task ID
+                                                    task.getTaskText(),  // Task text
+                                                    task.getScheduleDate(),    // Date
+                                                    task.getScheduleTime(),    // Time
+                                                    task.getNotificationMinutes() // Reminder minutes
                                             );
                                             Log.d(TAG, "🔔 Scheduled notification for: " + task.getTaskText());
                                         }

@@ -6,7 +6,9 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -43,9 +45,12 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import androidx.activity.OnBackPressedCallback;
+import android.graphics.Color;
 
 //COLOR PICKER
 import android.graphics.Color;
+import org.json.JSONObject;
+import org.json.JSONException;
 
 public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.OnBlockChangeListener {
 
@@ -96,6 +101,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private View colorPickerPanel;
     private RelativeLayout noteLayout;
     private String currentNoteColor = "#FAFAFA";
+    private boolean isSelectingForBookmark = false;
+    private int bookmarkStartIndex = -1;
+    private int bookmarkEndIndex = -1;
+    private String selectedBlockIdForBookmark = null;
+    private String selectedTextForBookmark = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -128,6 +138,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         blocksRecycler = findViewById(R.id.blocksRecycler);
         backBtn = findViewById(R.id.checkBtn);
         keyboardToolbar = findViewById(R.id.keyboardToolbar);
+
+        View emptySpace = findViewById(R.id.emptySpace);
+        setupEmptySpaceClick(emptySpace);
+
+
 
         // Initialize keyboard toolbar buttons
         headingsAndFont = findViewById(R.id.headingsandfont);
@@ -183,6 +198,13 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Show keyboard toolbar
         keyboardToolbar.setVisibility(View.VISIBLE);
+
+        ImageView viewBookmarksBtn = findViewById(R.id.viewBookmarksBtn);
+        viewBookmarksBtn.setOnClickListener(v -> {
+            Intent intent = new Intent(this, BookmarksActivity.class);
+            intent.putExtra("noteId", noteId);
+            startActivity(intent);
+        });
     }
 
     private void setupKeyboardToolbar() {
@@ -207,50 +229,16 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         // Image
         insertImageBtn.setOnClickListener(v -> addImageBlock());
 
-        indentBtn.setOnClickListener(v -> {
-            int focusedPosition = findFocusedBlockPosition();
-            if (focusedPosition != -1) {
-                indentBlock(focusedPosition);
-            } else {
-                Toast.makeText(this, "Focus on a block to indent", Toast.LENGTH_SHORT).show();
-            }
-        });
+        // Indent (to be implemented)
+        indentBtn.setOnClickListener(v -> indentCurrentBlock());
+
         // Outdent (to be implemented)
-        outdentBtn.setOnClickListener(v -> {
-            int focusedPosition = findFocusedBlockPosition();
-            if (focusedPosition != -1) {
-                outdentBlock(focusedPosition);
-            } else {
-                Toast.makeText(this, "Focus on a block to outdent", Toast.LENGTH_SHORT).show();
-            }
-        });
+        outdentBtn.setOnClickListener(v -> outdentCurrentBlock());
+
         // Theme
         addThemeBtn.setOnClickListener(v -> toggleColorPicker());
         // Subpage
         addSubpageBtn.setOnClickListener(v -> addSubpageBlock());
-    }
-
-    private void showHeadingOptions() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle("Select Heading");
-
-        String[] options = {
-                "Normal Text",
-                "Heading 1",
-                "Heading 2",
-                "Heading 3"
-        };
-
-        builder.setItems(options, (dialog, which) -> {
-            switch (which) {
-                case 0: addTextBlock(); break;
-                case 1: addHeadingBlock(NoteBlock.BlockType.HEADING_1); break;
-                case 2: addHeadingBlock(NoteBlock.BlockType.HEADING_2); break;
-                case 3: addHeadingBlock(NoteBlock.BlockType.HEADING_3); break;
-            }
-        });
-
-        builder.show();
     }
 
     @Override
@@ -339,7 +327,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         this.noteId = noteId;
     }
 
-
     private void createNewNote() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -347,7 +334,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         noteId = db.collection("users").document(user.getUid())
                 .collection("notes").document().getId();
 
-        // ✅ UPDATE: Set noteId in adapter after creating it
         adapter.setNoteId(noteId);
 
         Map<String, Object> newNote = new HashMap<>();
@@ -360,6 +346,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         addTextBlock();
     }
+
     private void loadNote() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -494,121 +481,198 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         blocks.add(block);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(block);
+
+        focusBlock(blocks.size() - 1, 0);
     }
 
+    // ✅ UPDATED: addHeadingBlock - Replace empty text
     private void addHeadingBlock(NoteBlock.BlockType headingType) {
-        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", headingType);
-        block.setPosition(blocks.size());
-        blocks.add(block);
-        adapter.notifyItemInserted(blocks.size() - 1);
-        saveBlock(block);
-    }
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(headingType);
 
+        if (!replacedEmptyBlock) {
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", headingType);
+            block.setPosition(blocks.size());
+            blocks.add(block);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(block);
+
+            focusBlock(blocks.size() - 1, 0);
+        }
+    }
     private void addBulletBlock() {
-        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
-        block.setPosition(blocks.size());
-        blocks.add(block);
-        adapter.notifyItemInserted(blocks.size() - 1);
-        saveBlock(block);
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.BULLET);
+
+        if (!replacedEmptyBlock) {
+            // No empty text to replace, create new bullet
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
+            block.setPosition(blocks.size());
+            blocks.add(block);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(block);
+
+            focusBlock(blocks.size() - 1, 0);
+        }
     }
 
     private void addNumberedBlock() {
-        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
-        block.setPosition(blocks.size());
-        block.setListNumber(1);
-        blocks.add(block);
-        adapter.notifyItemInserted(blocks.size() - 1);
-        renumberLists();
-        saveBlock(block);
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.NUMBERED);
+
+        if (!replacedEmptyBlock) {
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
+            block.setPosition(blocks.size());
+            block.setListNumber(1);
+            blocks.add(block);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            renumberLists();
+            saveBlock(block);
+
+            focusBlock(blocks.size() - 1, 0);
+        }
     }
 
+    // ✅ UPDATED: addCheckboxBlock - Replace empty text
     private void addCheckboxBlock() {
-        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
-        block.setPosition(blocks.size());
-        blocks.add(block);
-        adapter.notifyItemInserted(blocks.size() - 1);
-        saveBlock(block);
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.CHECKBOX);
+
+        if (!replacedEmptyBlock) {
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
+            block.setPosition(blocks.size());
+            blocks.add(block);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(block);
+
+            focusBlock(blocks.size() - 1, 0);
+        }
     }
 
     private void addDividerBlock() {
-        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.DIVIDER);
-        block.setPosition(blocks.size());
-        block.setDividerStyle("solid");
-        blocks.add(block);
-        adapter.notifyItemInserted(blocks.size() - 1);
-        saveBlock(block);
-    }
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.DIVIDER);
 
-    private int findFocusedBlockPosition() {
-        // Find which block currently has focus
-        for (int i = 0; i < blocks.size(); i++) {
-            View view = blocksRecycler.getLayoutManager().findViewByPosition(i);
-            if (view != null && view.hasFocus()) {
-                return i;
-            }
+        if (!replacedEmptyBlock) {
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.DIVIDER);
+            block.setPosition(blocks.size());
+            block.setDividerStyle("solid");
+            blocks.add(block);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(block);
 
-            // Check if any child view has focus (for EditText inside blocks)
-            if (view != null && view.findFocus() != null) {
-                View focusedView = view.findFocus();
-                if (focusedView.getParent() == view ||
-                        ((View)focusedView.getParent()).getParent() == view) {
-                    return i;
-                }
-            }
+            blocksRecycler.post(() -> {
+                blocksRecycler.smoothScrollToPosition(blocks.size() - 1);
+            });
         }
-        return -1;
     }
 
-    private void indentBlock(int position) {
-        NoteBlock block = blocks.get(position);
-
-        // Maximum indent level is 3
-        if (block.getIndentLevel() >= 3) {
-            Toast.makeText(this, "Maximum indent level reached", Toast.LENGTH_SHORT).show();
+    //indent & outdent
+    private void indentCurrentBlock() {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Some block types shouldn't be indented
-        if (block.getType() == NoteBlock.BlockType.DIVIDER ||
-                block.getType() == NoteBlock.BlockType.IMAGE ||
-                block.getType() == NoteBlock.BlockType.SUBPAGE) {
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        if (canIndent(block)) {
+            int currentIndent = block.getIndentLevel();
+            int maxIndent = getMaxIndentForType(block.getType());
+
+            if (currentIndent < maxIndent) {
+                block.setIndentLevel(currentIndent + 1);
+                adapter.notifyItemChanged(position);
+                saveBlock(block);
+                renumberLists(); // ✅ Renumber after indent change
+                focusedView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+            } else {
+                Toast.makeText(this, "Maximum indent level reached", Toast.LENGTH_SHORT).show();
+            }
+        } else {
             Toast.makeText(this, "This block type cannot be indented", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ✅ NEW: Outdent functionality
+    private void outdentCurrentBlock() {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        block.setIndentLevel(block.getIndentLevel() + 1);
-        adapter.notifyItemChanged(position);
-        saveBlock(block);
-
-        // If it's a numbered list, renumber
-        if (block.getType() == NoteBlock.BlockType.NUMBERED) {
-            renumberLists();
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        Toast.makeText(this, "Indented", Toast.LENGTH_SHORT).show();
-    }
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
 
-    private void outdentBlock(int position) {
         NoteBlock block = blocks.get(position);
 
-        // Can't outdent if already at level 0
-        if (block.getIndentLevel() <= 0) {
-            Toast.makeText(this, "Already at minimum indent", Toast.LENGTH_SHORT).show();
-            return;
+        if (canIndent(block)) {
+            int currentIndent = block.getIndentLevel();
+
+            if (currentIndent > 0) {
+                block.setIndentLevel(currentIndent - 1);
+                adapter.notifyItemChanged(position);
+                saveBlock(block);
+                renumberLists(); // ✅ Renumber after outdent change
+                focusedView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+            } else {
+                Toast.makeText(this, "Already at minimum indent level", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "This block type cannot be outdented", Toast.LENGTH_SHORT).show();
         }
-
-        block.setIndentLevel(block.getIndentLevel() - 1);
-        adapter.notifyItemChanged(position);
-        saveBlock(block);
-
-        // If it's a numbered list, renumber
-        if (block.getType() == NoteBlock.BlockType.NUMBERED) {
-            renumberLists();
-        }
-
-        Toast.makeText(this, "Outdented", Toast.LENGTH_SHORT).show();
     }
 
+    // ✅ NEW: Check if block type supports indenting
+    private boolean canIndent(NoteBlock block) {
+        switch (block.getType()) {
+            case TEXT:
+            case BULLET:
+            case NUMBERED:
+            case CHECKBOX:
+                return true;
+            case HEADING_1:
+            case HEADING_2:
+            case HEADING_3:
+            case IMAGE:
+            case DIVIDER:
+            case SUBPAGE:
+            case LINK:
+            default:
+                return false;
+        }
+    }
+
+    // ✅ NEW: Get max indent level per block type
+    private int getMaxIndentForType(NoteBlock.BlockType type) {
+        switch (type) {
+            case BULLET:
+                return 2; // 0 = ●, 1 = ○, 2 = ■
+            case NUMBERED:
+                return 3; // 0 = 1., 1 = a., 2 = i., 3 = deeper numbers
+            case TEXT:
+            case CHECKBOX:
+                return 5; // Allow deeper indenting
+            default:
+                return 0;
+        }
+    }
     //COLOR PICKER
     private void setupColorPicker() {
         findViewById(R.id.colorDefault).setOnClickListener(v -> changeNoteColor("#FAFAFA"));
@@ -633,17 +697,14 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
 
     private void changeNoteColor(String color) {
-        // ✅ Change both noteLayout AND topBar background
         noteLayout.setBackgroundColor(Color.parseColor(color));
-
-        // ✅ NEW: Change top bar color too
         View topBar = findViewById(R.id.topBar);
         topBar.setBackgroundColor(Color.parseColor(color));
-
         currentNoteColor = color;
         colorPickerPanel.setVisibility(View.GONE);
         saveNoteColor(color);
     }
+
     private void saveNoteColor(String color) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) return;
@@ -669,14 +730,13 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                         if (color != null) {
                             currentNoteColor = color;
                             noteLayout.setBackgroundColor(Color.parseColor(color));
-
-                            // ✅ NEW: Set top bar color when loading
                             View topBar = findViewById(R.id.topBar);
                             topBar.setBackgroundColor(Color.parseColor(color));
                         }
                     }
                 });
     }
+
 
     //IMAGESSSS
     private void addImageBlock() {
@@ -995,73 +1055,72 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
     //subPage
     private void addSubpageBlock() {
-    FirebaseUser user = auth.getCurrentUser();
-    if (user == null) return;
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
 
-    boolean shouldReplaceLastBlock = false;
-    int insertPosition = blocks.size();
+        boolean shouldReplaceLastBlock = false;
+        int insertPosition = blocks.size();
 
-    if (!blocks.isEmpty()) {
-        NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+        if (!blocks.isEmpty()) {
+            NoteBlock lastBlock = blocks.get(blocks.size() - 1);
 
-        if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
-                (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+            if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                    (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
 
-            shouldReplaceLastBlock = true;
-            insertPosition = blocks.size() - 1;
+                shouldReplaceLastBlock = true;
+                insertPosition = blocks.size() - 1;
 
-            db.collection("users").document(user.getUid())
-                    .collection("notes").document(noteId)
-                    .collection("blocks").document(lastBlock.getId())
-                    .delete();
+                db.collection("users").document(user.getUid())
+                        .collection("notes").document(noteId)
+                        .collection("blocks").document(lastBlock.getId())
+                        .delete();
 
-            blocks.remove(blocks.size() - 1);
+                blocks.remove(blocks.size() - 1);
+            }
         }
+
+        String newSubpageId = db.collection("users").document(user.getUid())
+                .collection("notes").document().getId();
+
+        Map<String, Object> subpageData = new HashMap<>();
+        subpageData.put("title", "");
+        subpageData.put("content", "");
+        subpageData.put("parentNoteId", noteId);
+        subpageData.put("timestamp", System.currentTimeMillis());
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(newSubpageId)
+                .set(subpageData);
+
+        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.SUBPAGE);
+        block.setPosition(insertPosition);
+        block.setContent("Untitled Subpage");
+        block.setSubpageId(newSubpageId);
+        blocks.add(insertPosition, block);
+
+        if (shouldReplaceLastBlock) {
+            adapter.notifyItemChanged(insertPosition);
+        } else {
+            adapter.notifyItemInserted(insertPosition);
+        }
+
+        saveBlock(block);
+
+        NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
+        textBlock.setPosition(blocks.size());
+        blocks.add(textBlock);
+        adapter.notifyItemInserted(blocks.size() - 1);
+        saveBlock(textBlock);
+
+        updateBlockPositions();
+
+        Intent intent = new Intent(this, SubpageActivity.class);
+        intent.putExtra("noteId", noteId);
+        intent.putExtra("subpageId", newSubpageId);
+        intent.putExtra("subpageTitle", "Untitled Subpage");
+        startActivityForResult(intent, REQUEST_SUBPAGE); // ✅ Use constant
     }
-
-    String newSubpageId = db.collection("users").document(user.getUid())
-            .collection("notes").document().getId();
-
-    Map<String, Object> subpageData = new HashMap<>();
-    subpageData.put("title", "");
-    subpageData.put("content", "");
-    subpageData.put("parentNoteId", noteId);
-    subpageData.put("timestamp", System.currentTimeMillis());
-
-    db.collection("users").document(user.getUid())
-            .collection("notes").document(noteId)
-            .collection("subpages").document(newSubpageId)
-            .set(subpageData);
-
-    NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.SUBPAGE);
-    block.setPosition(insertPosition);
-    block.setContent("Untitled Subpage");
-    block.setSubpageId(newSubpageId);
-    blocks.add(insertPosition, block);
-
-    if (shouldReplaceLastBlock) {
-        adapter.notifyItemChanged(insertPosition);
-    } else {
-        adapter.notifyItemInserted(insertPosition);
-    }
-
-    saveBlock(block);
-
-    NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
-    textBlock.setPosition(blocks.size());
-    blocks.add(textBlock);
-    adapter.notifyItemInserted(blocks.size() - 1);
-    saveBlock(textBlock);
-
-    updateBlockPositions();
-
-    Intent intent = new Intent(this, SubpageActivity.class);
-    intent.putExtra("noteId", noteId);
-    intent.putExtra("subpageId", newSubpageId);
-    intent.putExtra("subpageTitle", "Untitled Subpage");
-    startActivityForResult(intent, REQUEST_SUBPAGE); // ✅ Use constant
-}
-
 
     private void updateBlockPositions() {
         FirebaseUser user = auth.getCurrentUser();
@@ -1079,7 +1138,107 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
 
     private void addLinkBlock() {
-        Toast.makeText(this, "Link dialog - to be implemented", Toast.LENGTH_SHORT).show();
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.link_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        com.google.android.material.textfield.TextInputEditText linkUrlInput =
+                sheetView.findViewById(R.id.linkUrlInput);
+        TextView createLinkBtn = sheetView.findViewById(R.id.createLinkBtn);
+
+        createLinkBtn.setOnClickListener(v -> {
+            String url = linkUrlInput.getText().toString().trim();
+
+            if (url.isEmpty()) {
+                Toast.makeText(this, "Please enter a URL", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Add https:// if missing
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                url = "https://" + url;
+            }
+
+            // Extract title from URL
+            String title = extractTitle(url);
+
+            // Check if last block is empty text - replace it
+            boolean shouldReplaceLastBlock = false;
+            int insertPosition = blocks.size();
+
+            if (!blocks.isEmpty()) {
+                NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+
+                if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                        (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+
+                    shouldReplaceLastBlock = true;
+                    insertPosition = blocks.size() - 1;
+
+                    // Delete empty text block
+                    FirebaseUser user = auth.getCurrentUser();
+                    if (user != null) {
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("blocks").document(lastBlock.getId())
+                                .delete();
+                    }
+
+                    blocks.remove(blocks.size() - 1);
+                }
+            }
+
+            // Create link block
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.LINK);
+            block.setPosition(insertPosition);
+            block.setContent(title);
+            block.setLinkUrl(url);
+            block.setLinkBackgroundColor("#FFFFFF");
+            block.setLinkDescription("");
+
+            blocks.add(insertPosition, block);
+
+            if (shouldReplaceLastBlock) {
+                adapter.notifyItemChanged(insertPosition);
+            } else {
+                adapter.notifyItemInserted(insertPosition);
+            }
+
+            saveBlock(block);
+
+            // Add new text block after link
+            NoteBlock textBlock = new NoteBlock(System.currentTimeMillis() + "1", NoteBlock.BlockType.TEXT);
+            textBlock.setPosition(blocks.size());
+            blocks.add(textBlock);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(textBlock);
+
+            updateBlockPositions();
+
+            bottomSheet.dismiss();
+            Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
+        });
+
+        bottomSheet.show();
+    }
+
+    private String extractTitle(String url) {
+        try {
+            String domain = url.replace("https://", "").replace("http://", "");
+            int slashIndex = domain.indexOf("/");
+            if (slashIndex > 0) {
+                domain = domain.substring(0, slashIndex);
+            }
+
+            // Capitalize first letter
+            if (!domain.isEmpty()) {
+                domain = domain.substring(0, 1).toUpperCase() + domain.substring(1);
+            }
+
+            return domain;
+        } catch (Exception e) {
+            return "Link";
+        }
     }
 
     private void saveBlock(NoteBlock block) {
@@ -1128,13 +1287,17 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
     @Override
     public void onBlockTypeChanged(int position, NoteBlock.BlockType newType) {
-        NoteBlock block = blocks.get(position);
-        block.setType(newType);
-        adapter.notifyItemChanged(position);
-        saveBlock(block);
-        renumberLists();
+        if (newType == NoteBlock.BlockType.TEXT) {
+            // Use convertBlockToText for smooth conversion
+            convertBlockToText(position);
+        } else {
+            NoteBlock block = blocks.get(position);
+            block.setType(newType);
+            adapter.notifyItemChanged(position);
+            saveBlock(block);
+            renumberLists();
+        }
     }
-
     @Override
     public void onImageClick(String imageId) {
         Toast.makeText(this, "Image clicked", Toast.LENGTH_SHORT).show();
@@ -1157,20 +1320,16 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (subpageBlock != null) {
             intent.putExtra("subpageTitle", subpageBlock.getContent());
         }
-        startActivityForResult(intent, REQUEST_SUBPAGE); // ✅ Use constant
+        startActivityForResult(intent, REQUEST_SUBPAGE);
     }
-
-    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        // Only reload when coming back from a subpage
         if (requestCode == REQUEST_SUBPAGE) {
             if (noteId != null) {
                 loadBlocks();
             }
         }
-        // Gallery and Camera are handled by ActivityResultLauncher - no need to handle here
     }
 
     @Override
@@ -1181,9 +1340,24 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
     @Override
     public void onDividerClick(int position) {
-        Toast.makeText(this, "Divider options", Toast.LENGTH_SHORT).show();
+        // This is handled in the adapter now
+        // But you can add additional logic here if needed
+        NoteBlock block = blocks.get(position);
+        Toast.makeText(this, "Tap to change style, long press for options",
+                Toast.LENGTH_SHORT).show();
     }
 
+    // ✅ OPTIONAL: Add helper method to handle divider style changes
+    public void updateDividerStyle(int position, String newStyle) {
+        if (position >= 0 && position < blocks.size()) {
+            NoteBlock block = blocks.get(position);
+            if (block.getType() == NoteBlock.BlockType.DIVIDER) {
+                block.setDividerStyle(newStyle);
+                adapter.notifyItemChanged(position);
+                saveBlock(block);
+            }
+        }
+    }
     @Override
     protected void onPause() {
         super.onPause();
@@ -1191,4 +1365,697 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         saveAllBlocks();
     }
 
+    @Override
+    public void onEnterPressed(int position, String textBeforeCursor, String textAfterCursor) {
+        if (position < 0 || position >= blocks.size()) return;
+
+        NoteBlock currentBlock = blocks.get(position);
+
+        // ✅ Update current block with text before cursor
+        currentBlock.setContent(textBeforeCursor);
+        saveBlock(currentBlock);
+
+        NoteBlock newBlock;
+        int insertPosition = position + 1;
+
+        switch (currentBlock.getType()) {
+            case BULLET:
+                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
+                newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                newBlock.setPosition(insertPosition);
+                insertBlockAt(newBlock, insertPosition);
+                focusBlock(insertPosition, 0);
+                break;
+
+            case NUMBERED:
+                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
+                newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                newBlock.setPosition(insertPosition);
+                insertBlockAt(newBlock, insertPosition);
+                renumberLists();
+                focusBlock(insertPosition, 0);
+                break;
+
+            case CHECKBOX:
+                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
+                newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                newBlock.setChecked(false);
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                newBlock.setPosition(insertPosition);
+                insertBlockAt(newBlock, insertPosition);
+                focusBlock(insertPosition, 0);
+                break;
+
+            case TEXT:
+            case HEADING_1:
+            case HEADING_2:
+            case HEADING_3:
+            default:
+                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+                newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                newBlock.setPosition(insertPosition);
+                insertBlockAt(newBlock, insertPosition);
+                focusBlock(insertPosition, 0);
+                break;
+        }
+    }
+    // ===============================================
+// HELPER: Focus a specific block
+// ===============================================
+    private void focusBlock(int position, int cursorPosition) {
+        blocksRecycler.post(() -> {
+            blocksRecycler.postDelayed(() -> {
+                RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(position);
+                if (holder != null) {
+                    View view = holder.itemView;
+                    EditText editText = view.findViewById(R.id.contentEdit);
+                    if (editText != null) {
+                        editText.requestFocus();
+
+                        // Set cursor position
+                        if (cursorPosition >= 0 && cursorPosition <= editText.getText().length()) {
+                            editText.setSelection(cursorPosition);
+                        } else {
+                            editText.setSelection(editText.getText().length());
+                        }
+
+                        // Show keyboard
+                        android.view.inputmethod.InputMethodManager imm =
+                                (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                        if (imm != null) {
+                            imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                        }
+                    }
+                }
+            }, 100);
+        });
+    }
+
+    @Override
+    public void onBackspaceOnEmptyBlock(int position) {
+        if (position < 0 || position >= blocks.size()) return;
+
+        NoteBlock block = blocks.get(position);
+
+        // Don't delete the first block - convert it instead
+        if (position == 0) {
+            if (block.getType() != NoteBlock.BlockType.TEXT) {
+                convertBlockToText(position);
+            }
+            return;
+        }
+
+        // For list blocks - DELETE them when empty + backspace
+        switch (block.getType()) {
+            case BULLET:
+            case NUMBERED:
+            case CHECKBOX:
+                // Delete empty list item
+                deleteBlockAndFocusPrevious(position);
+                break;
+
+            case TEXT:
+                // Delete empty text block
+                deleteBlockAndFocusPrevious(position);
+                break;
+
+            default:
+                // For other types, convert to TEXT
+                convertBlockToText(position);
+                break;
+        }
+    }
+    private void deleteBlockAndFocusPrevious(int position) {
+        if (position <= 0 || position >= blocks.size()) return;
+
+        NoteBlock block = blocks.get(position);
+        NoteBlock.BlockType blockType = block.getType();
+
+        // Delete from Firestore
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("blocks").document(block.getId())
+                    .delete();
+        }
+
+        // Remove from list
+        blocks.remove(position);
+        adapter.notifyItemRemoved(position);
+
+        // Update positions
+        updateBlockPositions();
+
+        // Renumber lists if needed
+        if (blockType == NoteBlock.BlockType.NUMBERED) {
+            renumberLists();
+        }
+
+        // Focus previous block
+        final int previousPosition = position - 1;
+        blocksRecycler.post(() -> {
+            blocksRecycler.postDelayed(() -> {
+                RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(previousPosition);
+                if (holder != null) {
+                    View view = holder.itemView;
+                    EditText editText = view.findViewById(R.id.contentEdit);
+                    if (editText != null) {
+                        editText.requestFocus();
+                        editText.setSelection(editText.getText().length());
+
+                        // Show keyboard
+                        android.view.inputmethod.InputMethodManager imm =
+                                (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                        if (imm != null) {
+                            imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                        }
+                    }
+                }
+            }, 100);
+        });
+    }
+
+    // Helper: Insert block at specific position
+    private void insertBlockAt(NoteBlock block, int position) {
+        blocks.add(position, block);
+
+        // Update positions for all blocks after insertion
+        for (int i = position; i < blocks.size(); i++) {
+            blocks.get(i).setPosition(i);
+        }
+
+        adapter.notifyItemInserted(position);
+        saveBlock(block);
+        updateBlockPositions();
+    }
+    private void convertBlockToText(int position) {
+        if (position < 0 || position >= blocks.size()) return;
+
+        NoteBlock oldBlock = blocks.get(position);
+        NoteBlock.BlockType oldType = oldBlock.getType();
+        String oldContent = oldBlock.getContent();
+        int oldIndent = oldBlock.getIndentLevel();
+
+        // Delete old block from Firestore
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("blocks").document(oldBlock.getId())
+                    .delete();
+        }
+
+        // Remove old block from list
+        blocks.remove(position);
+        adapter.notifyItemRemoved(position);
+
+        // Create NEW text block with same content
+        NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+        newBlock.setContent(oldContent);
+        newBlock.setIndentLevel(oldIndent);
+        newBlock.setPosition(position);
+
+        // Insert new text block
+        blocks.add(position, newBlock);
+        adapter.notifyItemInserted(position);
+        saveBlock(newBlock);
+
+        // Update positions
+        updateBlockPositions();
+
+        // If it was a numbered list, renumber
+        if (oldType == NoteBlock.BlockType.NUMBERED) {
+            renumberLists();
+        }
+
+        // Focus the new text block
+        focusBlock(position, oldContent.length());
+
+        Toast.makeText(this, "Converted to text", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onBackspaceAtStart(int position, String currentText) {
+        if (position <= 0 || position >= blocks.size()) return;
+
+        NoteBlock currentBlock = blocks.get(position);
+        NoteBlock previousBlock = blocks.get(position - 1);
+
+        // Don't merge with IMAGE, DIVIDER, SUBPAGE
+        switch (previousBlock.getType()) {
+            case IMAGE:
+            case DIVIDER:
+            case SUBPAGE:
+                convertBlockToText(position);
+                return;
+        }
+
+        // Merge content
+        String mergedContent = previousBlock.getContent() + currentText;
+        previousBlock.setContent(mergedContent);
+        saveBlock(previousBlock);
+
+        // Delete current block
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("blocks").document(currentBlock.getId())
+                    .delete();
+        }
+
+        blocks.remove(position);
+        adapter.notifyItemRemoved(position);
+        updateBlockPositions();
+
+        // Focus previous
+        final int previousPosition = position - 1;
+        final int cursorPosition = previousBlock.getContent().length() - currentText.length();
+
+        blocksRecycler.post(() -> {
+            adapter.notifyItemChanged(previousPosition);
+
+            blocksRecycler.postDelayed(() -> {
+                RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(previousPosition);
+                if (holder != null) {
+                    View view = holder.itemView;
+                    EditText editText = view.findViewById(R.id.contentEdit);
+                    if (editText != null) {
+                        editText.requestFocus();
+                        editText.setSelection(Math.max(0, cursorPosition));
+                    }
+                }
+            }, 50);
+        });
+    }
+
+    private void setupEmptySpaceClick(View emptySpace) {
+        if (emptySpace == null) return;
+
+        emptySpace.setOnClickListener(v -> {
+            // Check if last block is empty TEXT
+            if (!blocks.isEmpty()) {
+                NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+
+                // If last block is empty TEXT, just focus it
+                if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                        (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+
+                    focusBlock(blocks.size() - 1, 0);
+                    return;
+                }
+            }
+
+            // Otherwise, create new TEXT block
+            addTextBlockFromEmptySpace();
+        });
+    }
+
+    // ===============================================
+// ✅ NEW METHOD: Add text block when clicking empty space
+// ===============================================
+    private void addTextBlockFromEmptySpace() {
+        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+        block.setPosition(blocks.size());
+        blocks.add(block);
+        adapter.notifyItemInserted(blocks.size() - 1);
+        saveBlock(block);
+
+        // Auto-focus the new block
+        blocksRecycler.post(() -> {
+            blocksRecycler.smoothScrollToPosition(blocks.size() - 1);
+            focusBlock(blocks.size() - 1, 0);
+        });
+    }
+
+    private boolean tryReplaceLastEmptyTextBlock(NoteBlock.BlockType newType) {
+        if (blocks.isEmpty()) {
+            return false;
+        }
+
+        NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+
+        // Check if last block is an empty TEXT block
+        if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+
+            // Delete the old empty text block from Firestore
+            FirebaseUser user = auth.getCurrentUser();
+            if (user != null) {
+                db.collection("users").document(user.getUid())
+                        .collection("notes").document(noteId)
+                        .collection("blocks").document(lastBlock.getId())
+                        .delete();
+            }
+
+            // Remove from list
+            int position = blocks.size() - 1;
+            blocks.remove(position);
+
+            // Create new block with the desired type
+            NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", newType);
+            newBlock.setPosition(position);
+
+            // Set default values based on type
+            switch (newType) {
+                case NUMBERED:
+                    newBlock.setListNumber(1);
+                    break;
+                case DIVIDER:
+                    newBlock.setDividerStyle("solid");
+                    break;
+                case CHECKBOX:
+                    newBlock.setChecked(false);
+                    break;
+            }
+
+            // Add new block at same position
+            blocks.add(position, newBlock);
+            adapter.notifyItemChanged(position);
+            saveBlock(newBlock);
+
+            // Renumber lists if needed
+            if (newType == NoteBlock.BlockType.NUMBERED) {
+                renumberLists();
+            }
+
+            // Focus the replaced block
+            focusBlock(position, 0);
+
+            return true; // Successfully replaced
+        }
+
+        return false; // No empty text block to replace
+    }
+
+    // ✅ REPLACE ang showHeadingOptions() method sa NoteActivity.java with this:
+
+    private void showHeadingOptions() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all option views
+        LinearLayout heading1Option = sheetView.findViewById(R.id.heading1Option);
+        LinearLayout heading2Option = sheetView.findViewById(R.id.heading2Option);
+        LinearLayout heading3Option = sheetView.findViewById(R.id.heading3Option);
+        LinearLayout boldOption = sheetView.findViewById(R.id.boldOption);
+        LinearLayout italicOption = sheetView.findViewById(R.id.italicOption);
+        LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
+        LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
+
+        // ✅ HEADING OPTIONS
+        if (heading1Option != null) {
+            heading1Option.setOnClickListener(v -> {
+                addHeadingBlock(NoteBlock.BlockType.HEADING_1);
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading2Option != null) {
+            heading2Option.setOnClickListener(v -> {
+                addHeadingBlock(NoteBlock.BlockType.HEADING_2);
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading3Option != null) {
+            heading3Option.setOnClickListener(v -> {
+                addHeadingBlock(NoteBlock.BlockType.HEADING_3);
+                bottomSheet.dismiss();
+            });
+        }
+
+        // ✅ FONT STYLE OPTIONS
+        if (boldOption != null) {
+            boldOption.setOnClickListener(v -> {
+                applyFontStyle("bold");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (italicOption != null) {
+            italicOption.setOnClickListener(v -> {
+                applyFontStyle("italic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (boldItalicOption != null) {
+            boldItalicOption.setOnClickListener(v -> {
+                applyFontStyle("boldItalic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (normalOption != null) {
+            normalOption.setOnClickListener(v -> {
+                convertToNormalText();
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+
+    private void applyFontStyle(String style) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        // Store the style in styleData as JSON
+        try {
+            org.json.JSONObject styleJson = new org.json.JSONObject();
+            styleJson.put("fontStyle", style);
+            block.setStyleData(styleJson.toString());
+
+            adapter.notifyItemChanged(position);
+            saveBlock(block);
+
+            Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+        } catch (org.json.JSONException e) {
+            Toast.makeText(this, "Error applying style", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ✅ NEW METHOD: Convert current block to normal TEXT
+    private void convertToNormalText() {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        // Check if it's a heading - need to convert to TEXT type
+        if (block.getType() == NoteBlock.BlockType.HEADING_1 ||
+                block.getType() == NoteBlock.BlockType.HEADING_2 ||
+                block.getType() == NoteBlock.BlockType.HEADING_3) {
+
+            // Convert heading to normal text
+            block.setType(NoteBlock.BlockType.TEXT);
+        }
+
+        // Clear any font styling
+        block.setStyleData(null);
+
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        // Refocus the block
+        focusBlock(position, block.getContent().length());
+
+        Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
+    }
+
+    // ====================================================
+// BOOKMARK FEATURE
+// ====================================================
+
+    public void showBookmarkBottomSheet(String selectedText, String blockId, int startIndex, int endIndex) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Color options
+        View colorViolet = sheetView.findViewById(R.id.colorViolet);
+        View colorYellow = sheetView.findViewById(R.id.colorYellow);
+        View colorPink = sheetView.findViewById(R.id.colorPink);
+        View colorGreen = sheetView.findViewById(R.id.colorGreen);
+        View colorBlue = sheetView.findViewById(R.id.colorBlue);
+        View colorOrange = sheetView.findViewById(R.id.colorOrange);
+        View colorRed = sheetView.findViewById(R.id.colorRed);
+        View colorCyan = sheetView.findViewById(R.id.colorCyan);
+
+        // Set tags for each color view
+        colorViolet.setTag("#E1BEE7");
+        colorYellow.setTag("#FFF9C4");
+        colorPink.setTag("#F8BBD0");
+        colorGreen.setTag("#C8E6C9");
+        colorBlue.setTag("#BBDEFB");
+        colorOrange.setTag("#FFE0B2");
+        colorRed.setTag("#FFCDD2");
+        colorCyan.setTag("#B2EBF2");
+
+        // Style options
+        TextView styleHighlight = sheetView.findViewById(R.id.styleHighlight);
+        TextView styleUnderline = sheetView.findViewById(R.id.styleUnderline);
+
+        com.google.android.material.textfield.TextInputEditText noteInput =
+                sheetView.findViewById(R.id.bookmarkNoteInput);
+        TextView cancelBtn = sheetView.findViewById(R.id.cancelBtn);
+        TextView okBtn = sheetView.findViewById(R.id.okBtn);
+
+        final String[] selectedColor = {"#FFF9C4"}; // Default yellow
+        final String[] selectedStyle = {"highlight"}; // Default highlight
+
+        // Set initial selection (yellow, highlight)
+        setColorScale(colorViolet, colorYellow, colorPink, colorGreen, colorBlue,
+                colorOrange, colorRed, colorCyan, selectedColor[0]);
+        styleHighlight.setBackgroundResource(R.drawable.style_selected);
+        styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+
+        // Color selection listeners
+        View.OnClickListener colorListener = v -> {
+            resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen,
+                    colorBlue, colorOrange, colorRed, colorCyan);
+            v.setScaleX(1.2f);
+            v.setScaleY(1.2f);
+            selectedColor[0] = (String) v.getTag();
+        };
+
+        colorViolet.setOnClickListener(colorListener);
+        colorYellow.setOnClickListener(colorListener);
+        colorPink.setOnClickListener(colorListener);
+        colorGreen.setOnClickListener(colorListener);
+        colorBlue.setOnClickListener(colorListener);
+        colorOrange.setOnClickListener(colorListener);
+        colorRed.setOnClickListener(colorListener);
+        colorCyan.setOnClickListener(colorListener);
+
+        // Style selection
+        styleHighlight.setOnClickListener(v -> {
+            selectedStyle[0] = "highlight";
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        styleUnderline.setOnClickListener(v -> {
+            selectedStyle[0] = "underline";
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        cancelBtn.setOnClickListener(v -> bottomSheet.dismiss());
+
+        okBtn.setOnClickListener(v -> {
+            String note = noteInput.getText().toString().trim();
+            saveBookmark(selectedText, note, selectedColor[0], selectedStyle[0],
+                    blockId, startIndex, endIndex);
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+
+    private void setColorScale(View violet, View yellow, View pink, View green,
+                               View blue, View orange, View red, View cyan, String currentColor) {
+        resetColorSelection(violet, yellow, pink, green, blue, orange, red, cyan);
+
+        View selectedView = null;
+        switch (currentColor) {
+            case "#E1BEE7": selectedView = violet; break;
+            case "#FFF9C4": selectedView = yellow; break;
+            case "#F8BBD0": selectedView = pink; break;
+            case "#C8E6C9": selectedView = green; break;
+            case "#BBDEFB": selectedView = blue; break;
+            case "#FFE0B2": selectedView = orange; break;
+            case "#FFCDD2": selectedView = red; break;
+            case "#B2EBF2": selectedView = cyan; break;
+        }
+
+        if (selectedView != null) {
+            selectedView.setScaleX(1.2f);
+            selectedView.setScaleY(1.2f);
+        }
+    }
+
+    private void resetColorSelection(View... views) {
+        for (View v : views) {
+            v.setScaleX(1.0f);
+            v.setScaleY(1.0f);
+        }
+    }
+
+    private void saveBookmark(String text, String note, String color, String style,
+                              String blockId, int startIndex, int endIndex) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        String bookmarkId = db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks").document().getId();
+
+        Bookmark bookmark = new Bookmark(text, note, color, style, startIndex, endIndex);
+        bookmark.setId(bookmarkId);
+        bookmark.setBlockId(blockId);
+
+        Map<String, Object> bookmarkData = new HashMap<>();
+        bookmarkData.put("text", text);
+        bookmarkData.put("note", note);
+        bookmarkData.put("color", color);
+        bookmarkData.put("style", style);
+        bookmarkData.put("startIndex", startIndex);
+        bookmarkData.put("endIndex", endIndex);
+        bookmarkData.put("blockId", blockId);
+        bookmarkData.put("timestamp", System.currentTimeMillis());
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks").document(bookmarkId)
+                .set(bookmarkData)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
+                    adapter.notifyDataSetChanged(); // Refresh to show highlights
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error saving bookmark", Toast.LENGTH_SHORT).show();
+                });
+    }
 }

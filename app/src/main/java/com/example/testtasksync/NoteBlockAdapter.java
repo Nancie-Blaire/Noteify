@@ -395,26 +395,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
     }
 
-// ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
-
-    // ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
-
-// ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
-
-// ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
-
     class BulletViewHolder extends RecyclerView.ViewHolder {
         TextView bulletIcon;
         EditText contentEdit;
@@ -429,51 +409,37 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             bulletIcon = view.findViewById(R.id.bulletIcon);
             contentEdit = view.findViewById(R.id.contentEdit);
 
-            contentEdit.setOnClickListener(v -> {
-                long currentTime = System.currentTimeMillis();
-
-                if (currentTime - lastTapTime < DOUBLE_TAP_DELAY) {
-                    // Double tap detected!
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return;
+                    if (pos == RecyclerView.NO_POSITION) return false;
 
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
 
-                    // ✅ If no selection, auto-select word at cursor
-                    if (start == end) {
-                        String text = contentEdit.getText().toString();
-                        int wordStart = start;
-                        int wordEnd = end;
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        // Split text at cursor
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
 
-                        // Find word boundaries
-                        while (wordStart > 0 && !Character.isWhitespace(text.charAt(wordStart - 1))) {
-                            wordStart--;
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true; // ✅ Consume event
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        // ✅ Only trigger if text is empty
+                        if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
+                            return true;
                         }
-                        while (wordEnd < text.length() && !Character.isWhitespace(text.charAt(wordEnd))) {
-                            wordEnd++;
-                        }
-
-                        if (wordStart < wordEnd) {
-                            contentEdit.setSelection(wordStart, wordEnd);
-                            start = wordStart;
-                            end = wordEnd;
+                        // ✅ Cursor at start + has text = merge with previous
+                        else if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
                         }
                     }
-
-                    if (start != end && start >= 0 && end <= contentEdit.getText().length()) {
-                        String selectedText = contentEdit.getText().toString().substring(start, end);
-                        showBookmarkBottomSheet(selectedText, block.getId(), start, end);
-                    } else {
-                        Toast.makeText(v.getContext(), "Select text first, then double tap",
-                                Toast.LENGTH_SHORT).show();
-                    }
-
-                    lastTapTime = 0;
-                } else {
-                    lastTapTime = currentTime;
                 }
+                return false;
             });
             contentEdit.addTextChangedListener(new TextWatcher() {
                 private String textBeforeChange = "";
@@ -567,10 +533,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
     }
 
-// ====================================================
-// SAME FIX: Apply to NumberedViewHolder and CheckboxViewHolder
-// ====================================================
-
     class NumberedViewHolder extends RecyclerView.ViewHolder {
         TextView numberText;
         EditText contentEdit;
@@ -583,37 +545,33 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
             // ✅ ADD: KeyListener for numbered lists too
             contentEdit.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
-                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
-
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return false;
 
-                    String currentText = contentEdit.getText().toString();
-                    int cursorPosition = contentEdit.getSelectionStart();
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
 
-                    // ✅ Empty numbered item + backspace
-                    if (currentText.isEmpty()) {
-                        NoteBlock block = blocks.get(pos);
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        // Split text at cursor
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
 
-                        // ✅ If indented, OUTDENT first
-                        if (block.getIndentLevel() > 0) {
-                            block.setIndentLevel(block.getIndentLevel() - 1);
-                            notifyItemChanged(pos);
-                            listener.onBlockChanged(block);
-                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
-                            return true;
-                        } else {
-                            // ✅ Already at indent 0, convert to TEXT
-                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true; // ✅ Consume event
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        // ✅ Only trigger if text is empty
+                        if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
-                    }
-
-                    // ✅ Cursor at start + backspace
-                    if (cursorPosition == 0 && !currentText.isEmpty()) {
-                        listener.onBackspaceAtStart(pos, currentText);
-                        return true;
+                        // ✅ Cursor at start + has text = merge with previous
+                        else if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -712,37 +670,33 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
             // ✅ ADD: KeyListener for checkboxes too
             contentEdit.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
-                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
-
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return false;
 
-                    String currentText = contentEdit.getText().toString();
-                    int cursorPosition = contentEdit.getSelectionStart();
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
 
-                    // ✅ Empty checkbox + backspace
-                    if (currentText.isEmpty()) {
-                        NoteBlock block = blocks.get(pos);
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        // Split text at cursor
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
 
-                        // ✅ If indented, OUTDENT first
-                        if (block.getIndentLevel() > 0) {
-                            block.setIndentLevel(block.getIndentLevel() - 1);
-                            notifyItemChanged(pos);
-                            listener.onBlockChanged(block);
-                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
-                            return true;
-                        } else {
-                            // ✅ Already at indent 0, convert to TEXT
-                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true; // ✅ Consume event
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        // ✅ Only trigger if text is empty
+                        if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
-                    }
-
-                    // ✅ Cursor at start + backspace
-                    if (cursorPosition == 0 && !currentText.isEmpty()) {
-                        listener.onBackspaceAtStart(pos, currentText);
-                        return true;
+                        // ✅ Cursor at start + has text = merge with previous
+                        else if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -1520,6 +1474,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             bottomSheet.show();
         }
     }
+
     private void applyFontStyle(EditText editText, String styleData) {
         if (styleData == null || styleData.isEmpty()) {
             // Default: normal

@@ -798,13 +798,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         bottomSheet.show();
     }
-
     private void openGallery() {
         Intent intent = new Intent(Intent.ACTION_PICK);
         intent.setType("image/*");
         galleryLauncher.launch(intent);
     }
-
     private void checkCameraPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -817,7 +815,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             openCamera();
         }
     }
-
     private void openCamera() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -838,7 +835,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             }
         }
     }
-
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
                 .format(new Date());
@@ -1370,42 +1366,53 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (position < 0 || position >= blocks.size()) return;
 
         NoteBlock currentBlock = blocks.get(position);
+        NoteBlock.BlockType currentType = currentBlock.getType();
 
-        // ✅ Update current block with text before cursor
-        currentBlock.setContent(textBeforeCursor);
-        saveBlock(currentBlock);
+        // ✅ CHECK: Is the text BEFORE cursor empty?
+        boolean isTextBeforeEmpty = textBeforeCursor.trim().isEmpty();
 
-        NoteBlock newBlock;
-        int insertPosition = position + 1;
-
-        switch (currentBlock.getType()) {
+        switch (currentType) {
             case BULLET:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
-                newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                focusBlock(insertPosition, 0);
-                break;
-
             case NUMBERED:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
-                newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                renumberLists();
-                focusBlock(insertPosition, 0);
-                break;
-
             case CHECKBOX:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
-                newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setChecked(false);
-                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                focusBlock(insertPosition, 0);
+                if (isTextBeforeEmpty) {
+                    // ✅ EMPTY + ENTER = Convert to TEXT (no new block)
+                    currentBlock.setContent("");
+                    saveBlock(currentBlock);
+                    convertBlockToText(position);
+                    focusBlock(position, 0);
+                } else {
+                    // ✅ HAS CONTENT = Create new same-type block
+                    currentBlock.setContent(textBeforeCursor);
+                    saveBlock(currentBlock);
+
+                    NoteBlock newBlock;
+                    int insertPosition = position + 1;
+
+                    if (currentType == NoteBlock.BlockType.NUMBERED) {
+                        newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
+                        newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                        newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                        newBlock.setPosition(insertPosition);
+                        insertBlockAt(newBlock, insertPosition);
+                        renumberLists();
+                    } else if (currentType == NoteBlock.BlockType.CHECKBOX) {
+                        newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
+                        newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                        newBlock.setChecked(false);
+                        newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                        newBlock.setPosition(insertPosition);
+                        insertBlockAt(newBlock, insertPosition);
+                    } else { // BULLET
+                        newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
+                        newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                        newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                        newBlock.setPosition(insertPosition);
+                        insertBlockAt(newBlock, insertPosition);
+                    }
+
+                    focusBlock(insertPosition, 0);
+                }
                 break;
 
             case TEXT:
@@ -1413,15 +1420,20 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             case HEADING_2:
             case HEADING_3:
             default:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+                // TEXT/HEADING: Always create new text block
+                currentBlock.setContent(textBeforeCursor);
+                saveBlock(currentBlock);
+
+                NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
                 newBlock.setIndentLevel(currentBlock.getIndentLevel());
                 newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                focusBlock(insertPosition, 0);
+                newBlock.setPosition(position + 1);
+                insertBlockAt(newBlock, position + 1);
+                focusBlock(position + 1, 0);
                 break;
         }
     }
+
     // ===============================================
 // HELPER: Focus a specific block
 // ===============================================
@@ -1459,35 +1471,47 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (position < 0 || position >= blocks.size()) return;
 
         NoteBlock block = blocks.get(position);
+        NoteBlock.BlockType type = block.getType();
 
-        // Don't delete the first block - convert it instead
-        if (position == 0) {
-            if (block.getType() != NoteBlock.BlockType.TEXT) {
+        // ✅ For bullet/numbered/checkbox at cursor position 0:
+        // If has indent -> reduce indent
+        // If no indent -> convert to text
+        if (type == NoteBlock.BlockType.BULLET ||
+                type == NoteBlock.BlockType.NUMBERED ||
+                type == NoteBlock.BlockType.CHECKBOX) {
+
+            int currentIndent = block.getIndentLevel();
+
+            if (currentIndent > 0) {
+                // ✅ Reduce indent level
+                block.setIndentLevel(currentIndent - 1);
+                adapter.notifyItemChanged(position);
+                saveBlock(block);
+
+                if (type == NoteBlock.BlockType.NUMBERED) {
+                    renumberLists();
+                }
+
+                // Haptic feedback
+                View view = getCurrentFocus();
+                if (view != null) {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                }
+
+                focusBlock(position, 0);
+            } else {
+                // ✅ No indent - convert to text (stay on same line)
                 convertBlockToText(position);
+                focusBlock(position, 0);
             }
-            return;
-        }
-
-        // For list blocks - DELETE them when empty + backspace
-        switch (block.getType()) {
-            case BULLET:
-            case NUMBERED:
-            case CHECKBOX:
-                // Delete empty list item
+        } else if (type == NoteBlock.BlockType.TEXT) {
+            // For text blocks at position 0, just ignore or merge with previous
+            if (position > 0) {
                 deleteBlockAndFocusPrevious(position);
-                break;
-
-            case TEXT:
-                // Delete empty text block
-                deleteBlockAndFocusPrevious(position);
-                break;
-
-            default:
-                // For other types, convert to TEXT
-                convertBlockToText(position);
-                break;
+            }
         }
     }
+
     private void deleteBlockAndFocusPrevious(int position) {
         if (position <= 0 || position >= blocks.size()) return;
 
@@ -1571,17 +1595,16 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Remove old block from list
         blocks.remove(position);
-        adapter.notifyItemRemoved(position);
 
         // Create NEW text block with same content
         NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
-        newBlock.setContent(oldContent);
+        newBlock.setContent(oldContent != null ? oldContent : "");
         newBlock.setIndentLevel(oldIndent);
         newBlock.setPosition(position);
 
         // Insert new text block
         blocks.add(position, newBlock);
-        adapter.notifyItemInserted(position);
+        adapter.notifyItemChanged(position);
         saveBlock(newBlock);
 
         // Update positions
@@ -1591,9 +1614,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (oldType == NoteBlock.BlockType.NUMBERED) {
             renumberLists();
         }
-
-        // Focus the new text block
-        focusBlock(position, oldContent.length());
 
         Toast.makeText(this, "Converted to text", Toast.LENGTH_SHORT).show();
     }

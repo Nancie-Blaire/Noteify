@@ -25,14 +25,15 @@
             android:src="@drawable/ic_check"
             android:contentDescription="Back"
             android:background="?attr/selectableItemBackgroundBorderless" />
+
         <ImageView
             android:id="@+id/viewBookmarksBtn"
             android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_height="75dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="View Bookmarks"
             android:padding="12dp"
             android:src="@drawable/ic_fab_notes"
-            android:contentDescription="View Bookmarks"
-            android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="#666666" />
         <View
             android:layout_width="0dp"

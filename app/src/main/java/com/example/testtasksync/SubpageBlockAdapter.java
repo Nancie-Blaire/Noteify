@@ -1,0 +1,738 @@
+package com.example.testtasksync;
+
+import android.content.Context;
+import android.graphics.Color;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+
+import java.util.List;
+
+public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapter.BlockViewHolder> {
+
+    private Context context;
+    private List<SubpageBlock> blocks;
+    private BlockListener listener;
+    private String noteId;
+    private String subpageId;
+    public interface BlockListener {
+        void onBlockChanged(SubpageBlock block);
+        void onBlockDeleted(SubpageBlock block, int position);
+        void onEnterPressed(int position, String textBeforeCursor, String textAfterCursor);
+        void onBackspaceOnEmptyBlock(int position);
+        void onIndentChanged(SubpageBlock block, boolean indent);
+        void onLinkClick(String url);
+    }
+
+    public SubpageBlockAdapter(Context context, List<SubpageBlock> blocks,
+                               BlockListener listener, String noteId, String subpageId) {
+        //                                        ☝️ ADD THESE TWO PARAMETERS!
+        this.context = context;
+        this.blocks = blocks;
+        this.listener = listener;
+        this.noteId = noteId; // ✅ NOW noteId comes from the parameter
+        this.subpageId = subpageId; // ✅ NOW subpageId comes from the parameter
+    }
+    @Override
+    public int getItemViewType(int position) {
+        SubpageBlock block = blocks.get(position);
+        String type = block.getType();
+
+        switch (type) {
+            case "divider":
+                return 1;
+            case "checkbox":
+                return 2;
+            case "bullet":
+                return 3;
+            case "numbered":
+                return 4;
+            case "heading1":
+            case "heading2":
+            case "heading3":
+                return 5;
+            case "image":
+                return 6;
+            case "link":
+                return 7;
+            default:
+                return 0; // text
+        }
+    }
+
+    @NonNull
+    @Override
+    public BlockViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view;
+
+        switch (viewType) {
+            case 1: // Divider
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_divider, parent, false);
+                break;
+            case 2: // Checkbox
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_checkbox, parent, false);
+                break;
+            case 3: // Bullet
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_bullet, parent, false);
+                break;
+            case 4: // Numbered
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_numbered, parent, false);
+                break;
+            case 5: // Heading
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_heading, parent, false);
+                break;
+            case 6: // ✅ ADD THIS - Image
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_image, parent, false);
+                break;
+            case 7: // Link
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_link, parent, false);
+                break;
+            default: // Text
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_text, parent, false);
+                break;
+        }
+
+        return new BlockViewHolder(view);
+    }
+    @Override
+    public void onBindViewHolder(@NonNull BlockViewHolder holder, int position) {
+        SubpageBlock block = blocks.get(position);
+
+        if (block.getType().equals("link")) {
+            bindLinkBlock(holder, block);
+            return; // Early return for links
+        }
+
+        if (block.getType().equals("image")) {
+            bindImageBlock(holder, block);
+            return; // Early return for images
+        }
+
+        // Apply indent (only for text-based blocks)
+        if (holder.editText != null) {
+            int indentPx = (int) (block.getIndentLevel() * 32 * context.getResources().getDisplayMetrics().density);
+            ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) holder.itemView.getLayoutParams();
+            params.leftMargin = indentPx;
+            holder.itemView.setLayoutParams(params);
+        }
+
+        // Handle different block types
+        if (holder.editText != null) {
+            // Remove previous TextWatcher to avoid triggering on setText
+            if (holder.textWatcher != null) {
+                holder.editText.removeTextChangedListener(holder.textWatcher);
+            }
+
+            holder.editText.setText(block.getContent());
+
+            // ✅ CRITICAL: Remove multiLine flag to prevent Enter from creating newlines
+            holder.editText.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            holder.editText.setHorizontallyScrolling(false);
+            holder.editText.setMaxLines(Integer.MAX_VALUE);
+
+            // Set text size and style based on type
+            if (block.getType().equals("heading1")) {
+                holder.editText.setTextSize(28);
+                holder.editText.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else if (block.getType().equals("heading2")) {
+                holder.editText.setTextSize(24);
+                holder.editText.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else if (block.getType().equals("heading3")) {
+                holder.editText.setTextSize(20);
+                holder.editText.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else {
+                holder.editText.setTextSize(16);
+                holder.editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+            }
+
+            // Add TextWatcher for auto-save
+            holder.textWatcher = new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                    block.setContent(s.toString());
+                    listener.onBlockChanged(block);
+                }
+            };
+            holder.editText.addTextChangedListener(holder.textWatcher);
+
+            // ✅ Handle Enter and Backspace
+            holder.editText.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int pos = holder.getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
+
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        // Split text at cursor
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
+
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true; // ✅ Consume event
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        // ✅ Only trigger if text is empty
+                        if (currentText.isEmpty()) {
+                            String blockType = block.getType();
+                            if (blockType.equals("bullet") || blockType.equals("numbered") || blockType.equals("checkbox")) {
+                                listener.onBackspaceOnEmptyBlock(pos);
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            });
+        }
+
+        // Checkbox specific
+        if (holder.checkBox != null) {
+            holder.checkBox.setOnCheckedChangeListener(null);
+            holder.checkBox.setChecked(block.isChecked());
+            holder.checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                block.setChecked(isChecked);
+                listener.onBlockChanged(block);
+            });
+        }
+
+        // Bullet icon - change based on indent level
+        if (holder.bulletIcon != null && block.getType().equals("bullet")) {
+            int indentLevel = block.getIndentLevel();
+            switch (indentLevel) {
+                case 0:
+                    holder.bulletIcon.setText("●");
+                    break;
+                case 1:
+                    holder.bulletIcon.setText("○");
+                    break;
+                case 2:
+                    holder.bulletIcon.setText("■");
+                    break;
+                default:
+                    holder.bulletIcon.setText("●");
+                    break;
+            }
+        }
+
+        // Numbered list - change style based on indent level
+        if (holder.numberText != null && block.getType().equals("numbered")) {
+            updateNumbering(holder);
+        }
+    }
+
+    @Override
+    public int getItemCount() {
+        return blocks.size();
+    }
+
+    private void updateNumbering(BlockViewHolder holder) {
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION) return;
+
+        SubpageBlock block = blocks.get(position);
+        int indentLevel = block.getIndentLevel();
+
+        // Count previous numbered items at same indent level
+        int number = 1;
+        for (int i = 0; i < position; i++) {
+            SubpageBlock prevBlock = blocks.get(i);
+            if (prevBlock.getType().equals("numbered") &&
+                    prevBlock.getIndentLevel() == indentLevel) {
+                number++;
+            }
+        }
+
+        // Format based on indent level
+        String formattedNumber;
+        switch (indentLevel) {
+            case 0:
+                formattedNumber = number + ".";
+                break;
+            case 1:
+                formattedNumber = toLowerCaseLetter(number) + ".";
+                break;
+            case 2:
+                formattedNumber = toRomanNumeral(number) + ".";
+                break;
+            case 3:
+                formattedNumber = "(" + number + ")";
+                break;
+            default:
+                formattedNumber = number + ".";
+                break;
+        }
+
+        holder.numberText.setText(formattedNumber);
+    }
+
+    private String toLowerCaseLetter(int number) {
+        if (number <= 0) return "a";
+        if (number > 26) {
+            int first = (number - 1) / 26;
+            int second = (number - 1) % 26;
+            return "" + (char)('a' + first) + (char)('a' + second);
+        }
+        return String.valueOf((char)('a' + number - 1));
+    }
+
+    private String toRomanNumeral(int number) {
+        if (number <= 0) return "i";
+        if (number > 20) return String.valueOf(number);
+
+        String[] romanNumerals = {
+                "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
+                "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"
+        };
+
+        if (number <= romanNumerals.length) {
+            return romanNumerals[number - 1];
+        }
+        return String.valueOf(number);
+    }
+
+    class BlockViewHolder extends RecyclerView.ViewHolder {
+        EditText editText;
+        CheckBox checkBox;
+        TextView bulletIcon;
+        TextView numberText;
+        TextView dividerView;
+        TextWatcher textWatcher;
+
+        // Image views
+        ImageView imageView;
+        ProgressBar progressBar;
+        TextView imageSizeText;
+
+        // ✅ ADD: Link views
+        View linkCardView;
+        TextView linkTitle;
+        TextView linkUrl;
+        TextView linkDescription;
+        ImageView linkMenuBtn;
+
+        public BlockViewHolder(@NonNull View itemView) {
+            super(itemView);
+
+            // Text-based blocks
+            editText = itemView.findViewById(R.id.contentEdit);
+            checkBox = itemView.findViewById(R.id.checkbox);
+            bulletIcon = itemView.findViewById(R.id.bulletIcon);
+            numberText = itemView.findViewById(R.id.numberText);
+            dividerView = itemView.findViewById(R.id.dividerView);
+
+            // Image blocks
+            imageView = itemView.findViewById(R.id.imageView);
+            progressBar = itemView.findViewById(R.id.progressBar);
+            imageSizeText = itemView.findViewById(R.id.imageSizeText);
+
+            // ✅ Link blocks
+            linkCardView = itemView.findViewById(R.id.linkCardView);
+            linkTitle = itemView.findViewById(R.id.linkTitle);
+            linkUrl = itemView.findViewById(R.id.linkUrl);
+            linkDescription = itemView.findViewById(R.id.linkDescription);
+            linkMenuBtn = itemView.findViewById(R.id.linkMenuBtn);
+            // ✅ Long press to delete image
+            if (imageView != null) {
+                imageView.setOnLongClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        showDeleteImageDialog(v, pos);
+                    }
+                    return true;
+                });
+            }
+            if (linkCardView != null) {
+                linkCardView.setOnClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        SubpageBlock block = blocks.get(pos);
+                        if (block.getLinkUrl() != null) {
+                            listener.onLinkClick(block.getLinkUrl());
+                        }
+                    }
+                });
+            }
+
+            // ✅ Link menu button
+            if (linkMenuBtn != null) {
+                linkMenuBtn.setOnClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        showLinkActionsSheet(v, pos);
+                    }
+                });
+            }
+        }
+
+        private void showDeleteImageDialog(View view, int position) {
+            android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(view.getContext());
+            builder.setTitle("Delete Image?");
+            builder.setMessage("This will permanently delete this image.");
+            builder.setPositiveButton("Delete", (dialog, which) -> {
+                // ✅ Now we can access listener and blocks from outer class
+                if (position < blocks.size()) {
+                    SubpageBlock block = blocks.get(position);
+                    listener.onBlockDeleted(block, position);
+                }
+            });
+            builder.setNegativeButton("Cancel", null);
+            builder.show();
+        }
+    }
+    private void bindImageBlock(BlockViewHolder holder, SubpageBlock block) {
+        if (holder.imageView == null || holder.progressBar == null) return;
+
+        // Show size info
+        if (block.getSizeKB() > 0 && holder.imageSizeText != null) {
+            holder.imageSizeText.setVisibility(View.VISIBLE);
+            holder.imageSizeText.setText(block.getSizeKB() + " KB" +
+                    (block.isChunked() ? " (Large)" : ""));
+        } else if (holder.imageSizeText != null) {
+            holder.imageSizeText.setVisibility(View.GONE);
+        }
+
+        // Load image
+        if (block.isChunked()) {
+            loadChunkedImage(holder, block);
+        } else {
+            loadInlineImage(holder, block);
+        }
+    }
+    private void bindLinkBlock(BlockViewHolder holder, SubpageBlock block) {
+        if (holder.linkTitle == null || holder.linkUrl == null) return;
+
+        // Set title
+        String title = block.getContent();
+        holder.linkTitle.setText(title != null && !title.isEmpty() ? title : "Untitled Link");
+
+        // Set URL
+        String url = block.getLinkUrl();
+        holder.linkUrl.setText(url != null ? url : "No URL");
+
+        // Set description
+        if (holder.linkDescription != null) {
+            String description = block.getLinkDescription();
+            if (description != null && !description.isEmpty()) {
+                holder.linkDescription.setText(description);
+                holder.linkDescription.setVisibility(View.VISIBLE);
+            } else {
+                holder.linkDescription.setVisibility(View.GONE);
+            }
+        }
+
+        // Set background color
+        if (holder.linkCardView != null) {
+            String bgColor = block.getLinkBackgroundColor();
+            if (bgColor != null && !bgColor.isEmpty()) {
+                try {
+                    holder.linkCardView.setBackgroundColor(Color.parseColor(bgColor));
+                } catch (Exception e) {
+                    holder.linkCardView.setBackgroundColor(Color.parseColor("#FFFFFF"));
+                }
+            } else {
+                holder.linkCardView.setBackgroundColor(Color.parseColor("#FFFFFF"));
+            }
+        }
+    }
+    private void loadInlineImage(BlockViewHolder holder, SubpageBlock block) {
+        String imageId = block.getImageId();
+        if (imageId == null) return;
+
+        holder.progressBar.setVisibility(View.VISIBLE);
+        holder.imageView.setVisibility(View.GONE);
+
+        com.google.firebase.auth.FirebaseAuth auth = com.google.firebase.auth.FirebaseAuth.getInstance();
+        com.google.firebase.auth.FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        if (noteId == null || subpageId == null) return;
+
+        com.google.firebase.firestore.FirebaseFirestore db =
+                com.google.firebase.firestore.FirebaseFirestore.getInstance();
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
+                .collection("images").document(imageId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        String base64Data = doc.getString("base64Data");
+                        if (base64Data != null) {
+                            displayBase64Image(holder, base64Data);
+                        }
+                    }
+                    holder.progressBar.setVisibility(View.GONE);
+                })
+                .addOnFailureListener(e -> {
+                    holder.progressBar.setVisibility(View.GONE);
+                    holder.imageView.setVisibility(View.VISIBLE);
+                });
+    }
+
+    private void loadChunkedImage(BlockViewHolder holder, SubpageBlock block) {
+        String imageId = block.getImageId();
+        if (imageId == null) return;
+
+        holder.progressBar.setVisibility(View.VISIBLE);
+        holder.imageView.setVisibility(View.GONE);
+
+        com.google.firebase.auth.FirebaseAuth auth = com.google.firebase.auth.FirebaseAuth.getInstance();
+        com.google.firebase.auth.FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        if (noteId == null || subpageId == null) return;
+
+        com.google.firebase.firestore.FirebaseFirestore db =
+                com.google.firebase.firestore.FirebaseFirestore.getInstance();
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
+                .collection("images").document(imageId)
+                .collection("chunks")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    if (!querySnapshot.isEmpty()) {
+                        java.util.List<com.google.firebase.firestore.QueryDocumentSnapshot> chunks =
+                                new java.util.ArrayList<>();
+                        for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                            chunks.add(doc);
+                        }
+
+                        java.util.Collections.sort(chunks, (a, b) -> {
+                            Long indexA = a.getLong("chunkIndex");
+                            Long indexB = b.getLong("chunkIndex");
+                            return indexA != null && indexB != null ? indexA.compareTo(indexB) : 0;
+                        });
+
+                        StringBuilder fullBase64 = new StringBuilder();
+                        for (com.google.firebase.firestore.QueryDocumentSnapshot chunk : chunks) {
+                            String data = chunk.getString("data");
+                            if (data != null) {
+                                fullBase64.append(data);
+                            }
+                        }
+
+                        displayBase64Image(holder, fullBase64.toString());
+                    }
+                    holder.progressBar.setVisibility(View.GONE);
+                })
+                .addOnFailureListener(e -> {
+                    holder.progressBar.setVisibility(View.GONE);
+                    holder.imageView.setVisibility(View.VISIBLE);
+                });
+    }
+
+    private void displayBase64Image(BlockViewHolder holder, String base64Data) {
+        try {
+            byte[] decodedBytes = android.util.Base64.decode(base64Data, android.util.Base64.NO_WRAP);
+            android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(
+                    decodedBytes, 0, decodedBytes.length);
+
+            if (bitmap != null && holder.imageView != null) {
+                holder.imageView.setImageBitmap(bitmap);
+                holder.imageView.setVisibility(View.VISIBLE);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (holder.imageView != null) {
+                holder.imageView.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+    // ================================================================
+// LINK BLOCK ACTIONS (Outside BlockViewHolder class)
+// ================================================================
+
+    private void showLinkActionsSheet(View view, int position) {
+        if (position < 0 || position >= blocks.size()) return;
+
+        SubpageBlock block = blocks.get(position);
+
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+        View sheetView = LayoutInflater.from(view.getContext())
+                .inflate(R.layout.link_actions_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        LinearLayout colorOption = sheetView.findViewById(R.id.linkColorOption);
+        LinearLayout captionOption = sheetView.findViewById(R.id.linkCaptionOption);
+        LinearLayout deleteOption = sheetView.findViewById(R.id.linkDeleteOption);
+
+        if (colorOption != null) {
+            colorOption.setOnClickListener(v -> {
+                bottomSheet.dismiss();
+                showLinkColorSheet(view, block, position);
+            });
+        }
+
+        if (captionOption != null) {
+            captionOption.setOnClickListener(v -> {
+                bottomSheet.dismiss();
+                showLinkCaptionSheet(view, block, position);
+            });
+        }
+
+        if (deleteOption != null) {
+            deleteOption.setOnClickListener(v -> {
+                bottomSheet.dismiss();
+                listener.onBlockDeleted(block, position);
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    private void showLinkColorSheet(View view, SubpageBlock block, int position) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+        View sheetView = LayoutInflater.from(view.getContext())
+                .inflate(R.layout.link_color_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        LinearLayout colorDefault = sheetView.findViewById(R.id.linkColorDefault);
+        LinearLayout colorGray = sheetView.findViewById(R.id.linkColorGray);
+        LinearLayout colorBrown = sheetView.findViewById(R.id.linkColorBrown);
+        LinearLayout colorOrange = sheetView.findViewById(R.id.linkColorOrange);
+        LinearLayout colorYellow = sheetView.findViewById(R.id.linkColorYellow);
+        LinearLayout colorGreen = sheetView.findViewById(R.id.linkColorGreen);
+        LinearLayout colorBlue = sheetView.findViewById(R.id.linkColorBlue);
+        LinearLayout colorPurple = sheetView.findViewById(R.id.linkColorPurple);
+        LinearLayout colorPink = sheetView.findViewById(R.id.linkColorPink);
+        LinearLayout colorRed = sheetView.findViewById(R.id.linkColorRed);
+
+        if (colorDefault != null) {
+            colorDefault.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#FFFFFF");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorGray != null) {
+            colorGray.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#E0E0E0");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorBrown != null) {
+            colorBrown.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#D7CCC8");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorOrange != null) {
+            colorOrange.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#FFE0B2");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorYellow != null) {
+            colorYellow.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#FFF9C4");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorGreen != null) {
+            colorGreen.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#C8E6C9");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorBlue != null) {
+            colorBlue.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#BBDEFB");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorPurple != null) {
+            colorPurple.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#E1BEE7");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorPink != null) {
+            colorPink.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#F8BBD0");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (colorRed != null) {
+            colorRed.setOnClickListener(v -> {
+                updateLinkColor(block, position, "#FFCDD2");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    private void updateLinkColor(SubpageBlock block, int position, String color) {
+        block.setLinkBackgroundColor(color);
+        notifyItemChanged(position);
+        listener.onBlockChanged(block);
+    }
+
+    private void showLinkCaptionSheet(View view, SubpageBlock block, int position) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+        View sheetView = LayoutInflater.from(view.getContext())
+                .inflate(R.layout.link_caption_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        com.google.android.material.textfield.TextInputEditText captionInput =
+                sheetView.findViewById(R.id.linkCaptionInput);
+        TextView cancelBtn = sheetView.findViewById(R.id.cancelCaptionBtn);
+        TextView saveBtn = sheetView.findViewById(R.id.saveCaptionBtn);
+
+        if (captionInput != null && block.getLinkDescription() != null) {
+            captionInput.setText(block.getLinkDescription());
+        }
+
+        if (cancelBtn != null) {
+            cancelBtn.setOnClickListener(v -> bottomSheet.dismiss());
+        }
+
+        if (saveBtn != null) {
+            saveBtn.setOnClickListener(v -> {
+                if (captionInput != null) {
+                    String caption = captionInput.getText().toString().trim();
+                    block.setLinkDescription(caption);
+                    notifyItemChanged(position);
+                    listener.onBlockChanged(block);
+                }
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+}

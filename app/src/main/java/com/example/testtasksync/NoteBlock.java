@@ -1,5 +1,7 @@
 package com.example.testtasksync;
 
+import org.json.JSONObject;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,6 +42,16 @@ public class NoteBlock {
     private int listNumber;
     private String linkBackgroundColor;
     private String linkDescription;
+
+
+    private String fontStyle;
+    public String getFontStyle() {
+        return fontStyle;
+    }
+
+    public void setFontStyle(String fontStyle) {
+        this.fontStyle = fontStyle;
+    }
 
     public String getLinkBackgroundColor() { return linkBackgroundColor; }
     public void setLinkBackgroundColor(String linkBackgroundColor) {
@@ -145,7 +157,9 @@ public class NoteBlock {
         map.put("sizeKB", sizeKB);
         map.put("linkBackgroundColor", linkBackgroundColor);
         map.put("linkDescription", linkDescription);
-        map.put("fontColor", fontColor); // ✅ NEW
+        map.put("fontStyle", fontStyle);  // ✅ ADD THIS
+        map.put("fontColor", fontColor);
+        map.put("styleData", styleData); // ✅ NEW
 
         return map;
     }
@@ -158,8 +172,23 @@ public class NoteBlock {
         block.content = (String) map.get("content");
         block.linkBackgroundColor = (String) map.get("linkBackgroundColor");
         block.linkDescription = (String) map.get("linkDescription");
-        block.fontColor = (String) map.get("fontColor"); // ✅ NEW
+        block.fontStyle = (String) map.get("fontStyle");
+        block.fontColor = (String) map.get("fontColor");
 
+        // ✅ MIGRATION: If fontStyle is null but styleData exists, migrate it
+        if (block.fontStyle == null && map.get("styleData") != null) {
+            try {
+                JSONObject styleJson = new JSONObject((String) map.get("styleData"));
+                block.fontStyle = styleJson.optString("fontStyle", null);
+            } catch (Exception e) {
+                // Ignore migration errors
+            }
+        }
+
+        // Set default color if not present
+        if (block.fontColor == null || block.fontColor.isEmpty()) {
+            block.fontColor = "#333333";
+        }
         if (map.get("indentLevel") != null) {
             block.indentLevel = ((Long) map.get("indentLevel")).intValue();
         }

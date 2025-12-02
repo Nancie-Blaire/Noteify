@@ -490,24 +490,19 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
         block.setPosition(blocks.size());
 
-        // ✅ FIX: Set default to "normal" style (same as clicking "normal" button)
-        block.setStyleData(null); // No special styling
-        block.setFontColor("#333333"); // Default black color
+        // ✅ Set default style - no special formatting
+        block.setFontStyle(null);
+        block.setFontColor("#333333");
 
         blocks.add(block);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(block);
 
-        // ✅ CRITICAL: Apply the same "normal" treatment as convertToNormalText()
-        // This makes text selection work immediately
         blocksRecycler.post(() -> {
             blocksRecycler.postDelayed(() -> {
                 int position = blocks.size() - 1;
                 if (position >= 0 && position < blocks.size()) {
-                    // Force refresh the block to apply "normal" state
                     adapter.notifyItemChanged(position);
-
-                    // Focus with proper cursor position (this activates selection)
                     focusBlock(position, 0);
                 }
             }, 100);
@@ -1554,33 +1549,35 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 // ===============================================
     private void focusBlock(int position, int cursorPosition) {
         blocksRecycler.post(() -> {
-            blocksRecycler.postDelayed(() -> {
-                RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(position);
-                if (holder != null) {
-                    View view = holder.itemView;
-                    EditText editText = view.findViewById(R.id.contentEdit);
-                    if (editText != null) {
-                        editText.requestFocus();
+            RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(position);
+            if (holder != null && holder.itemView != null) {
+                EditText editText = holder.itemView.findViewById(R.id.contentEdit);
+                if (editText != null) {
+                    // ✅ CRITICAL: Ensure EditText is enabled and focusable
+                    editText.setEnabled(true);
+                    editText.setFocusable(true);
+                    editText.setFocusableInTouchMode(true);
+                    editText.setCursorVisible(true);
 
-                        // Set cursor position
-                        if (cursorPosition >= 0 && cursorPosition <= editText.getText().length()) {
-                            editText.setSelection(cursorPosition);
-                        } else {
-                            editText.setSelection(editText.getText().length());
-                        }
+                    editText.requestFocus();
 
-                        // Show keyboard
-                        android.view.inputmethod.InputMethodManager imm =
-                                (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-                        if (imm != null) {
-                            imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-                        }
+                    // Set cursor position
+                    if (cursorPosition >= 0 && cursorPosition <= editText.getText().length()) {
+                        editText.setSelection(cursorPosition);
+                    } else {
+                        editText.setSelection(editText.getText().length());
+                    }
+
+                    // Show keyboard
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
                     }
                 }
-            }, 100);
+            }
         });
     }
-
     @Override
     public void onBackspaceOnEmptyBlock(int position) {
         if (position < 0 || position >= blocks.size()) return;
@@ -2111,32 +2108,29 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock block = blocks.get(position);
 
-        // Store the style in styleData as JSON
-        try {
-            org.json.JSONObject styleJson = new org.json.JSONObject();
-            styleJson.put("fontStyle", style);
-            block.setStyleData(styleJson.toString());
+        // ✅ SIMPLE: Just set the style directly
+        block.setFontStyle(style);
 
-            adapter.notifyItemChanged(position);
-            saveBlock(block);
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
 
-            Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
-        } catch (org.json.JSONException e) {
-            Toast.makeText(this, "Error applying style", Toast.LENGTH_SHORT).show();
-        }
+        Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+
+        // Refocus the block
+        focusBlock(position, block.getContent().length());
     }
 
-    // ✅ NEW METHOD: Convert current block to normal TEXT
+    // ✅ UPDATE convertToNormalText to use fontStyle field:
     private void convertToNormalText() {
         View focusedView = getCurrentFocus();
         if (focusedView == null) {
-            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            CustomToast.show(this, "No block selected", R.drawable.logo_noteify);
             return;
         }
 
         RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
         if (holder == null) {
-            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            CustomToast.show(this, "No block selected", R.drawable.logo_noteify);
             return;
         }
 
@@ -2147,28 +2141,24 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock block = blocks.get(position);
 
-        // Check if it's a heading - need to convert to TEXT type
+        // Convert heading to text if needed
         if (block.getType() == NoteBlock.BlockType.HEADING_1 ||
                 block.getType() == NoteBlock.BlockType.HEADING_2 ||
                 block.getType() == NoteBlock.BlockType.HEADING_3) {
-
-            // Convert heading to normal text
             block.setType(NoteBlock.BlockType.TEXT);
         }
 
-        // Clear any font styling
-        block.setStyleData(null);
-
-        // ✅ Reset font color to default
+        // Clear font style and reset color
+        block.setFontStyle(null);
         block.setFontColor("#333333");
 
         adapter.notifyItemChanged(position);
         saveBlock(block);
 
-        // Refocus the block
-        focusBlock(position, block.getContent().length());
+        CustomToast.show(this, "Converted to normal text", R.drawable.logo_noteify);
 
-        Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
+        // ✅ USE focusBlock with content length
+        focusBlock(position, block.getContent() != null ? block.getContent().length() : 0);
     }
 
     // ====================================================

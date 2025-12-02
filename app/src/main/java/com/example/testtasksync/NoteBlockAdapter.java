@@ -189,61 +189,21 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     class TextViewHolder extends RecyclerView.ViewHolder {
         EditText contentEdit;
+        TextWatcher textWatcher;
 
         TextViewHolder(View view) {
             super(view);
             contentEdit = view.findViewById(R.id.contentEdit);
 
-            // ✅ CRITICAL: Re-setup selection on every bind
-            setupEditTextForSelection();
-
-            // ✅ Setup custom selection menu
+            // ✅ SIMPLE: Setup custom selection menu only
             setupCustomSelectionMenu();
-
-            // Text change listener
-            contentEdit.addTextChangedListener(new TextWatcher() {
-                private boolean isUpdatingText = false;
-
-                @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-                @Override
-                public void onTextChanged(CharSequence s, int start, int before, int after) {
-                    if (isUpdatingText) return;
-
-                    int pos = getAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) {
-                        NoteBlock block = blocks.get(pos);
-                        block.setContent(s.toString());
-                        listener.onBlockChanged(block);
-
-                        // Reapply bookmarks
-                        isUpdatingText = true;
-                        reapplyBookmarksToView(contentEdit, block);
-                        isUpdatingText = false;
-                    }
-                }
-
-                @Override
-                public void afterTextChanged(Editable s) {}
-            });
-        }
-
-        private void setupEditTextForSelection() {
-            contentEdit.setTextIsSelectable(false);
-            contentEdit.setEnabled(true);
-            contentEdit.setFocusable(true);
-            contentEdit.setFocusableInTouchMode(true);
-            contentEdit.setLongClickable(true);
-            contentEdit.setClickable(true);
-            contentEdit.setCursorVisible(true);
         }
 
         private void setupCustomSelectionMenu() {
             contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
                 @Override
                 public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    menu.add(android.view.Menu.NONE, android.R.id.button1, android.view.Menu.FIRST, "📌 Bookmark")
+                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
                             .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
                     return true;
                 }
@@ -252,8 +212,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
                     try {
                         menu.removeItem(android.R.id.shareText);
-                    } catch (Exception e) {
-                    }
+                    } catch (Exception e) {}
                     return true;
                 }
 
@@ -268,29 +227,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
 
                 @Override
-                public void onDestroyActionMode(android.view.ActionMode mode) {
-                }
-            });
-
-            contentEdit.setCustomInsertionActionModeCallback(new android.view.ActionMode.Callback() {
-                @Override
-                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    return true;
-                }
-
-                @Override
-                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    return false;
-                }
-
-                @Override
-                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
-                    return false;
-                }
-
-                @Override
-                public void onDestroyActionMode(android.view.ActionMode mode) {
-                }
+                public void onDestroyActionMode(android.view.ActionMode mode) {}
             });
         }
 
@@ -317,39 +254,127 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
 
         void bind(NoteBlock block) {
-            setupEditTextForSelection();
-
             String content = block.getContent();
             if (content == null) content = "";
 
+            // ✅ REMOVE old TextWatcher
+            if (textWatcher != null) {
+                contentEdit.removeTextChangedListener(textWatcher);
+            }
+
+            // ✅ Get bookmarks for this block
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
+            // ✅ Apply bookmarks to the text
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                SpannableString spannableString = new SpannableString(content);
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
-                    applyBookmarkSpan(spannableString, bookmark, content.length());
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                            editable.setSpan(
+                                    new UnderlineSpan(),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
                 }
 
-                contentEdit.setText(spannableString);
+                contentEdit.setText(editable);
             } else {
                 contentEdit.setText(content);
             }
 
-            // ✅ INDENT/OUTDENT: Apply left margin based on indent level
+            // ✅ SET INPUT TYPE (same as Subpage)
+            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            contentEdit.setHorizontallyScrolling(false);
+            contentEdit.setMaxLines(Integer.MAX_VALUE);
+
+            // ✅ Direct selection (NO POST)
+            contentEdit.setSelection(contentEdit.getText().length());
+
+            // ✅ ADD NEW TextWatcher
+            textWatcher = new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int after) {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        NoteBlock block = blocks.get(pos);
+                        block.setContent(s.toString());
+                        listener.onBlockChanged(block);
+                    }
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {}
+            };
+            contentEdit.addTextChangedListener(textWatcher);
+
+            // ✅ SET KEY LISTENER
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
+
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+
+            // Apply indent
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // Font style
-            applyFontStyle(contentEdit, block.getStyleData(), block.getFontColor());
+            // Apply font style
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
 
         private int dpToPx(int dp) {
             return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
         }
     }
+
     class HeadingViewHolder extends RecyclerView.ViewHolder {
         EditText contentEdit;
 
@@ -439,42 +464,74 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
 
         void bind(NoteBlock block) {
-            // ✅ Apply bookmarks
             String content = block.getContent();
             if (content == null) content = "";
 
+            // ✅ Get bookmarks for this block
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
+            // ✅ CRITICAL: Ensure EditText is enabled and focusable FIRST
+            contentEdit.setEnabled(true);
+            contentEdit.setFocusable(true);
+            contentEdit.setFocusableInTouchMode(true);
+            contentEdit.setCursorVisible(true);
+            contentEdit.setLongClickable(true);
+
+            // ✅ Set input type (same as Subpage)
+            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+
+            // ✅ Apply bookmarks to the text
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                SpannableString spannableString = new SpannableString(content);
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
-                    applyBookmarkSpan(spannableString, bookmark, content.length());
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                            editable.setSpan(
+                                    new UnderlineSpan(),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
                 }
 
-                contentEdit.setText(spannableString);
+                contentEdit.setText(editable);
             } else {
                 contentEdit.setText(content);
             }
 
-            // Text size based on heading type
-            float textSize = 16f;
-            int textStyle = Typeface.NORMAL;
-            switch (block.getType()) {
-                case HEADING_1: textSize = 28f; textStyle = Typeface.BOLD;break;
-                case HEADING_2: textSize = 24f; break;
-                case HEADING_3: textSize = 20f; break;
-            }
-            contentEdit.setTextSize(textSize);
-            contentEdit.setTypeface(null, textStyle);
+            // ✅ NO POST - Direct selection like SubpageAdapter
+            contentEdit.setSelection(contentEdit.getText().length());
 
-            // ✅ INDENT/OUTDENT: Apply left margin based on indent level
+            // Apply indent
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            applyFontStyle(contentEdit, block.getStyleData(), block.getFontColor());
+            // Apply font style
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
 
         private int dpToPx(int dp) {
@@ -643,7 +700,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                SpannableString spannableString = new SpannableString(content);
+                // ✅ Use Editable
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
                     int start = bookmark.getStartIndex();
@@ -653,33 +711,39 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                         int color = Color.parseColor(bookmark.getColor());
 
                         if ("highlight".equals(bookmark.getStyle())) {
-                            spannableString.setSpan(
+                            editable.setSpan(
                                     new BackgroundColorSpan(color),
                                     start,
                                     end,
-                                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
-                            spannableString.setSpan(
+                            editable.setSpan(
                                     new BackgroundColorSpan(color),
                                     start,
                                     end,
-                                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
-                            spannableString.setSpan(
+                            editable.setSpan(
                                     new UnderlineSpan(),
                                     start,
                                     end,
-                                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         }
                     }
                 }
 
-                contentEdit.setText(spannableString);
+                contentEdit.setText(editable);
             } else {
                 contentEdit.setText(content);
             }
+
+            // ✅ Set cursor to end
+            contentEdit.post(() -> {
+                contentEdit.setSelection(contentEdit.getText().length());
+            });
+
 
             contentEdit.setHint("List item");
 
@@ -693,7 +757,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            applyFontStyle(contentEdit, block.getStyleData(), block.getFontColor());
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
 
         private int dpToPx(int dp) {
@@ -847,16 +911,50 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                SpannableString spannableString = new SpannableString(content);
+                // ✅ Use Editable
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
-                    applyBookmarkSpan(spannableString, bookmark, content.length());
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                            editable.setSpan(
+                                    new UnderlineSpan(),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
                 }
 
-                contentEdit.setText(spannableString);
+                contentEdit.setText(editable);
             } else {
                 contentEdit.setText(content);
             }
+
+            // ✅ Set cursor to end
+            contentEdit.post(() -> {
+                contentEdit.setSelection(contentEdit.getText().length());
+            });
+
 
             String numberFormat;
             switch (block.getIndentLevel()) {
@@ -880,7 +978,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            applyFontStyle(contentEdit, block.getStyleData(), block.getFontColor());
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
 
         private String toRoman(int number) {
@@ -1045,31 +1143,63 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
 
         void bind(NoteBlock block) {
-            checkbox.setChecked(block.isChecked());
-
             String content = block.getContent();
             if (content == null) content = "";
 
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                SpannableString spannableString = new SpannableString(content);
+                // ✅ Use Editable
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
-                    applyBookmarkSpan(spannableString, bookmark, content.length());
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                            editable.setSpan(
+                                    new UnderlineSpan(),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
                 }
 
-                contentEdit.setText(spannableString);
+                contentEdit.setText(editable);
             } else {
                 contentEdit.setText(content);
             }
+
+            // ✅ Set cursor to end
+            contentEdit.post(() -> {
+                contentEdit.setSelection(contentEdit.getText().length());
+            });
+
 
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            applyFontStyle(contentEdit, block.getStyleData(), block.getFontColor());
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
 
         private int dpToPx(int dp) {
@@ -1813,48 +1943,38 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
     }
 
-    private void applyFontStyle(EditText editText, String styleData, String fontColor) {
-        // ✅ Apply font style (bold, italic, etc.)
-        if (styleData == null || styleData.isEmpty()) {
-            // Default: normal
+    private void applyFontStyle(EditText editText, String fontStyle, String fontColor) {
+        // Apply font style (bold, italic, etc.)
+        if (fontStyle == null || fontStyle.isEmpty()) {
             editText.setTypeface(null, android.graphics.Typeface.NORMAL);
         } else {
-            try {
-                org.json.JSONObject styleJson = new org.json.JSONObject(styleData);
-                String fontStyle = styleJson.optString("fontStyle", "normal");
-
-                switch (fontStyle) {
-                    case "bold":
-                        editText.setTypeface(null, android.graphics.Typeface.BOLD);
-                        break;
-                    case "italic":
-                        editText.setTypeface(null, android.graphics.Typeface.ITALIC);
-                        break;
-                    case "boldItalic":
-                        editText.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
-                        break;
-                    case "normal":
-                    default:
-                        editText.setTypeface(null, android.graphics.Typeface.NORMAL);
-                        break;
-                }
-            } catch (org.json.JSONException e) {
-                editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+            switch (fontStyle) {
+                case "bold":
+                    editText.setTypeface(null, android.graphics.Typeface.BOLD);
+                    break;
+                case "italic":
+                    editText.setTypeface(null, android.graphics.Typeface.ITALIC);
+                    break;
+                case "boldItalic":
+                    editText.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                    break;
+                default:
+                    editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+                    break;
             }
         }
 
-        // ✅ Apply font color
+        // Apply font color
         if (fontColor != null && !fontColor.isEmpty()) {
             try {
                 editText.setTextColor(android.graphics.Color.parseColor(fontColor));
             } catch (Exception e) {
-                editText.setTextColor(android.graphics.Color.parseColor("#333333")); // Default black
+                editText.setTextColor(android.graphics.Color.parseColor("#333333"));
             }
         } else {
-            editText.setTextColor(android.graphics.Color.parseColor("#333333")); // Default black
+            editText.setTextColor(android.graphics.Color.parseColor("#333333"));
         }
     }
-
     // Add this method sa NoteBlockAdapter class (before the ViewHolder classes)
     private void showBookmarkContextMenu(View anchorView, String selectedText,
                                          String blockId, int startIndex, int endIndex) {
@@ -1874,7 +1994,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     public void updateBookmarks(Map<String, List<Bookmark>> bookmarksMap) {
         this.blockBookmarksMap = bookmarksMap;
     }
-    private void applyBookmarkSpan(SpannableString spannableString, Bookmark bookmark, int maxLength) {
+    private void applyBookmarkSpan(android.text.SpannableStringBuilder spannable,
+                                   Bookmark bookmark, int maxLength) {
         int start = bookmark.getStartIndex();
         int end = bookmark.getEndIndex();
 
@@ -1882,20 +2003,20 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             int color = Color.parseColor(bookmark.getColor());
 
             if ("highlight".equals(bookmark.getStyle())) {
-                spannableString.setSpan(
+                spannable.setSpan(
                         new BackgroundColorSpan(color),
                         start,
                         end,
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
             } else if ("underline".equals(bookmark.getStyle())) {
-                spannableString.setSpan(
+                spannable.setSpan(
                         new BackgroundColorSpan(color),
                         start,
                         end,
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
-                spannableString.setSpan(
+                spannable.setSpan(
                         new UnderlineSpan(),
                         start,
                         end,
@@ -1911,17 +2032,23 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
         if (bookmarks != null && !bookmarks.isEmpty()) {
-            SpannableString spannableString = new SpannableString(content);
+            // ✅ Save cursor position
+            int cursorPos = editText.getSelectionStart();
+
+            android.text.SpannableStringBuilder spannableBuilder =
+                    new android.text.SpannableStringBuilder(content);
 
             for (Bookmark bookmark : bookmarks) {
-                applyBookmarkSpan(spannableString, bookmark, content.length());
+                applyBookmarkSpan(spannableBuilder, bookmark, content.length());
             }
 
-            int cursorPos = editText.getSelectionStart();
-            editText.setText(spannableString);
+            editText.setText(spannableBuilder);
 
-            if (cursorPos >= 0 && cursorPos <= spannableString.length()) {
+            // ✅ Restore cursor position
+            if (cursorPos >= 0 && cursorPos <= spannableBuilder.length()) {
                 editText.setSelection(cursorPos);
+            } else {
+                editText.setSelection(editText.getText().length());
             }
         }
     }
@@ -1929,5 +2056,36 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     // ✅ Custom Action Mode for text selection
     // Replace the BookmarkActionModeCallback class at the bottom of NoteBlockAdapter.java
 
+    // Optional: Keep as helper if you want
+    private void applyBookmarkToEditable(android.text.Editable editable,
+                                         Bookmark bookmark, int maxLength) {
+        int start = bookmark.getStartIndex();
+        int end = bookmark.getEndIndex();
 
+        if (start >= 0 && end <= maxLength && start < end) {
+            int color = Color.parseColor(bookmark.getColor());
+
+            if ("highlight".equals(bookmark.getStyle())) {
+                editable.setSpan(
+                        new BackgroundColorSpan(color),
+                        start,
+                        end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            } else if ("underline".equals(bookmark.getStyle())) {
+                editable.setSpan(
+                        new BackgroundColorSpan(color),
+                        start,
+                        end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+                editable.setSpan(
+                        new UnderlineSpan(),
+                        start,
+                        end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+        }
+    }
 }

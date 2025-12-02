@@ -1,6 +1,7 @@
 package com.example.testtasksync;
 
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
@@ -458,12 +459,14 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
             // Text size based on heading type
             float textSize = 16f;
+            int textStyle = Typeface.NORMAL;
             switch (block.getType()) {
-                case HEADING_1: textSize = 28f; break;
+                case HEADING_1: textSize = 28f; textStyle = Typeface.BOLD;break;
                 case HEADING_2: textSize = 24f; break;
                 case HEADING_3: textSize = 20f; break;
             }
             contentEdit.setTextSize(textSize);
+            contentEdit.setTypeface(null, textStyle);
 
             // ✅ INDENT/OUTDENT: Apply left margin based on indent level
             int marginLeft = dpToPx(block.getIndentLevel() * 24);

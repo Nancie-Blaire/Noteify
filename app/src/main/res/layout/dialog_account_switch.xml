@@ -2,7 +2,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="#F4E8DF">
 
     <!-- Header with background color -->
     <TextView
@@ -29,6 +30,26 @@
         android:layout_height="1dp"
         android:background="#E0E0E0"/>
 
+    <Button
+        android:id="@+id/btnGoogleSignIn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:backgroundTint="#FFFFFF"
+        android:drawableLeft="@drawable/ic_google"
+        android:drawablePadding="8dp"
+        android:fontFamily="@font/inter_regular"
+        android:gravity="center"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:text="Continue with Google"
+        android:textColor="#757575"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        />
     <TextView
         android:id="@+id/tvAddAccount"
         android:layout_width="match_parent"

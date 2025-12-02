@@ -39,6 +39,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Account extends AppCompatActivity {
@@ -152,7 +153,7 @@ public class Account extends AppCompatActivity {
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
                         String displayName = documentSnapshot.getString("displayName");
-                        String authProvider = documentSnapshot.getString("authProvider");
+                        String authProvider = documentSnapshot.getString("authProvider");  // ✅ Get from Firestore
                         String photoUrl = documentSnapshot.getString("photoUrl");
 
                         // Display name
@@ -174,8 +175,8 @@ public class Account extends AppCompatActivity {
                             showDefaultAvatar(displayName != null ? displayName : "User");
                         }
 
-                        // Save account to AccountManager
-                        accountManager.saveAccount(user.getEmail(), user.getUid(), displayName, photoUrl);
+                        // ✅ Save account to AccountManager WITH authProvider
+                        accountManager.saveAccount(user.getEmail(), user.getUid(), displayName, photoUrl, authProvider);
                     } else {
                         String email = user.getEmail();
                         if (email != null && email.contains("@")) {
@@ -185,10 +186,24 @@ public class Account extends AppCompatActivity {
                         }
                         showDefaultAvatar(tvUserName.getText().toString());
 
-                        // Save account even without profile data
+                        // ✅ Save account even without profile data - default to "email" provider
                         accountManager.saveAccount(user.getEmail(), user.getUid(),
-                                tvUserName.getText().toString(), null);
+                                tvUserName.getText().toString(), null, "email");
                     }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show();
+                    String email = user.getEmail();
+                    if (email != null && email.contains("@")) {
+                        tvUserName.setText(email.split("@")[0]);
+                    } else {
+                        tvUserName.setText("User");
+                    }
+                    showDefaultAvatar(tvUserName.getText().toString());
+
+                    // ✅ Save account even on failure - default to "email" provider
+                    accountManager.saveAccount(user.getEmail(), user.getUid(),
+                            tvUserName.getText().toString(), null, "email");
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show();
@@ -240,39 +255,54 @@ public class Account extends AppCompatActivity {
      * Show dialog to switch between saved accounts
      */
     private void showAccountSwitchDialog() {
-        List<AccountManager.SavedAccount> accounts = accountManager.getSavedAccounts();
+        List<AccountManager.SavedAccount> allAccounts = accountManager.getSavedAccounts();
 
-        if (accounts.isEmpty()) {
-            Toast.makeText(this, "No saved accounts found", Toast.LENGTH_SHORT).show();
-            return;
+        // ✅ FILTER: Email accounts only
+        List<AccountManager.SavedAccount> emailAccounts = new ArrayList<>();
+        for (AccountManager.SavedAccount account : allAccounts) {
+            if ("email".equals(account.getAuthProvider())) {
+                emailAccounts.add(account);
+            }
         }
 
         // Create dialog
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-
-        // Inflate custom layout with RecyclerView
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_account_switch, null);
+
         RecyclerView recyclerView = dialogView.findViewById(R.id.rvAccounts);
         TextView tvAddAccount = dialogView.findViewById(R.id.tvAddAccount);
+        Button btnGoogleSignIn = dialogView.findViewById(R.id.btnGoogleSignIn);  // ✅ CHANGED to Button
         TextView btnCancel = dialogView.findViewById(R.id.btnCancel);
 
-        // Setup RecyclerView
+        // Setup RecyclerView with FILTERED list
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         AccountSwitchAdapter adapter = new AccountSwitchAdapter(
                 this,
-                accounts,
+                emailAccounts,  // ✅ Email accounts only
                 accountManager.getCurrentAccountEmail(),
-                account -> {
-                    // Handle account switch
-                    switchToAccount(account);
-                }
+                account -> switchToAccount(account)
         );
         recyclerView.setAdapter(adapter);
 
         builder.setView(dialogView);
         AlertDialog dialog = builder.create();
 
-        // Add swipe-to-delete functionality
+        // ✅ Google Sign-In Button
+        btnGoogleSignIn.setOnClickListener(v -> {
+            dialog.dismiss();
+            showGoogleAccountPicker();
+        });
+
+        // Add Account button
+        tvAddAccount.setOnClickListener(v -> {
+            dialog.dismiss();
+            showAddAccountBottomSheet();
+        });
+
+        // Cancel button
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        // Swipe-to-delete
         ItemTouchHelper itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
             @Override
             public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, RecyclerView.ViewHolder target) {
@@ -282,26 +312,28 @@ public class Account extends AppCompatActivity {
             @Override
             public void onSwiped(RecyclerView.ViewHolder viewHolder, int direction) {
                 int position = viewHolder.getAdapterPosition();
-                AccountManager.SavedAccount accountToDelete = accounts.get(position);
-
-                // Show confirmation dialog before deleting
-                showDeleteAccountConfirmationDialog(accountToDelete, position, adapter, accounts);
+                AccountManager.SavedAccount accountToDelete = emailAccounts.get(position);
+                showDeleteAccountConfirmationDialog(accountToDelete, position, adapter, emailAccounts);
             }
         });
         itemTouchHelper.attachToRecyclerView(recyclerView);
 
-        // Add Account button - Now shows bottom sheet
-        tvAddAccount.setOnClickListener(v -> {
-            dialog.dismiss();
-            showAddAccountBottomSheet();
-        });
-
-        // Cancel button
-        btnCancel.setOnClickListener(v -> dialog.dismiss());
-
         dialog.show();
     }
+    private void showGoogleAccountPicker() {
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build();
 
+        GoogleSignInClient googleSignInClient = GoogleSignIn.getClient(this, gso);
+
+        // Sign out to show account picker
+        googleSignInClient.signOut().addOnCompleteListener(task -> {
+            Intent signInIntent = googleSignInClient.getSignInIntent();
+            startActivityForResult(signInIntent, RC_GOOGLE_SIGN_IN_ADD_ACCOUNT);
+        });
+    }
     /**
      * Show confirmation dialog before deleting account from list
      */
@@ -544,10 +576,50 @@ public class Account extends AppCompatActivity {
             return;
         }
 
-        // Show password confirmation dialog
-        showPasswordConfirmationDialog(account);
-    }
+        // ✅ CHECK AUTH METHOD
+        String authProvider = account.getAuthProvider();
 
+        if ("google".equals(authProvider)) {
+            // Google account - sign in directly without password
+            switchToGoogleAccount(account);
+        } else {
+            // Email account - show password dialog
+            showPasswordConfirmationDialog(account);
+        }
+    }
+    private void switchToGoogleAccount(AccountManager.SavedAccount account) {
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build();
+
+        GoogleSignInClient googleSignInClient = GoogleSignIn.getClient(this, gso);
+
+        // ✅ CHECK if already signed in to this Google account
+        GoogleSignInAccount googleAccount = GoogleSignIn.getLastSignedInAccount(this);
+
+        if (googleAccount != null && googleAccount.getEmail().equals(account.getEmail())) {
+            // ✅ Direct sign-in - NO PICKER!
+            Toast.makeText(this, "Switching to " + account.getEmail() + "...", Toast.LENGTH_SHORT).show();
+
+            // Sign out from Firebase first
+            auth.signOut();
+
+            // Authenticate with Firebase using existing Google account
+            firebaseAuthWithGoogle(googleAccount);
+            return;
+        }
+
+        // Different account - show picker
+        Toast.makeText(this, "Please select " + account.getEmail(), Toast.LENGTH_SHORT).show();
+
+        auth.signOut();
+
+        googleSignInClient.signOut().addOnCompleteListener(task -> {
+            Intent signInIntent = googleSignInClient.getSignInIntent();
+            startActivityForResult(signInIntent, RC_GOOGLE_SIGN_IN_ADD_ACCOUNT);
+        });
+    }
     /**
      * Show password confirmation dialog for account switching
      */

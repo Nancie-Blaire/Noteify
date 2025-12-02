@@ -28,35 +28,29 @@ public class AccountManager {
     /**
      * Save a new account to the device
      */
-    public void saveAccount(String email, String userId, String displayName, String photoUrl) {
+    public void saveAccount(String email, String userId, String displayName, String photoUrl, String authProvider) {
         List<SavedAccount> accounts = getSavedAccounts();
 
-        // Check if account already exists
         boolean exists = false;
         for (SavedAccount account : accounts) {
             if (account.getEmail().equals(email)) {
-                // Update existing account
                 account.setUserId(userId);
                 account.setDisplayName(displayName);
                 account.setPhotoUrl(photoUrl);
+                account.setAuthProvider(authProvider);  // ✅ ADD THIS
                 exists = true;
                 break;
             }
         }
 
-        // Add new account if it doesn't exist
         if (!exists) {
-            accounts.add(new SavedAccount(email, userId, displayName, photoUrl));
+            accounts.add(new SavedAccount(email, userId, displayName, photoUrl, authProvider));
         }
 
-        // Save to SharedPreferences
         String json = gson.toJson(accounts);
         prefs.edit().putString(KEY_ACCOUNTS, json).apply();
-
-        // Set as current account
         setCurrentAccount(email);
     }
-
     /**
      * Get all saved accounts
      */
@@ -115,14 +109,23 @@ public class AccountManager {
         private String userId;
         private String displayName;
         private String photoUrl;
+        private String authProvider;
 
-        public SavedAccount(String email, String userId, String displayName, String photoUrl) {
+
+        public SavedAccount(String email, String userId, String displayName, String photoUrl, String authProvider) {
             this.email = email;
             this.userId = userId;
             this.displayName = displayName;
             this.photoUrl = photoUrl;
+            this.authProvider = authProvider;
+        }
+        public String getAuthProvider() {
+            return authProvider;
         }
 
+        public void setAuthProvider(String authProvider) {
+            this.authProvider = authProvider;
+        }
         public String getEmail() {
             return email;
         }

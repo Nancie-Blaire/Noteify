@@ -17,6 +17,26 @@ public class SubpageBlock {
     private String linkBackgroundColor;
     private String linkDescription;
     private String dividerStyle;
+    private String fontStyle;  // "bold", "italic", "boldItalic", null
+    private String fontColor;  // Hex color code (e.g., "#E53935")
+
+    // ✅ NEW GETTERS AND SETTERS
+    public String getFontStyle() {
+        return fontStyle;
+    }
+
+    public void setFontStyle(String fontStyle) {
+        this.fontStyle = fontStyle;
+    }
+
+    public String getFontColor() {
+        return fontColor != null ? fontColor : "#333333"; // Default black
+    }
+
+    public void setFontColor(String fontColor) {
+        this.fontColor = fontColor;
+    }
+
 
     public String getDividerStyle() { return dividerStyle; }
     public void setDividerStyle(String dividerStyle) { this.dividerStyle = dividerStyle; }

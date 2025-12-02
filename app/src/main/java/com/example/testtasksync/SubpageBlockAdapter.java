@@ -1,5 +1,9 @@
 package com.example.testtasksync;
 
+import static com.example.testtasksync.NoteBlock.BlockType.HEADING_1;
+import static com.example.testtasksync.NoteBlock.BlockType.HEADING_2;
+import static com.example.testtasksync.NoteBlock.BlockType.HEADING_3;
+
 import android.content.Context;
 import android.graphics.Color;
 import android.text.Editable;
@@ -21,6 +25,11 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 import java.util.List;
 
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.StyleSpan; // Para sa BOLD/ITALIC
+import android.text.style.RelativeSizeSpan; // Para sa Custom Font Size (optional)
+import android.graphics.Typeface; // Para sa BOLD/ITALIC
 public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapter.BlockViewHolder> {
 
     private Context context;
@@ -107,18 +116,22 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
 
         return new BlockViewHolder(view);
     }
+    // ================================================================
+// REPLACE THE onBindViewHolder METHOD IN SubpageBlockAdapter.java
+// ================================================================
+
     @Override
     public void onBindViewHolder(@NonNull BlockViewHolder holder, int position) {
         SubpageBlock block = blocks.get(position);
 
         if (block.getType().equals("link")) {
             bindLinkBlock(holder, block);
-            return; // Early return for links
+            return;
         }
 
         if (block.getType().equals("image")) {
             bindImageBlock(holder, block);
-            return; // Early return for images
+            return;
         }
 
         // Apply indent (only for text-based blocks)
@@ -144,7 +157,7 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
             holder.editText.setHorizontallyScrolling(false);
             holder.editText.setMaxLines(Integer.MAX_VALUE);
 
-            // Set text size and style based on type
+            // ✅ SET TEXT SIZE AND BOLD (for headings)
             if (block.getType().equals("heading1")) {
                 holder.editText.setTextSize(28);
                 holder.editText.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -155,9 +168,13 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                 holder.editText.setTextSize(20);
                 holder.editText.setTypeface(null, android.graphics.Typeface.BOLD);
             } else {
+                // ✅ REGULAR TEXT - Apply font style
                 holder.editText.setTextSize(16);
-                holder.editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+                applyFontStyle(holder.editText, block.getFontStyle());
             }
+
+            // ✅ APPLY FONT COLOR (for all text types)
+            applyFontColor(holder.editText, block.getFontColor());
 
             // Add TextWatcher for auto-save
             holder.textWatcher = new TextWatcher() {
@@ -186,15 +203,13 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                     String currentText = editText.getText().toString();
 
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
-                        // Split text at cursor
                         String textBeforeCursor = currentText.substring(0, cursorPosition);
                         String textAfterCursor = currentText.substring(cursorPosition);
 
                         listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
-                        return true; // ✅ Consume event
+                        return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        // ✅ Only trigger if text is empty
                         if (currentText.isEmpty()) {
                             String blockType = block.getType();
                             if (blockType.equals("bullet") || blockType.equals("numbered") || blockType.equals("checkbox")) {
@@ -222,18 +237,10 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
         if (holder.bulletIcon != null && block.getType().equals("bullet")) {
             int indentLevel = block.getIndentLevel();
             switch (indentLevel) {
-                case 0:
-                    holder.bulletIcon.setText("●");
-                    break;
-                case 1:
-                    holder.bulletIcon.setText("○");
-                    break;
-                case 2:
-                    holder.bulletIcon.setText("■");
-                    break;
-                default:
-                    holder.bulletIcon.setText("●");
-                    break;
+                case 0: holder.bulletIcon.setText("●"); break;
+                case 1: holder.bulletIcon.setText("○"); break;
+                case 2: holder.bulletIcon.setText("■"); break;
+                default: holder.bulletIcon.setText("●"); break;
             }
         }
 
@@ -242,41 +249,24 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
             updateNumbering(holder);
         }
 
-        // Inside onBindViewHolder, for divider type:
+        // Divider style
         if (block.getType().equals("divider")) {
             if (holder.dividerView != null) {
-                String style = block.getContent(); // ✅ Get style from content
+                String style = block.getContent();
                 if (style == null || style.isEmpty()) {
                     style = "solid";
                 }
 
                 switch (style) {
-                    case "solid":
-                        holder.dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        break;
-                    case "dashed":
-                        holder.dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
-                        break;
-                    case "dotted":
-                        holder.dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
-                        break;
-                    case "double":
-                        holder.dividerView.setText("═════════════════════════════");
-                        break;
-                    case "arrows":
-                        holder.dividerView.setText("→→→→→→→→→→→ ✱ ←←←←←←←←←←←");
-                        break;
-                    case "stars":
-                        holder.dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ⋆ ✦✦✦✦✦✦✦✦✦✦✦✦");
-                        break;
-                    case "wave":
-                        holder.dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
-                        break;
-                    case "diamond":
-                        holder.dividerView.setText("◈◈◈◈◈◈◈◈◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈◈◈◈◈◈◈◈◈");
-                        break;
-                    default:
-                        holder.dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    case "solid": holder.dividerView.setText("────────────────────────────────"); break;
+                    case "dashed": holder.dividerView.setText("╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌"); break;
+                    case "dotted": holder.dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯"); break;
+                    case "double": holder.dividerView.setText("════════════════════════════"); break;
+                    case "arrows": holder.dividerView.setText("→→→→→→→→→→→ ✱ ←←←←←←←←←←←"); break;
+                    case "stars": holder.dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ⋆ ✦✦✦✦✦✦✦✦✦✦✦✦"); break;
+                    case "wave": holder.dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿"); break;
+                    case "diamond": holder.dividerView.setText("◈◈◈◈◈◈◈◈◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈◈◈◈◈◈◈◈◈"); break;
+                    default: holder.dividerView.setText("────────────────────────────────"); break;
                 }
 
                 holder.dividerView.setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER);
@@ -285,6 +275,44 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
         }
     }
 
+// ================================================================
+// ADD THESE HELPER METHODS TO SubpageBlockAdapter.java
+// ================================================================
+
+    // ✅ Apply font style (bold, italic, boldItalic)
+    private void applyFontStyle(EditText editText, String fontStyle) {
+        if (fontStyle == null || fontStyle.isEmpty()) {
+            editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+        } else {
+            switch (fontStyle) {
+                case "bold":
+                    editText.setTypeface(null, android.graphics.Typeface.BOLD);
+                    break;
+                case "italic":
+                    editText.setTypeface(null, android.graphics.Typeface.ITALIC);
+                    break;
+                case "boldItalic":
+                    editText.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                    break;
+                default:
+                    editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+                    break;
+            }
+        }
+    }
+
+    // ✅ Apply font color
+    private void applyFontColor(EditText editText, String fontColor) {
+        if (fontColor != null && !fontColor.isEmpty()) {
+            try {
+                editText.setTextColor(android.graphics.Color.parseColor(fontColor));
+            } catch (Exception e) {
+                editText.setTextColor(android.graphics.Color.parseColor("#333333")); // Default black
+            }
+        } else {
+            editText.setTextColor(android.graphics.Color.parseColor("#333333")); // Default black
+        }
+    }
     @Override
     public int getItemCount() {
         return blocks.size();

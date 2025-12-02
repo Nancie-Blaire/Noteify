@@ -225,10 +225,8 @@ public class SubpageActivity extends AppCompatActivity {
             }
         });
 
-        // TODO: Implement heading selector
-        btnHeadingsFont.setOnClickListener(v -> {
-            Toast.makeText(this, "Heading selector coming soon", Toast.LENGTH_SHORT).show();
-        });
+        btnHeadingsFont.setOnClickListener(v -> showHeadingOptions());
+
 
         btnLink.setOnClickListener(v -> addLinkBlock());
 
@@ -285,18 +283,17 @@ public class SubpageActivity extends AppCompatActivity {
             }
         }
     }
-
     private boolean canIndent(SubpageBlock block) {
         String type = block.getType();
         switch (type) {
             case "text":
+            case "heading1":
+            case "heading2":
+            case "heading3":
             case "bullet":
             case "numbered":
             case "checkbox":
                 return true;
-            case "heading1":
-            case "heading2":
-            case "heading3":
             case "divider":
             case "image":
             case "link":
@@ -305,6 +302,7 @@ public class SubpageActivity extends AppCompatActivity {
         }
     }
 
+    // 🔟 UPDATE: getMaxIndentForType to support headings and text
     private int getMaxIndentForType(String type) {
         switch (type) {
             case "bullet":
@@ -312,13 +310,15 @@ public class SubpageActivity extends AppCompatActivity {
             case "numbered":
                 return 3; // 0 = 1., 1 = a., 2 = i., 3 = deeper numbers
             case "text":
+            case "heading1":
+            case "heading2":
+            case "heading3":
             case "checkbox":
                 return 5; // Allow deeper indenting
             default:
                 return 0;
         }
     }
-
     private void setupColorPicker() {
         int[] colorIds = {
                 R.id.subpageColorDefault, R.id.subpageColorRed, R.id.subpageColorPink,
@@ -664,10 +664,15 @@ public class SubpageActivity extends AppCompatActivity {
         blockData.put("linkBackgroundColor", block.getLinkBackgroundColor());
         blockData.put("linkDescription", block.getLinkDescription());
         blockData.put("dividerStyle", block.getDividerStyle());
-        // ✅ ADD IMAGE FIELDS
+
+        // Image fields
         blockData.put("imageId", block.getImageId());
         blockData.put("isChunked", block.isChunked());
         blockData.put("sizeKB", block.getSizeKB());
+
+        // ✅ NEW FIELDS: Font style and color
+        blockData.put("fontStyle", block.getFontStyle());
+        blockData.put("fontColor", block.getFontColor());
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
@@ -675,7 +680,6 @@ public class SubpageActivity extends AppCompatActivity {
                 .collection("blocks").document(block.getBlockId())
                 .set(blockData);
     }
-
     private void deleteBlock(SubpageBlock block, int position) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
@@ -1329,4 +1333,297 @@ public class SubpageActivity extends AppCompatActivity {
             saveBlock(lastBlock);
         }
     }
+    private void showHeadingOptions() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all option views
+        LinearLayout heading1Option = sheetView.findViewById(R.id.heading1Option);
+        LinearLayout heading2Option = sheetView.findViewById(R.id.heading2Option);
+        LinearLayout heading3Option = sheetView.findViewById(R.id.heading3Option);
+        LinearLayout boldOption = sheetView.findViewById(R.id.boldOption);
+        LinearLayout italicOption = sheetView.findViewById(R.id.italicOption);
+        LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
+        LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
+
+        // ✅ Font color options
+        LinearLayout fontColorDefault = sheetView.findViewById(R.id.fontColorDefault);
+        LinearLayout fontColorRed = sheetView.findViewById(R.id.fontColorRed);
+        LinearLayout fontColorOrange = sheetView.findViewById(R.id.fontColorOrange);
+        LinearLayout fontColorYellow = sheetView.findViewById(R.id.fontColorYellow);
+        LinearLayout fontColorGreen = sheetView.findViewById(R.id.fontColorGreen);
+        LinearLayout fontColorBlue = sheetView.findViewById(R.id.fontColorBlue);
+        LinearLayout fontColorPurple = sheetView.findViewById(R.id.fontColorPurple);
+        LinearLayout fontColorPink = sheetView.findViewById(R.id.fontColorPink);
+        LinearLayout fontColorBrown = sheetView.findViewById(R.id.fontColorBrown);
+        LinearLayout fontColorGray = sheetView.findViewById(R.id.fontColorGray);
+
+        // ✅ HEADING OPTIONS
+        if (heading1Option != null) {
+            heading1Option.setOnClickListener(v -> {
+                applyHeadingToSelectedBlock("heading1");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading2Option != null) {
+            heading2Option.setOnClickListener(v -> {
+                applyHeadingToSelectedBlock("heading2");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading3Option != null) {
+            heading3Option.setOnClickListener(v -> {
+                applyHeadingToSelectedBlock("heading3");
+                bottomSheet.dismiss();
+            });
+        }
+
+        // ✅ FONT STYLE OPTIONS
+        if (boldOption != null) {
+            boldOption.setOnClickListener(v -> {
+                applyFontStyleToSelectedBlock("bold");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (italicOption != null) {
+            italicOption.setOnClickListener(v -> {
+                applyFontStyleToSelectedBlock("italic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (boldItalicOption != null) {
+            boldItalicOption.setOnClickListener(v -> {
+                applyFontStyleToSelectedBlock("boldItalic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (normalOption != null) {
+            normalOption.setOnClickListener(v -> {
+                convertToNormalText();
+                bottomSheet.dismiss();
+            });
+        }
+
+        // ✅ FONT COLOR OPTIONS
+        if (fontColorDefault != null) {
+            fontColorDefault.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#333333");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorRed != null) {
+            fontColorRed.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#E53935");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorOrange != null) {
+            fontColorOrange.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#FB8C00");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorYellow != null) {
+            fontColorYellow.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#FDD835");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGreen != null) {
+            fontColorGreen.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#43A047");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBlue != null) {
+            fontColorBlue.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#1E88E5");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPurple != null) {
+            fontColorPurple.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#8E24AA");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPink != null) {
+            fontColorPink.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#D81B60");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBrown != null) {
+            fontColorBrown.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#6D4C41");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGray != null) {
+            fontColorGray.setOnClickListener(v -> {
+                applyFontColorToSelectedBlock("#757575");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    // 3️⃣ ADD: Apply heading to selected block
+    private void applyHeadingToSelectedBlock(String headingType) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            // No block focused - replace last empty text or create new
+            tryReplaceLastEmptyTextBlock(headingType);
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            tryReplaceLastEmptyTextBlock(headingType);
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        SubpageBlock block = blocks.get(position);
+        block.setType(headingType);
+        blockAdapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        Toast.makeText(this, "Heading applied", Toast.LENGTH_SHORT).show();
+        focusBlockAt(position);
+    }
+
+    // 4️⃣ ADD: Apply font style to selected block
+    private void applyFontStyleToSelectedBlock(String style) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        SubpageBlock block = blocks.get(position);
+
+        // Store style in fontStyle field (we'll add this to SubpageBlock)
+        block.setFontStyle(style);
+
+        blockAdapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+        focusBlockAt(position);
+    }
+
+    // 5️⃣ ADD: Apply font color to selected block
+    private void applyFontColorToSelectedBlock(String color) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        SubpageBlock block = blocks.get(position);
+        block.setFontColor(color);
+
+        blockAdapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        String colorName = getColorName(color);
+        Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
+        focusBlockAt(position);
+    }
+
+    // 6️⃣ ADD: Get human-readable color name
+    private String getColorName(String hexColor) {
+        switch (hexColor) {
+            case "#333333": return "Default";
+            case "#E53935": return "Red";
+            case "#FB8C00": return "Orange";
+            case "#FDD835": return "Yellow";
+            case "#43A047": return "Green";
+            case "#1E88E5": return "Blue";
+            case "#8E24AA": return "Purple";
+            case "#D81B60": return "Pink";
+            case "#6D4C41": return "Brown";
+            case "#757575": return "Gray";
+            default: return "Custom";
+        }
+    }
+
+    // 7️⃣ ADD: Convert selected block to normal text
+    private void convertToNormalText() {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        SubpageBlock block = blocks.get(position);
+
+        // Convert to text type
+        block.setType("text");
+
+        // Clear font styling
+        block.setFontStyle(null);
+        block.setFontColor("#333333"); // Reset to default
+
+        blockAdapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
+        focusBlockAt(position);
+    }
+
 }

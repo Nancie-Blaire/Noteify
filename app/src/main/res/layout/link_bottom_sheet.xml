@@ -12,7 +12,8 @@
         android:textSize="20sp"
         android:textStyle="bold"
         android:textColor="#000000"
-        android:layout_marginBottom="16dp"/>
+        android:layout_marginBottom="24dp"
+        android:layout_marginTop="10dp"/>
 
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
@@ -32,11 +33,12 @@
         android:id="@+id/createLinkBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Create bookmark"
-        android:textColor="#2196F3"
+        android:text="Create Bookmark"
+        android:textColor="#FF9376"
         android:textSize="16sp"
         android:padding="16dp"
         android:layout_marginTop="8dp"
+        android:layout_marginBottom="15"
         android:clickable="true"
         android:focusable="true"
         android:background="?attr/selectableItemBackground"/>
@@ -45,8 +47,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Create a visual bookmark from a link."
-        android:textSize="14sp"
-        android:textColor="#757575"
-        android:layout_marginTop="8dp"/>
+        android:textColor="#8DAAA6"
+        android:textStyle="bold"
+        android:textSize="11sp" />
 
 </LinearLayout>

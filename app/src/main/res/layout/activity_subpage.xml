@@ -16,14 +16,16 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="8dp"
-        android:background="#FAFAFA"
-        android:elevation="2dp">
+        android:background="#8DAAA6"
+        android:elevation="2dp"
+        android:layout_marginTop="30dp">
 
         <ImageView
             android:id="@+id/checkBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="12dp"
+            app:tint="#FFFFFF"
             android:src="@drawable/ic_check"
             android:contentDescription="Back"
             android:background="?attr/selectableItemBackgroundBorderless" />
@@ -33,11 +35,10 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Subpage"
-            android:textSize="16sp"
-            android:textColor="#666"
-            android:gravity="center"
-            android:textStyle="bold" />
-            app:tint="#4CAF50" />
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:layout_marginStart="8dp" />
 
     </LinearLayout>
 
@@ -55,13 +56,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Subpage Title"
-            android:textSize="18sp"
+            android:textSize="20sp"
             android:textStyle="bold"
             android:inputType="textCapSentences"
             android:background="@android:color/transparent"
             android:padding="8dp"
-            android:textColor="#000"
-            android:layout_marginBottom="12dp" />
+            android:textColor="#666666"
+            android:layout_marginBottom="15dp" />
 
         <!-- Subpage Content -->
         <EditText
@@ -75,7 +76,7 @@
             android:inputType="textMultiLine"
             android:background="@android:color/transparent"
             android:padding="8dp"
-            android:textColor="#333"
+            android:textColor="#666666"
             android:overScrollMode="always" />
 
     </LinearLayout>

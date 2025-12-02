@@ -70,7 +70,7 @@
                 android:maxLines="1"
                 android:text="Title"
                 android:textColor="#212121"
-                android:textSize="16sp"
+                android:textSize="20sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -82,8 +82,8 @@
                 android:ellipsize="end"
                 android:maxLines="3"
                 android:text="Content"
-                android:textColor="#757575"
-                android:textSize="13sp" />
+                android:textColor="#666666"
+                android:textSize="14sp" />
         </LinearLayout>
 
     </RelativeLayout>

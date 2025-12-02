@@ -17,21 +17,24 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Notifications"
-            android:textSize="28sp"
+            android:textSize="25sp"
             android:textColor="#000000"
+            android:layout_marginStart="6dp"
             android:textStyle="bold"
+            android:layout_marginTop="15dp"
             android:layout_marginBottom="24dp"/>
 
         <!-- UPCOMING SECTION -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="UPCOMING"
-            android:textSize="14sp"
-            android:textColor="#666666"
+            android:text="Upcoming"
+            android:layout_marginStart="6dp"
+            android:textSize="18sp"
             android:textStyle="bold"
+            android:textColor="#000000"
             android:letterSpacing="0.05"
-            android:layout_marginBottom="12dp"/>
+            android:layout_marginBottom="8dp"/>
 
         <!-- Upcoming Empty State -->
         <TextView
@@ -51,18 +54,21 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
+            android:layout_marginStart="30dp"
+            android:layout_marginEnd="10dp"
             android:nestedScrollingEnabled="false"/>
 
         <!-- OVERDUE SECTION -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="OVERDUE"
-            android:textSize="14sp"
-            android:textColor="#666666"
+            android:text="Overdue"
+            android:textSize="18sp"
             android:textStyle="bold"
+            android:textColor="#000000"
+            android:layout_marginStart="6dp"
             android:letterSpacing="0.05"
-            android:layout_marginBottom="12dp"/>
+            android:layout_marginBottom="8dp"/>
 
         <!-- Overdue Empty State -->
         <TextView
@@ -81,6 +87,8 @@
             android:id="@+id/overdueRecyclerView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="30dp"
+            android:layout_marginEnd="10dp"
             android:nestedScrollingEnabled="false"/>
 
     </LinearLayout>

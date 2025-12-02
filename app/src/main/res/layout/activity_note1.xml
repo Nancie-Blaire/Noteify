@@ -16,14 +16,17 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="8dp"
-        android:background="#FAFAFA"
-        android:elevation="2dp">
+        android:background="#8DAAA6"
+        android:elevation="2dp"
+        android:layout_marginTop="30dp"
+        android:layout_marginBottom="5dp">
 
         <ImageView
             android:id="@+id/checkBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="12dp"
+            app:tint="#FFFFFF"
             android:src="@drawable/ic_check"
             android:contentDescription="Back"
             android:background="?attr/selectableItemBackgroundBorderless" />
@@ -102,12 +105,12 @@
 
             <!-- Icon -->
             <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
                 android:src="@drawable/ic_fab_notes"
                 android:contentDescription="Todo icon"
                 android:layout_gravity="start"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="15dp"
                 app:tint="#000000" />
 
             <!-- Note Title -->
@@ -122,7 +125,7 @@
                 android:background="@android:color/transparent"
                 android:padding="8dp"
                 android:textColor="#000"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="10dp" />
 
             <!-- Note Content -->
             <EditText
@@ -144,7 +147,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"/>
+                android:padding="16dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="3dp"/>
 
             <!-- Subpages Section -->
             <LinearLayout

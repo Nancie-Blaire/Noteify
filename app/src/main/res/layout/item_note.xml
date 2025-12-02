@@ -68,7 +68,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Note Title"
-                android:textSize="16sp"
+                android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="#212121"
                 android:maxLines="1"
@@ -79,9 +79,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Note content preview"
-                android:textSize="14sp"
-                android:textColor="#757575"
-                android:layout_marginTop="4dp"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="#666666"
+                android:layout_marginTop="3dp"
                 android:maxLines="1"
                 android:ellipsize="end"/>
         </LinearLayout>

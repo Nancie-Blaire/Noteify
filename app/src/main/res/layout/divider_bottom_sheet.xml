@@ -20,10 +20,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Choose Divider Style"
-                android:textSize="18sp"
+                android:textSize="25sp"
                 android:textStyle="bold"
-                android:textColor="#333333"
-                android:layout_marginBottom="20dp"/>
+                android:textColor="#000000"
+                android:layout_marginBottom="20dp"
+                android:layout_marginTop="10dp"/>
 
             <!-- Solid Line -->
             <LinearLayout
@@ -39,8 +40,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Solid Line"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
@@ -66,8 +68,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Dashed Line"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
@@ -93,8 +96,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Dotted Line"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
@@ -120,8 +124,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Double Line"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
@@ -147,8 +152,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Arrows"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
@@ -174,8 +180,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Stars"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
@@ -201,8 +208,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Wave"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView
@@ -228,8 +236,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Diamond"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
                     android:layout_marginBottom="8dp"/>
 
                 <TextView

@@ -266,7 +266,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             // ✅ Get bookmarks for this block
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
-            // ✅ Apply bookmarks to the text
             if (bookmarks != null && !bookmarks.isEmpty()) {
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
@@ -285,14 +284,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
-                                    new ForegroundColorSpan(color),
-                                    start,
-                                    end,
-                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                            );
-                            editable.setSpan(
-                                    new UnderlineSpan(),
+                                    new ColoredUnderlineSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -482,7 +476,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
                     android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
 
-            // ✅ Apply bookmarks to the text
             if (bookmarks != null && !bookmarks.isEmpty()) {
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
@@ -501,14 +494,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
-                                    new ForegroundColorSpan(color),
-                                    start,
-                                    end,
-                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                            );
-                            editable.setSpan(
-                                    new UnderlineSpan(),
+                                    new ColoredUnderlineSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -521,6 +509,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             } else {
                 contentEdit.setText(content);
             }
+
 
             // ✅ NO POST - Direct selection like SubpageAdapter
             contentEdit.setSelection(contentEdit.getText().length());
@@ -701,7 +690,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                // ✅ Use Editable
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
@@ -719,14 +707,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
-                                    new ForegroundColorSpan(color),
-                                    start,
-                                    end,
-                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                            );
-                            editable.setSpan(
-                                    new UnderlineSpan(),
+                                    new ColoredUnderlineSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -739,6 +722,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             } else {
                 contentEdit.setText(content);
             }
+
 
             // ✅ Set cursor to end
             contentEdit.post(() -> {
@@ -912,7 +896,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                // ✅ Use Editable
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
@@ -930,14 +913,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
-                                    new ForegroundColorSpan(color),
-                                    start,
-                                    end,
-                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                            );
-                            editable.setSpan(
-                                    new UnderlineSpan(),
+                                    new ColoredUnderlineSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -950,6 +928,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             } else {
                 contentEdit.setText(content);
             }
+
 
             // ✅ Set cursor to end
             contentEdit.post(() -> {
@@ -1148,9 +1127,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             if (content == null) content = "";
 
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
-
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                // ✅ Use Editable
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
                 for (Bookmark bookmark : bookmarks) {
@@ -1168,14 +1145,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
-                                    new ForegroundColorSpan(color),
-                                    start,
-                                    end,
-                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                            );
-                            editable.setSpan(
-                                    new UnderlineSpan(),
+                                    new ColoredUnderlineSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -2011,14 +1983,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
             } else if ("underline".equals(bookmark.getStyle())) {
+                // ✅ FIXED: Use ColoredUnderlineSpan
                 spannable.setSpan(
-                        new ForegroundColorSpan(color),
-                        start,
-                        end,
-                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-                spannable.setSpan(
-                        new UnderlineSpan(),
+                        new ColoredUnderlineSpan(color),
                         start,
                         end,
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -2074,14 +2041,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                         android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 );
             } else if ("underline".equals(bookmark.getStyle())) {
+                // ✅ FIXED: Use ColoredUnderlineSpan
                 editable.setSpan(
-                        new ForegroundColorSpan(color),
-                        start,
-                        end,
-                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-                editable.setSpan(
-                        new UnderlineSpan(),
+                        new ColoredUnderlineSpan(color),
                         start,
                         end,
                         android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -2089,4 +2051,39 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             }
         }
     }
+    class ColoredUnderlineSpan extends android.text.style.ReplacementSpan {
+        private int underlineColor;
+        private float strokeWidth = 4f; // Thickness of underline
+
+        public ColoredUnderlineSpan(int color) {
+            this.underlineColor = color;
+        }
+
+        @Override
+        public int getSize(android.graphics.Paint paint, CharSequence text,
+                           int start, int end, android.graphics.Paint.FontMetricsInt fm) {
+            return (int) paint.measureText(text, start, end);
+        }
+
+        @Override
+        public void draw(android.graphics.Canvas canvas, CharSequence text,
+                         int start, int end, float x, int top, int y,
+                         int bottom, android.graphics.Paint paint) {
+            // Draw the text with original color
+            canvas.drawText(text, start, end, x, y, paint);
+
+            // Draw colored underline below text
+            android.graphics.Paint underlinePaint = new android.graphics.Paint();
+            underlinePaint.setColor(underlineColor);
+            underlinePaint.setStrokeWidth(strokeWidth);
+            underlinePaint.setStyle(android.graphics.Paint.Style.STROKE);
+
+            // Calculate underline position
+            float textWidth = paint.measureText(text, start, end);
+            float underlineY = y + paint.descent() + 2; // Slight offset below text
+
+            canvas.drawLine(x, underlineY, x + textWidth, underlineY, underlinePaint);
+        }
+    }
+
 }

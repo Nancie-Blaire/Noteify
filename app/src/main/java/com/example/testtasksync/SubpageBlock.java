@@ -41,8 +41,8 @@ public class SubpageBlock {
     public String getDividerStyle() { return dividerStyle; }
     public void setDividerStyle(String dividerStyle) { this.dividerStyle = dividerStyle; }
 
-//link
-public String getLinkBackgroundColor() { return linkBackgroundColor; }
+    //link
+    public String getLinkBackgroundColor() { return linkBackgroundColor; }
     public void setLinkBackgroundColor(String color) { linkBackgroundColor = color; }
 
     public String getLinkDescription() { return linkDescription; }

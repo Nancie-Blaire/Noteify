@@ -33,7 +33,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="View Bookmarks"
             android:padding="12dp"
-            android:src="@drawable/ic_fab_notes"
+            android:src="@drawable/ic_bookmark"
             app:tint="#666666" />
         <View
             android:layout_width="0dp"

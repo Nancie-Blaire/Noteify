@@ -23,7 +23,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -37,6 +39,8 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
     private BlockListener listener;
     private String noteId;
     private String subpageId;
+    private Map<String, List<Bookmark>> blockBookmarksMap = new HashMap<>();
+
     public interface BlockListener {
         void onBlockChanged(SubpageBlock block);
         void onBlockDeleted(SubpageBlock block, int position);
@@ -149,9 +153,46 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                 holder.editText.removeTextChangedListener(holder.textWatcher);
             }
 
-            holder.editText.setText(block.getContent());
+            // ✅ APPLY BOOKMARKS to text content
+            String content = block.getContent();
+            if (content == null) content = "";
 
-            // ✅ CRITICAL: Remove multiLine flag to prevent Enter from creating newlines
+            List<Bookmark> bookmarks = blockBookmarksMap.get(block.getBlockId());
+
+            if (bookmarks != null && !bookmarks.isEmpty()) {
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
+
+                for (Bookmark bookmark : bookmarks) {
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new android.text.style.BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new ColoredUnderlineSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
+                }
+
+                holder.editText.setText(editable);
+            } else {
+                holder.editText.setText(content);
+            }
+
+            // ✅ SET INPUT TYPE (prevent multiline)
             holder.editText.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
                     android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
             holder.editText.setHorizontallyScrolling(false);
@@ -168,13 +209,69 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                 holder.editText.setTextSize(20);
                 holder.editText.setTypeface(null, android.graphics.Typeface.BOLD);
             } else {
-                // ✅ REGULAR TEXT - Apply font style
                 holder.editText.setTextSize(16);
                 applyFontStyle(holder.editText, block.getFontStyle());
             }
 
-            // ✅ APPLY FONT COLOR (for all text types)
             applyFontColor(holder.editText, block.getFontColor());
+
+            // ✅ ENABLE TEXT SELECTION for bookmarking
+            holder.editText.setEnabled(true);
+            holder.editText.setFocusable(true);
+            holder.editText.setFocusableInTouchMode(true);
+            holder.editText.setCursorVisible(true);
+            holder.editText.setLongClickable(true);
+
+            // ✅ SETUP CUSTOM SELECTION MENU for bookmarking
+            holder.editText.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
+                @Override
+                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
+                            .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                    return true;
+                }
+
+                @Override
+                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    try {
+                        menu.removeItem(android.R.id.shareText);
+                    } catch (Exception e) {}
+                    return true;
+                }
+
+                @Override
+                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
+                    if (item.getItemId() == android.R.id.button1) {
+                        int pos = holder.getAdapterPosition();
+                        if (pos == RecyclerView.NO_POSITION) return false;
+
+                        SubpageBlock block = blocks.get(pos);
+                        int start = holder.editText.getSelectionStart();
+                        int end = holder.editText.getSelectionEnd();
+
+                        if (start >= 0 && end > start && end <= holder.editText.getText().length()) {
+                            String selectedText = holder.editText.getText().toString().substring(start, end);
+
+                            // ✅ FIX: Call through context instead of listener
+                            if (context instanceof SubpageActivity) {
+                                ((SubpageActivity) context).showBookmarkBottomSheet(
+                                        selectedText,
+                                        block.getBlockId(),
+                                        start,
+                                        end
+                                );
+                            }
+                        }
+
+                        mode.finish();
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public void onDestroyActionMode(android.view.ActionMode mode) {}
+            });
 
             // Add TextWatcher for auto-save
             holder.textWatcher = new TextWatcher() {
@@ -192,7 +289,7 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
             };
             holder.editText.addTextChangedListener(holder.textWatcher);
 
-            // ✅ Handle Enter and Backspace
+            // Handle Enter and Backspace
             holder.editText.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     int pos = holder.getAdapterPosition();
@@ -275,7 +372,7 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
         }
     }
 
-// ================================================================
+    // ================================================================
 // ADD THESE HELPER METHODS TO SubpageBlockAdapter.java
 // ================================================================
 
@@ -896,6 +993,46 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
         block.setContent(style); // ✅ Store style in content field
         notifyItemChanged(position);
         listener.onBlockChanged(block);
+    }
+    public void updateBookmarks(Map<String, List<Bookmark>> bookmarksMap) {
+        this.blockBookmarksMap = bookmarksMap;
+    }
+
+// ✅ ADD ColoredUnderlineSpan class at the end of SubpageBlockAdapter.java (before the closing brace)
+
+    class ColoredUnderlineSpan extends android.text.style.ReplacementSpan {
+        private int underlineColor;
+        private float strokeWidth = 4f; // Thickness of underline
+
+        public ColoredUnderlineSpan(int color) {
+            this.underlineColor = color;
+        }
+
+        @Override
+        public int getSize(android.graphics.Paint paint, CharSequence text,
+                           int start, int end, android.graphics.Paint.FontMetricsInt fm) {
+            return (int) paint.measureText(text, start, end);
+        }
+
+        @Override
+        public void draw(android.graphics.Canvas canvas, CharSequence text,
+                         int start, int end, float x, int top, int y,
+                         int bottom, android.graphics.Paint paint) {
+            // Draw the text with original color
+            canvas.drawText(text, start, end, x, y, paint);
+
+            // Draw colored underline below text
+            android.graphics.Paint underlinePaint = new android.graphics.Paint();
+            underlinePaint.setColor(underlineColor);
+            underlinePaint.setStrokeWidth(strokeWidth);
+            underlinePaint.setStyle(android.graphics.Paint.Style.STROKE);
+
+            // Calculate underline position
+            float textWidth = paint.measureText(text, start, end);
+            float underlineY = y + paint.descent() + 2; // Slight offset below text
+
+            canvas.drawLine(x, underlineY, x + textWidth, underlineY, underlinePaint);
+        }
     }
 
 }

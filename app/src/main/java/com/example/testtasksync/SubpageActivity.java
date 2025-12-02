@@ -43,6 +43,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+import android.graphics.Color;
+
 public class SubpageActivity extends AppCompatActivity {
 
     private EditText subpageTitle;
@@ -73,6 +75,8 @@ public class SubpageActivity extends AppCompatActivity {
     private static final int MAX_INLINE_IMAGE_KB = 700;
     private static final int CHUNK_SIZE = 50000;
 
+    private Map<String, List<Bookmark>> blockBookmarksMap = new HashMap<>();
+    private ImageView viewBookmarksBtn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +89,9 @@ public class SubpageActivity extends AppCompatActivity {
         checkBtn = findViewById(R.id.checkBtn);
         emptySpace = findViewById(R.id.subpageEmptySpace);
         colorPickerPanel = findViewById(R.id.subpageColorPickerPanel);
+
+        // ✅ Initialize bookmark button
+        viewBookmarksBtn = findViewById(R.id.viewBookmarksBtn);
 
         // Keyboard toolbar buttons
         btnHeadingsFont = findViewById(R.id.subpageHeadingsAndFont);
@@ -123,6 +130,16 @@ public class SubpageActivity extends AppCompatActivity {
         // Button listeners
         checkBtn.setOnClickListener(v -> saveAndExit());
 
+        // ✅ Setup bookmark button
+        if (viewBookmarksBtn != null) {
+            viewBookmarksBtn.setOnClickListener(v -> {
+                Intent intent = new Intent(this, SubpageBookmarksActivity.class);
+                intent.putExtra("noteId", noteId);
+                intent.putExtra("subpageId", subpageId);
+                startActivity(intent);
+            });
+        }
+
         // Empty space click - add new block
         emptySpace.setOnClickListener(v -> addNewBlock("text", ""));
 
@@ -131,9 +148,13 @@ public class SubpageActivity extends AppCompatActivity {
 
         // Load existing subpage data
         loadSubpage();
+
+        // ✅ Load bookmarks
+        loadBookmarksForSubpage();
+
+        // Setup image pickers
         setupImagePickers();
     }
-
     private void setupRecyclerView() {
         // ✅ PASS noteId and subpageId AFTER the listener, not inside it
         blockAdapter = new SubpageBlockAdapter(this, blocks, new SubpageBlockAdapter.BlockListener() {
@@ -1624,6 +1645,221 @@ public class SubpageActivity extends AppCompatActivity {
 
         Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
         focusBlockAt(position);
+    }
+
+// ====================================================
+// BOOKMARK FEATURE
+// ====================================================
+
+    public void showBookmarkBottomSheet(String selectedText, String blockId, int startIndex, int endIndex) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Color options
+        View colorViolet = sheetView.findViewById(R.id.colorViolet);
+        View colorYellow = sheetView.findViewById(R.id.colorYellow);
+        View colorPink = sheetView.findViewById(R.id.colorPink);
+        View colorGreen = sheetView.findViewById(R.id.colorGreen);
+        View colorBlue = sheetView.findViewById(R.id.colorBlue);
+        View colorOrange = sheetView.findViewById(R.id.colorOrange);
+        View colorRed = sheetView.findViewById(R.id.colorRed);
+        View colorCyan = sheetView.findViewById(R.id.colorCyan);
+
+        // Set tags for each color view
+        colorViolet.setTag("#E1BEE7");
+        colorYellow.setTag("#FFF9C4");
+        colorPink.setTag("#F8BBD0");
+        colorGreen.setTag("#C8E6C9");
+        colorBlue.setTag("#BBDEFB");
+        colorOrange.setTag("#FFE0B2");
+        colorRed.setTag("#FFCDD2");
+        colorCyan.setTag("#B2EBF2");
+
+        // Style options
+        TextView styleHighlight = sheetView.findViewById(R.id.styleHighlight);
+        TextView styleUnderline = sheetView.findViewById(R.id.styleUnderline);
+
+        com.google.android.material.textfield.TextInputEditText noteInput =
+                sheetView.findViewById(R.id.bookmarkNoteInput);
+        TextView cancelBtn = sheetView.findViewById(R.id.cancelBtn);
+        TextView okBtn = sheetView.findViewById(R.id.okBtn);
+
+        final String[] selectedColor = {"#FFF9C4"}; // Default yellow
+        final String[] selectedStyle = {"highlight"}; // Default highlight
+
+        // Set initial selection (yellow, highlight)
+        setColorScale(colorViolet, colorYellow, colorPink, colorGreen, colorBlue,
+                colorOrange, colorRed, colorCyan, selectedColor[0]);
+        styleHighlight.setBackgroundResource(R.drawable.style_selected);
+        styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+
+        // Color selection listeners
+        View.OnClickListener colorListener = v -> {
+            resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen,
+                    colorBlue, colorOrange, colorRed, colorCyan);
+            v.setScaleX(1.2f);
+            v.setScaleY(1.2f);
+            selectedColor[0] = (String) v.getTag();
+        };
+
+        colorViolet.setOnClickListener(colorListener);
+        colorYellow.setOnClickListener(colorListener);
+        colorPink.setOnClickListener(colorListener);
+        colorGreen.setOnClickListener(colorListener);
+        colorBlue.setOnClickListener(colorListener);
+        colorOrange.setOnClickListener(colorListener);
+        colorRed.setOnClickListener(colorListener);
+        colorCyan.setOnClickListener(colorListener);
+
+        // Style selection
+        styleHighlight.setOnClickListener(v -> {
+            selectedStyle[0] = "highlight";
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        styleUnderline.setOnClickListener(v -> {
+            selectedStyle[0] = "underline";
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        cancelBtn.setOnClickListener(v -> bottomSheet.dismiss());
+
+        okBtn.setOnClickListener(v -> {
+            String note = noteInput.getText().toString().trim();
+            saveBookmark(selectedText, note, selectedColor[0], selectedStyle[0],
+                    blockId, startIndex, endIndex);
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+
+    private void setColorScale(View violet, View yellow, View pink, View green,
+                               View blue, View orange, View red, View cyan, String currentColor) {
+        resetColorSelection(violet, yellow, pink, green, blue, orange, red, cyan);
+
+        View selectedView = null;
+        switch (currentColor) {
+            case "#E1BEE7": selectedView = violet; break;
+            case "#FFF9C4": selectedView = yellow; break;
+            case "#F8BBD0": selectedView = pink; break;
+            case "#C8E6C9": selectedView = green; break;
+            case "#BBDEFB": selectedView = blue; break;
+            case "#FFE0B2": selectedView = orange; break;
+            case "#FFCDD2": selectedView = red; break;
+            case "#B2EBF2": selectedView = cyan; break;
+        }
+
+        if (selectedView != null) {
+            selectedView.setScaleX(1.2f);
+            selectedView.setScaleY(1.2f);
+        }
+    }
+
+    private void resetColorSelection(View... views) {
+        for (View v : views) {
+            v.setScaleX(1.0f);
+            v.setScaleY(1.0f);
+        }
+    }
+
+    private void saveBookmark(String text, String note, String color, String style,
+                              String blockId, int startIndex, int endIndex) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        String bookmarkId = db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
+                .collection("bookmarks").document().getId();
+
+        Bookmark bookmark = new Bookmark(text, note, color, style, startIndex, endIndex);
+        bookmark.setId(bookmarkId);
+        bookmark.setBlockId(blockId);
+
+        Map<String, Object> bookmarkData = new HashMap<>();
+        bookmarkData.put("text", text);
+        bookmarkData.put("note", note);
+        bookmarkData.put("color", color);
+        bookmarkData.put("style", style);
+        bookmarkData.put("startIndex", startIndex);
+        bookmarkData.put("endIndex", endIndex);
+        bookmarkData.put("blockId", blockId);
+        bookmarkData.put("timestamp", System.currentTimeMillis());
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
+                .collection("bookmarks").document(bookmarkId)
+                .set(bookmarkData)
+                .addOnSuccessListener(aVoid -> {
+                    // ✅ IMMEDIATELY update local map
+                    if (!blockBookmarksMap.containsKey(blockId)) {
+                        blockBookmarksMap.put(blockId, new ArrayList<>());
+                    }
+                    blockBookmarksMap.get(blockId).add(bookmark);
+
+                    // ✅ Update adapter with new bookmarks
+                    blockAdapter.updateBookmarks(blockBookmarksMap);
+
+                    // ✅ Find and refresh only the affected block
+                    for (int i = 0; i < blocks.size(); i++) {
+                        if (blocks.get(i).getBlockId().equals(blockId)) {
+                            blockAdapter.notifyItemChanged(i);
+                            break;
+                        }
+                    }
+
+                    Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error saving bookmark", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void loadBookmarksForSubpage() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null || subpageId == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
+                .collection("bookmarks")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        return;
+                    }
+
+                    if (value != null) {
+                        // Clear existing bookmarks
+                        blockBookmarksMap.clear();
+
+                        // Group bookmarks by blockId
+                        for (com.google.firebase.firestore.QueryDocumentSnapshot doc : value) {
+                            Bookmark bookmark = doc.toObject(Bookmark.class);
+                            bookmark.setId(doc.getId());
+
+                            String blockId = bookmark.getBlockId();
+                            if (blockId != null) {
+                                if (!blockBookmarksMap.containsKey(blockId)) {
+                                    blockBookmarksMap.put(blockId, new ArrayList<>());
+                                }
+                                blockBookmarksMap.get(blockId).add(bookmark);
+                            }
+                        }
+
+                        // Refresh adapter to show bookmarks
+                        blockAdapter.updateBookmarks(blockBookmarksMap);
+                        blockAdapter.notifyDataSetChanged();
+                    }
+                });
     }
 
 }

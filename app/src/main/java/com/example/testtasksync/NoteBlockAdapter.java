@@ -4,6 +4,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -285,7 +286,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
                             editable.setSpan(
-                                    new BackgroundColorSpan(color),
+                                    new ForegroundColorSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -501,7 +502,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
                             editable.setSpan(
-                                    new BackgroundColorSpan(color),
+                                    new ForegroundColorSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -719,7 +720,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
                             editable.setSpan(
-                                    new BackgroundColorSpan(color),
+                                    new ForegroundColorSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -930,7 +931,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
                             editable.setSpan(
-                                    new BackgroundColorSpan(color),
+                                    new ForegroundColorSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -1168,7 +1169,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
                             editable.setSpan(
-                                    new BackgroundColorSpan(color),
+                                    new ForegroundColorSpan(color),
                                     start,
                                     end,
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -2011,7 +2012,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 );
             } else if ("underline".equals(bookmark.getStyle())) {
                 spannable.setSpan(
-                        new BackgroundColorSpan(color),
+                        new ForegroundColorSpan(color),
                         start,
                         end,
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -2074,7 +2075,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 );
             } else if ("underline".equals(bookmark.getStyle())) {
                 editable.setSpan(
-                        new BackgroundColorSpan(color),
+                        new ForegroundColorSpan(color),
                         start,
                         end,
                         android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE

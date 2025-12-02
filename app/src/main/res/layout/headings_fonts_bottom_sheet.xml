@@ -48,7 +48,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="#"
+            android:text=""
             android:textSize="14sp"
             android:textColor="#999999"
             android:fontFamily="monospace" />
@@ -75,7 +75,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="##"
+            android:text=""
             android:textSize="14sp"
             android:textColor="#999999"
             android:fontFamily="monospace" />
@@ -102,7 +102,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="###"
+            android:text=""
             android:textSize="14sp"
             android:textColor="#999999"
             android:fontFamily="monospace" />
@@ -145,7 +145,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="**text**"
+            android:text=""
             android:textSize="14sp"
             android:textColor="#999999"
             android:fontFamily="monospace" />
@@ -172,7 +172,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="*text*"
+            android:text=""
             android:textSize="14sp"
             android:textColor="#999999"
             android:fontFamily="monospace" />
@@ -199,7 +199,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="***text***"
+            android:text=""
             android:textSize="14sp"
             android:textColor="#999999"
             android:fontFamily="monospace" />
@@ -222,11 +222,7 @@
             android:textSize="16sp"
             android:textColor="#333333" />
 
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@android:drawable/ic_menu_revert"
-            app:tint="#999999" />
+
     </LinearLayout>
 
 </LinearLayout>

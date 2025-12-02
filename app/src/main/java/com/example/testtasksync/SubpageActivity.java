@@ -11,6 +11,7 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View;
@@ -207,7 +208,7 @@ public class SubpageActivity extends AppCompatActivity {
     }
 
     private void setupKeyboardToolbar() {
-        btnDivider.setOnClickListener(v -> addBlock("divider"));
+        btnDivider.setOnClickListener(v -> showDividerSelectionSheet());
         btnBullet.setOnClickListener(v -> addBlock("bullet"));
         btnNumbered.setOnClickListener(v -> addBlock("numbered"));
         btnCheckbox.setOnClickListener(v -> addBlock("checkbox"));
@@ -662,7 +663,7 @@ public class SubpageActivity extends AppCompatActivity {
 
         blockData.put("linkBackgroundColor", block.getLinkBackgroundColor());
         blockData.put("linkDescription", block.getLinkDescription());
-
+        blockData.put("dividerStyle", block.getDividerStyle());
         // ✅ ADD IMAGE FIELDS
         blockData.put("imageId", block.getImageId());
         blockData.put("isChunked", block.isChunked());
@@ -1231,4 +1232,101 @@ public class SubpageActivity extends AppCompatActivity {
         }
     }
 
+    private void showDividerSelectionSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.divider_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        LinearLayout dividerSolid = sheetView.findViewById(R.id.dividerSolid);
+        LinearLayout dividerDashed = sheetView.findViewById(R.id.dividerDashed);
+        LinearLayout dividerDotted = sheetView.findViewById(R.id.dividerDotted);
+        LinearLayout dividerDouble = sheetView.findViewById(R.id.dividerDouble);
+        LinearLayout dividerArrows = sheetView.findViewById(R.id.dividerArrows);
+        LinearLayout dividerStars = sheetView.findViewById(R.id.dividerStars);
+        LinearLayout dividerWave = sheetView.findViewById(R.id.dividerWave);
+        LinearLayout dividerDiamond = sheetView.findViewById(R.id.dividerDiamond);
+
+        if (dividerSolid != null) {
+            dividerSolid.setOnClickListener(v -> {
+                addDividerBlockWithStyle("solid");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDashed != null) {
+            dividerDashed.setOnClickListener(v -> {
+                addDividerBlockWithStyle("dashed");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDotted != null) {
+            dividerDotted.setOnClickListener(v -> {
+                addDividerBlockWithStyle("dotted");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDouble != null) {
+            dividerDouble.setOnClickListener(v -> {
+                addDividerBlockWithStyle("double");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerArrows != null) {
+            dividerArrows.setOnClickListener(v -> {
+                addDividerBlockWithStyle("arrows");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerStars != null) {
+            dividerStars.setOnClickListener(v -> {
+                addDividerBlockWithStyle("stars");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerWave != null) {
+            dividerWave.setOnClickListener(v -> {
+                addDividerBlockWithStyle("wave");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDiamond != null) {
+            dividerDiamond.setOnClickListener(v -> {
+                addDividerBlockWithStyle("diamond");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+    private void addDividerBlockWithStyle(String style) {
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock("divider");
+
+        if (!replacedEmptyBlock) {
+            SubpageBlock block = new SubpageBlock();
+            block.setBlockId(java.util.UUID.randomUUID().toString());
+            block.setType("divider");
+            block.setContent(style); // ✅ Store style in content
+            block.setOrder(blocks.size());
+
+            blocks.add(block);
+            blockAdapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(block);
+
+            subpageBlocksRecycler.post(() -> {
+                subpageBlocksRecycler.smoothScrollToPosition(blocks.size() - 1);
+            });
+        } else {
+            // If replaced empty block, update its style
+            SubpageBlock lastBlock = blocks.get(blocks.size() - 1);
+            lastBlock.setContent(style);
+            blockAdapter.notifyItemChanged(blocks.size() - 1);
+            saveBlock(lastBlock);
+        }
+    }
 }

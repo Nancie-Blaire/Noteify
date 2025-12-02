@@ -955,45 +955,45 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             // Apply divider style
             switch (style) {
                 case "solid":
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "dashed":
-                    dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
+                    dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "dotted":
-                    dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
+                    dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "double":
-                    dividerView.setText("═══════════════════");
+                    dividerView.setText("═══════════════════════════════");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "arrows":
-                    dividerView.setText("→→→→→→→ ✱ ←←←←←←←");
+                    dividerView.setText("→→→→→→→→→→→ ✱ ←←←←←←←←←←←");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 case "stars":
-                    dividerView.setText("✦✦✦✦✦ ⋄ ✦✦✦✦✦");
+                    dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ❋ ✦✦✦✦✦✦✦✦✦✦✦✦");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 case "wave":
-                    dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
+                    dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 case "diamond":
-                    dividerView.setText("◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈");
+                    dividerView.setText("◈◈◈◈◈◈◈◈◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈◈◈◈◈◈◈◈◈");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 default:
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     dividerView.setTextColor(0xFF333333);
                     break;
             }
 
             dividerView.setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER);
-            dividerView.setTextSize(16);
+            dividerView.setTextSize(14);
         }
 
         private void showDividerStyleSheet(View view, int position) {

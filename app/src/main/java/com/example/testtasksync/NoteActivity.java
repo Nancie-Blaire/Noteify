@@ -212,7 +212,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         headingsAndFont.setOnClickListener(v -> showHeadingOptions());
 
         // Divider
-        addDividerBtn.setOnClickListener(v -> addDividerBlock());
+        addDividerBtn.setOnClickListener(v -> showDividerSelectionSheet());
 
         // Bullet List
         addBulletBtn.setOnClickListener(v -> addBulletBlock());
@@ -545,13 +545,89 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         }
     }
 
-    private void addDividerBlock() {
+    private void showDividerSelectionSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.divider_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all style options
+        LinearLayout dividerSolid = sheetView.findViewById(R.id.dividerSolid);
+        LinearLayout dividerDashed = sheetView.findViewById(R.id.dividerDashed);
+        LinearLayout dividerDotted = sheetView.findViewById(R.id.dividerDotted);
+        LinearLayout dividerDouble = sheetView.findViewById(R.id.dividerDouble);
+        LinearLayout dividerArrows = sheetView.findViewById(R.id.dividerArrows);
+        LinearLayout dividerStars = sheetView.findViewById(R.id.dividerStars);
+        LinearLayout dividerWave = sheetView.findViewById(R.id.dividerWave);
+        LinearLayout dividerDiamond = sheetView.findViewById(R.id.dividerDiamond);
+
+        // Set click listeners for each style
+        if (dividerSolid != null) {
+            dividerSolid.setOnClickListener(v -> {
+                addDividerBlockWithStyle("solid");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDashed != null) {
+            dividerDashed.setOnClickListener(v -> {
+                addDividerBlockWithStyle("dashed");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDotted != null) {
+            dividerDotted.setOnClickListener(v -> {
+                addDividerBlockWithStyle("dotted");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDouble != null) {
+            dividerDouble.setOnClickListener(v -> {
+                addDividerBlockWithStyle("double");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerArrows != null) {
+            dividerArrows.setOnClickListener(v -> {
+                addDividerBlockWithStyle("arrows");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerStars != null) {
+            dividerStars.setOnClickListener(v -> {
+                addDividerBlockWithStyle("stars");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerWave != null) {
+            dividerWave.setOnClickListener(v -> {
+                addDividerBlockWithStyle("wave");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDiamond != null) {
+            dividerDiamond.setOnClickListener(v -> {
+                addDividerBlockWithStyle("diamond");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    // Update yung existing addDividerBlock() method to accept style parameter:
+    private void addDividerBlockWithStyle(String style) {
         boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.DIVIDER);
 
         if (!replacedEmptyBlock) {
             NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.DIVIDER);
             block.setPosition(blocks.size());
-            block.setDividerStyle("solid");
+            block.setDividerStyle(style); // ✅ Use selected style
             blocks.add(block);
             adapter.notifyItemInserted(blocks.size() - 1);
             saveBlock(block);
@@ -559,6 +635,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             blocksRecycler.post(() -> {
                 blocksRecycler.smoothScrollToPosition(blocks.size() - 1);
             });
+        } else {
+            // If replaced empty block, update its style
+            NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+            lastBlock.setDividerStyle(style);
+            adapter.notifyItemChanged(blocks.size() - 1);
+            saveBlock(lastBlock);
         }
     }
 

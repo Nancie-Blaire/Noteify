@@ -241,6 +241,48 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
         if (holder.numberText != null && block.getType().equals("numbered")) {
             updateNumbering(holder);
         }
+
+        // Inside onBindViewHolder, for divider type:
+        if (block.getType().equals("divider")) {
+            if (holder.dividerView != null) {
+                String style = block.getContent(); // ✅ Get style from content
+                if (style == null || style.isEmpty()) {
+                    style = "solid";
+                }
+
+                switch (style) {
+                    case "solid":
+                        holder.dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        break;
+                    case "dashed":
+                        holder.dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
+                        break;
+                    case "dotted":
+                        holder.dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
+                        break;
+                    case "double":
+                        holder.dividerView.setText("═════════════════════════════");
+                        break;
+                    case "arrows":
+                        holder.dividerView.setText("→→→→→→→→→→→ ✱ ←←←←←←←←←←←");
+                        break;
+                    case "stars":
+                        holder.dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ⋆ ✦✦✦✦✦✦✦✦✦✦✦✦");
+                        break;
+                    case "wave":
+                        holder.dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
+                        break;
+                    case "diamond":
+                        holder.dividerView.setText("◈◈◈◈◈◈◈◈◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈◈◈◈◈◈◈◈◈");
+                        break;
+                    default:
+                        holder.dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                }
+
+                holder.dividerView.setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER);
+                holder.dividerView.setTextSize(14);
+            }
+        }
     }
 
     @Override
@@ -382,6 +424,14 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                     int pos = getAdapterPosition();
                     if (pos != RecyclerView.NO_POSITION) {
                         showLinkActionsSheet(v, pos);
+                    }
+                });
+            }
+            if (dividerView != null) {
+                dividerView.setOnClickListener(v -> {
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        showDividerStyleSheet(v, pos);
                     }
                 });
             }
@@ -735,4 +785,89 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
 
         bottomSheet.show();
     }
+
+    private void showDividerStyleSheet(View view, int position) {
+        SubpageBlock block = blocks.get(position);
+
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(view.getContext());
+        View sheetView = LayoutInflater.from(view.getContext())
+                .inflate(R.layout.divider_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all style options
+        LinearLayout dividerSolid = sheetView.findViewById(R.id.dividerSolid);
+        LinearLayout dividerDashed = sheetView.findViewById(R.id.dividerDashed);
+        LinearLayout dividerDotted = sheetView.findViewById(R.id.dividerDotted);
+        LinearLayout dividerDouble = sheetView.findViewById(R.id.dividerDouble);
+        LinearLayout dividerArrows = sheetView.findViewById(R.id.dividerArrows);
+        LinearLayout dividerStars = sheetView.findViewById(R.id.dividerStars);
+        LinearLayout dividerWave = sheetView.findViewById(R.id.dividerWave);
+        LinearLayout dividerDiamond = sheetView.findViewById(R.id.dividerDiamond);
+
+        // Set click listeners
+        if (dividerSolid != null) {
+            dividerSolid.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "solid");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDashed != null) {
+            dividerDashed.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "dashed");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDotted != null) {
+            dividerDotted.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "dotted");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDouble != null) {
+            dividerDouble.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "double");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerArrows != null) {
+            dividerArrows.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "arrows");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerStars != null) {
+            dividerStars.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "stars");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerWave != null) {
+            dividerWave.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "wave");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDiamond != null) {
+            dividerDiamond.setOnClickListener(v -> {
+                updateDividerStyle(block, position, "diamond");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    private void updateDividerStyle(SubpageBlock block, int position, String style) {
+        block.setContent(style); // ✅ Store style in content field
+        notifyItemChanged(position);
+        listener.onBlockChanged(block);
+    }
+
 }

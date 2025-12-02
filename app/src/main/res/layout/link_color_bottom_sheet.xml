@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- res/layout/link_color_bottom_sheet.xml -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="10dp">
 
     <TextView
         android:layout_width="wrap_content"
@@ -14,344 +16,378 @@
         android:textColor="#000000"
         android:layout_marginBottom="16dp"/>
 
-    <LinearLayout
-        android:id="@+id/linkColorDefault"
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+        android:scrollbars="none">
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#FFFFFF"
-            android:layout_marginEnd="16dp"/>
-
-        <TextView
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Default background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+            android:orientation="horizontal"
+            android:padding="8dp">
 
-        <ImageView
-            android:id="@+id/checkDefault"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="visible"/>
-    </LinearLayout>
+            <!-- Default -->
+            <LinearLayout
+                android:id="@+id/linkColorDefault"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorGray"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#FFFFFF"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#E0E0E0"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Default"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Gray background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkDefault"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="visible"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkGray"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Gray -->
+            <LinearLayout
+                android:id="@+id/linkColorGray"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorBrown"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#E0E0E0"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#D7CCC8"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Gray"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Brown background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkGray"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkBrown"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Brown -->
+            <LinearLayout
+                android:id="@+id/linkColorBrown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorOrange"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#D7CCC8"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#FFE0B2"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Brown"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Orange background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkBrown"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkOrange"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Orange -->
+            <LinearLayout
+                android:id="@+id/linkColorOrange"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorYellow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#FFE0B2"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#FFF9C4"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Orange"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Yellow background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkOrange"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkYellow"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Yellow -->
+            <LinearLayout
+                android:id="@+id/linkColorYellow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorGreen"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#FFF9C4"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#C8E6C9"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Yellow"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Green background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkYellow"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkGreen"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Green -->
+            <LinearLayout
+                android:id="@+id/linkColorGreen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorBlue"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#C8E6C9"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#BBDEFB"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Green"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Blue background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkGreen"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkBlue"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Blue -->
+            <LinearLayout
+                android:id="@+id/linkColorBlue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorPurple"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#BBDEFB"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#E1BEE7"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Blue"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Purple background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkBlue"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkPurple"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Purple -->
+            <LinearLayout
+                android:id="@+id/linkColorPurple"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorPink"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#E1BEE7"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#F8BBD0"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Purple"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Pink background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkPurple"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkPink"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Pink -->
+            <LinearLayout
+                android:id="@+id/linkColorPink"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
 
-    <LinearLayout
-        android:id="@+id/linkColorRed"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground">
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#F8BBD0"/>
 
-        <View
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="#FFCDD2"
-            android:layout_marginEnd="16dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pink"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Red background"
-            android:textSize="16sp"
-            android:textColor="#000000"/>
+                <ImageView
+                    android:id="@+id/checkPink"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
-        <ImageView
-            android:id="@+id/checkRed"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_check"
-            android:tint="#4CAF50"
-            android:visibility="gone"/>
-    </LinearLayout>
+            <!-- Red -->
+            <LinearLayout
+                android:id="@+id/linkColorRed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
+
+                <View
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/color_circle"
+                    android:backgroundTint="#FFCDD2"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Red"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp"/>
+
+                <ImageView
+                    android:id="@+id/checkRed"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="#4CAF50"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+
+        </LinearLayout>
+    </HorizontalScrollView>
 
 </LinearLayout>

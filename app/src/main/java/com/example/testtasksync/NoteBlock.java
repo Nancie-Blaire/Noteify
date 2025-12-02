@@ -22,22 +22,23 @@ public class NoteBlock {
     private BlockType type;
     private String content;
     private int indentLevel;
-    private boolean isChecked; // For checkboxes
-    private String imageId; // For images
-    private String subpageId; // For subpages
-    private String linkUrl; // For links
-    private String dividerStyle; // For dividers
+    private boolean isChecked;
+    private String imageId;
+    private String subpageId;
+    private String linkUrl;
+    private String dividerStyle;
     private int position;
-    private String styleData; // JSON string for additional style info
+    private String styleData; // JSON string for style info (bold, italic, etc.)
+    private String fontColor; // ✅ NEW: Font color hex code
 
-    // ✅ NEW: For image blocks
-    private String base64Data; // For small images stored inline
-    private boolean isChunked; // For large images stored in chunks
-    private int sizeKB; // Image size
+    // For image blocks
+    private String base64Data;
+    private boolean isChunked;
+    private int sizeKB;
 
-    // For numbered lists - track number
+    // For numbered lists
     private int listNumber;
-    private String linkBackgroundColor; // For link blocks
+    private String linkBackgroundColor;
     private String linkDescription;
 
     public String getLinkBackgroundColor() { return linkBackgroundColor; }
@@ -48,6 +49,11 @@ public class NoteBlock {
     public void setLinkDescription(String linkDescription) {
         this.linkDescription = linkDescription;
     }
+
+    // ✅ NEW: Font color getter/setter
+    public String getFontColor() { return fontColor; }
+    public void setFontColor(String fontColor) { this.fontColor = fontColor; }
+
     // Constructor
     public NoteBlock(String id, BlockType type) {
         this.id = id;
@@ -58,6 +64,7 @@ public class NoteBlock {
         this.listNumber = 1;
         this.isChunked = false;
         this.sizeKB = 0;
+        this.fontColor = "#333333"; // Default black color
     }
 
     // Empty constructor for Firestore
@@ -67,6 +74,7 @@ public class NoteBlock {
         this.content = "";
         this.indentLevel = 0;
         this.isChunked = false;
+        this.fontColor = "#333333"; // Default black color
     }
 
     // Getters and Setters
@@ -106,7 +114,7 @@ public class NoteBlock {
     public int getListNumber() { return listNumber; }
     public void setListNumber(int listNumber) { this.listNumber = listNumber; }
 
-    // ✅ NEW: Image-specific getters/setters
+    // Image-specific getters/setters
     public String getBase64Data() { return base64Data; }
     public void setBase64Data(String base64Data) { this.base64Data = base64Data; }
 
@@ -131,13 +139,12 @@ public class NoteBlock {
         map.put("position", position);
         map.put("styleData", styleData);
         map.put("listNumber", listNumber);
-
-        // ✅ NEW: Image data
         map.put("base64Data", base64Data);
         map.put("isChunked", isChunked);
         map.put("sizeKB", sizeKB);
         map.put("linkBackgroundColor", linkBackgroundColor);
         map.put("linkDescription", linkDescription);
+        map.put("fontColor", fontColor); // ✅ NEW
 
         return map;
     }
@@ -150,6 +157,7 @@ public class NoteBlock {
         block.content = (String) map.get("content");
         block.linkBackgroundColor = (String) map.get("linkBackgroundColor");
         block.linkDescription = (String) map.get("linkDescription");
+        block.fontColor = (String) map.get("fontColor"); // ✅ NEW
 
         if (map.get("indentLevel") != null) {
             block.indentLevel = ((Long) map.get("indentLevel")).intValue();
@@ -174,7 +182,6 @@ public class NoteBlock {
             block.listNumber = ((Long) map.get("listNumber")).intValue();
         }
 
-        // ✅ NEW: Image data
         block.base64Data = (String) map.get("base64Data");
 
         if (map.get("isChunked") != null) {
@@ -183,6 +190,11 @@ public class NoteBlock {
 
         if (map.get("sizeKB") != null) {
             block.sizeKB = ((Long) map.get("sizeKB")).intValue();
+        }
+
+        // ✅ Set default color if not present
+        if (block.fontColor == null || block.fontColor.isEmpty()) {
+            block.fontColor = "#333333";
         }
 
         return block;

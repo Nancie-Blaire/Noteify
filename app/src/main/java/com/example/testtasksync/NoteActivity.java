@@ -47,6 +47,13 @@ import java.util.Locale;
 import androidx.activity.OnBackPressedCallback;
 import android.graphics.Color;
 
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
+import java.util.HashMap;
+import java.util.Map;
+
 //COLOR PICKER
 import android.graphics.Color;
 import org.json.JSONObject;
@@ -106,6 +113,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private int bookmarkEndIndex = -1;
     private String selectedBlockIdForBookmark = null;
     private String selectedTextForBookmark = null;
+
+    private Map<String, List<Bookmark>> blockBookmarksMap = new HashMap<>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -173,7 +183,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         setupColorPicker();
         if (noteId != null) {
             loadNote();
-            loadNoteColor(); // ✅ Load saved color
+            loadNoteColor();
+            loadBookmarksForNote();// ✅ Load saved color
         } else {
             createNewNote();
         }
@@ -1870,6 +1881,18 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
         LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
 
+        // ✅ Font color options
+        LinearLayout fontColorDefault = sheetView.findViewById(R.id.fontColorDefault);
+        LinearLayout fontColorRed = sheetView.findViewById(R.id.fontColorRed);
+        LinearLayout fontColorOrange = sheetView.findViewById(R.id.fontColorOrange);
+        LinearLayout fontColorYellow = sheetView.findViewById(R.id.fontColorYellow);
+        LinearLayout fontColorGreen = sheetView.findViewById(R.id.fontColorGreen);
+        LinearLayout fontColorBlue = sheetView.findViewById(R.id.fontColorBlue);
+        LinearLayout fontColorPurple = sheetView.findViewById(R.id.fontColorPurple);
+        LinearLayout fontColorPink = sheetView.findViewById(R.id.fontColorPink);
+        LinearLayout fontColorBrown = sheetView.findViewById(R.id.fontColorBrown);
+        LinearLayout fontColorGray = sheetView.findViewById(R.id.fontColorGray);
+
         // ✅ HEADING OPTIONS
         if (heading1Option != null) {
             heading1Option.setOnClickListener(v -> {
@@ -1921,10 +1944,131 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             });
         }
 
+        // ✅ FONT COLOR OPTIONS
+        if (fontColorDefault != null) {
+            fontColorDefault.setOnClickListener(v -> {
+                applyFontColor("#333333");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorRed != null) {
+            fontColorRed.setOnClickListener(v -> {
+                applyFontColor("#E53935");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorOrange != null) {
+            fontColorOrange.setOnClickListener(v -> {
+                applyFontColor("#FB8C00");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorYellow != null) {
+            fontColorYellow.setOnClickListener(v -> {
+                applyFontColor("#FDD835");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGreen != null) {
+            fontColorGreen.setOnClickListener(v -> {
+                applyFontColor("#43A047");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBlue != null) {
+            fontColorBlue.setOnClickListener(v -> {
+                applyFontColor("#1E88E5");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPurple != null) {
+            fontColorPurple.setOnClickListener(v -> {
+                applyFontColor("#8E24AA");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPink != null) {
+            fontColorPink.setOnClickListener(v -> {
+                applyFontColor("#D81B60");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBrown != null) {
+            fontColorBrown.setOnClickListener(v -> {
+                applyFontColor("#6D4C41");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGray != null) {
+            fontColorGray.setOnClickListener(v -> {
+                applyFontColor("#757575");
+                bottomSheet.dismiss();
+            });
+        }
+
         bottomSheet.show();
     }
 
+    // ✅ NEW METHOD: Apply font color to current block
+    private void applyFontColor(String color) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        // Set the font color
+        block.setFontColor(color);
+
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        // Show color name
+        String colorName = getColorName(color);
+        Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
+
+        // Refocus the block
+        focusBlock(position, block.getContent().length());
+    }
+
+    // ✅ NEW METHOD: Get human-readable color name
+    private String getColorName(String hexColor) {
+        switch (hexColor) {
+            case "#333333": return "Default";
+            case "#E53935": return "Red";
+            case "#FB8C00": return "Orange";
+            case "#FDD835": return "Yellow";
+            case "#43A047": return "Green";
+            case "#1E88E5": return "Blue";
+            case "#8E24AA": return "Purple";
+            case "#D81B60": return "Pink";
+            case "#6D4C41": return "Brown";
+            case "#757575": return "Gray";
+            default: return "Custom";
+        }
+    }
     private void applyFontStyle(String style) {
         View focusedView = getCurrentFocus();
         if (focusedView == null) {
@@ -1992,6 +2136,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Clear any font styling
         block.setStyleData(null);
+
+        // ✅ Reset font color to default
+        block.setFontColor("#333333");
 
         adapter.notifyItemChanged(position);
         saveBlock(block);
@@ -2153,11 +2300,66 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("bookmarks").document(bookmarkId)
                 .set(bookmarkData)
                 .addOnSuccessListener(aVoid -> {
+                    // ✅ IMMEDIATELY update local map
+                    if (!blockBookmarksMap.containsKey(blockId)) {
+                        blockBookmarksMap.put(blockId, new ArrayList<>());
+                    }
+                    blockBookmarksMap.get(blockId).add(bookmark);
+
+                    // ✅ Update adapter with new bookmarks
+                    adapter.updateBookmarks(blockBookmarksMap);
+
+                    // ✅ Find and refresh only the affected block
+                    for (int i = 0; i < blocks.size(); i++) {
+                        if (blocks.get(i).getId().equals(blockId)) {
+                            adapter.notifyItemChanged(i);
+                            break;
+                        }
+                    }
+
                     Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
-                    adapter.notifyDataSetChanged(); // Refresh to show highlights
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Error saving bookmark", Toast.LENGTH_SHORT).show();
                 });
     }
+
+    private void loadBookmarksForNote() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        return;
+                    }
+
+                    if (value != null) {
+                        // Clear existing bookmarks
+                        blockBookmarksMap.clear();
+
+                        // Group bookmarks by blockId
+                        for (QueryDocumentSnapshot doc : value) {
+                            Bookmark bookmark = doc.toObject(Bookmark.class);
+                            bookmark.setId(doc.getId());
+
+                            String blockId = bookmark.getBlockId();
+                            if (blockId != null) {
+                                if (!blockBookmarksMap.containsKey(blockId)) {
+                                    blockBookmarksMap.put(blockId, new ArrayList<>());
+                                }
+                                blockBookmarksMap.get(blockId).add(bookmark);
+                            }
+                        }
+
+                        // Refresh adapter to show bookmarks
+                        adapter.updateBookmarks(blockBookmarksMap);
+                        adapter.notifyDataSetChanged();
+                    }
+                });
+    }
+
+
 }

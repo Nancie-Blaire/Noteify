@@ -186,8 +186,7 @@
             android:layout_height="wrap_content"
             android:text="Edit"
             android:backgroundTint="#FF9376"
-            android:layout_marginStart="8dp"
-            android:backgroundTint="#2196F3"/>
+            android:layout_marginStart="8dp" />
     </LinearLayout>
 
 </LinearLayout>

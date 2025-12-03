@@ -38,7 +38,7 @@
         android:textSize="16sp"
         android:padding="16dp"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="15"
+        android:layout_marginBottom="15dp"
         android:clickable="true"
         android:focusable="true"
         android:background="?attr/selectableItemBackground"/>

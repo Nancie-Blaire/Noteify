@@ -511,17 +511,14 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
     // ✅ UPDATED: addHeadingBlock - Replace empty text
     private void addHeadingBlock(NoteBlock.BlockType headingType) {
-        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(headingType);
+        NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", headingType);
+        block.setPosition(blocks.size());
+        blocks.add(block);
+        adapter.notifyItemInserted(blocks.size() - 1);
+        saveBlock(block);
 
-        if (!replacedEmptyBlock) {
-            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", headingType);
-            block.setPosition(blocks.size());
-            blocks.add(block);
-            adapter.notifyItemInserted(blocks.size() - 1);
-            saveBlock(block);
-
-            focusBlock(blocks.size() - 1, 0);
-        }
+        blocksRecycler.smoothScrollToPosition(blocks.size() - 1);
+        blocksRecycler.postDelayed(() -> focusBlock(blocks.size() - 1, 0), 100);
     }
     private void addBulletBlock() {
         boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.BULLET);
@@ -1817,11 +1814,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(block);
 
-        // Auto-focus the new block
-        blocksRecycler.post(() -> {
-            blocksRecycler.smoothScrollToPosition(blocks.size() - 1);
-            focusBlock(blocks.size() - 1, 0);
-        });
+        // ✅ Simple scroll and focus - like Subpage
+        blocksRecycler.smoothScrollToPosition(blocks.size() - 1);
+        blocksRecycler.postDelayed(() -> focusBlock(blocks.size() - 1, 0), 100);
     }
 
     private boolean tryReplaceLastEmptyTextBlock(NoteBlock.BlockType newType) {
@@ -1900,7 +1895,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
         LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
 
-        // ✅ Font color options
+        // Font color options
         LinearLayout fontColorDefault = sheetView.findViewById(R.id.fontColorDefault);
         LinearLayout fontColorRed = sheetView.findViewById(R.id.fontColorRed);
         LinearLayout fontColorOrange = sheetView.findViewById(R.id.fontColorOrange);
@@ -1912,24 +1907,24 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         LinearLayout fontColorBrown = sheetView.findViewById(R.id.fontColorBrown);
         LinearLayout fontColorGray = sheetView.findViewById(R.id.fontColorGray);
 
-        // ✅ HEADING OPTIONS
+        // ✅ HEADING OPTIONS - Apply to SELECTED block (not create new)
         if (heading1Option != null) {
             heading1Option.setOnClickListener(v -> {
-                addHeadingBlock(NoteBlock.BlockType.HEADING_1);
+                applyHeadingToSelectedBlock(NoteBlock.BlockType.HEADING_1);
                 bottomSheet.dismiss();
             });
         }
 
         if (heading2Option != null) {
             heading2Option.setOnClickListener(v -> {
-                addHeadingBlock(NoteBlock.BlockType.HEADING_2);
+                applyHeadingToSelectedBlock(NoteBlock.BlockType.HEADING_2);
                 bottomSheet.dismiss();
             });
         }
 
         if (heading3Option != null) {
             heading3Option.setOnClickListener(v -> {
-                addHeadingBlock(NoteBlock.BlockType.HEADING_3);
+                applyHeadingToSelectedBlock(NoteBlock.BlockType.HEADING_3);
                 bottomSheet.dismiss();
             });
         }
@@ -2036,7 +2031,81 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         bottomSheet.show();
     }
+    private void applyHeadingToSelectedBlock(NoteBlock.BlockType headingType) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            // No block focused - replace last empty text or create new
+            tryReplaceLastEmptyTextBlockWithHeading(headingType);
+            return;
+        }
 
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            tryReplaceLastEmptyTextBlockWithHeading(headingType);
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        // ✅ Change the type to heading
+        block.setType(headingType);
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        Toast.makeText(this, "Heading applied", Toast.LENGTH_SHORT).show();
+
+        // ✅ Refocus the block with content length
+        focusBlock(position, block.getContent() != null ? block.getContent().length() : 0);
+    }
+
+    private void tryReplaceLastEmptyTextBlockWithHeading(NoteBlock.BlockType headingType) {
+        if (blocks.isEmpty()) {
+            // Create new heading block
+            addHeadingBlock(headingType);
+            return;
+        }
+
+        NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+
+        // Check if last block is an empty TEXT block
+        if (lastBlock.getType() == NoteBlock.BlockType.TEXT &&
+                (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+
+            // Delete the old empty text block from Firestore
+            FirebaseUser user = auth.getCurrentUser();
+            if (user != null) {
+                db.collection("users").document(user.getUid())
+                        .collection("notes").document(noteId)
+                        .collection("blocks").document(lastBlock.getId())
+                        .delete();
+            }
+
+            // Remove from list
+            int position = blocks.size() - 1;
+            blocks.remove(position);
+
+            // Create new heading block with the desired type
+            NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", headingType);
+            newBlock.setPosition(position);
+            newBlock.setContent("");
+
+            // Add new block at same position
+            blocks.add(position, newBlock);
+            adapter.notifyItemChanged(position);
+            saveBlock(newBlock);
+
+            // Focus the replaced block
+            focusBlock(position, 0);
+        } else {
+            // No empty text block - create new
+            addHeadingBlock(headingType);
+        }
+    }
     // ✅ NEW METHOD: Apply font color to current block
     private void applyFontColor(String color) {
         View focusedView = getCurrentFocus();
@@ -2069,7 +2138,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
 
         // Refocus the block
-        focusBlock(position, block.getContent().length());
+        focusBlock(position, block.getContent() != null ? block.getContent().length() : 0);
     }
 
     // ✅ NEW METHOD: Get human-readable color name
@@ -2108,7 +2177,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock block = blocks.get(position);
 
-        // ✅ SIMPLE: Just set the style directly
+        // ✅ Set the style directly
         block.setFontStyle(style);
 
         adapter.notifyItemChanged(position);
@@ -2117,20 +2186,20 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
 
         // Refocus the block
-        focusBlock(position, block.getContent().length());
+        focusBlock(position, block.getContent() != null ? block.getContent().length() : 0);
     }
 
     // ✅ UPDATE convertToNormalText to use fontStyle field:
     private void convertToNormalText() {
         View focusedView = getCurrentFocus();
         if (focusedView == null) {
-            CustomToast.show(this, "No block selected", R.drawable.logo_noteify);
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
             return;
         }
 
         RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
         if (holder == null) {
-            CustomToast.show(this, "No block selected", R.drawable.logo_noteify);
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -2155,9 +2224,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         adapter.notifyItemChanged(position);
         saveBlock(block);
 
-        CustomToast.show(this, "Converted to normal text", R.drawable.logo_noteify);
+        Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
 
-        // ✅ USE focusBlock with content length
+        // ✅ Refocus with content length
         focusBlock(position, block.getContent() != null ? block.getContent().length() : 0);
     }
 
@@ -2373,29 +2442,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 });
     }
 
-    private void forceEnableTextSelection() {
-        blocksRecycler.post(() -> {
-            // Loop through all visible ViewHolders
-            for (int i = 0; i < blocksRecycler.getChildCount(); i++) {
-                View child = blocksRecycler.getChildAt(i);
-                RecyclerView.ViewHolder holder = blocksRecycler.getChildViewHolder(child);
 
-                // Find the EditText in the ViewHolder
-                EditText editText = child.findViewById(R.id.contentEdit);
-                if (editText != null) {
-                    // Force enable selection
-                    editText.setEnabled(true);
-                    editText.setFocusable(true);
-                    editText.setFocusableInTouchMode(true);
-                    editText.setLongClickable(true);
-                    editText.setClickable(true);
-                    editText.setCursorVisible(true);
-
-                    // ✅ CRITICAL: Request layout to refresh state
-                    editText.requestLayout();
-                }
-            }
-        });
-    }
 
 }

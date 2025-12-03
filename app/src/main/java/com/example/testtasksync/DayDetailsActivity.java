@@ -75,6 +75,8 @@ public class DayDetailsActivity extends AppCompatActivity {
 
     private boolean isDeleteMode = false;
 
+    private Map<String, List<TaskScheduleData>> weeklyTaskSchedules = new HashMap<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -161,6 +163,19 @@ public class DayDetailsActivity extends AppCompatActivity {
 
         // ✅ Load schedules AFTER adapter is fully configured
         loadSchedulesForDate();
+    }
+    private static class TaskScheduleData {
+        Calendar date;
+        String time;
+        boolean hasNotification;
+        int reminderMinutes;
+
+        TaskScheduleData(Calendar date, String time, boolean hasNotification, int reminderMinutes) {
+            this.date = date;
+            this.time = time;
+            this.hasNotification = hasNotification;
+            this.reminderMinutes = reminderMinutes;
+        }
     }
     private static final long REMOVAL_DELAY_MS = 600;
 
@@ -845,7 +860,7 @@ public class DayDetailsActivity extends AppCompatActivity {
         }
     }
 
-   private void enterDeleteMode() {
+    private void enterDeleteMode() {
         isDeleteMode = true;
         deleteButton.setVisibility(View.VISIBLE);
         selectedSchedules.clear();
@@ -1093,12 +1108,11 @@ public class DayDetailsActivity extends AppCompatActivity {
                 selectedCategory[0] = "weekly";
                 todoTasksSection.setVisibility(View.GONE);
                 weeklyTasksSection.setVisibility(View.VISIBLE);
-                selectedDateText.setText("Select date range");
-                customStartDate[0] = null;
-                customEndDate[0] = null;
 
-                // Build weekly days UI
-                buildWeeklyDaysUI(weeklyDaysContainer, weeklyTasks);
+                // ✅ AUTO-CALCULATE week range based on selected date
+                autoSetWeekRangeForSelectedDate(customStartDate, customEndDate, selectedDateText);
+
+                buildWeeklyDaysUI(weeklyDaysContainer, weeklyTasks, customStartDate, customEndDate);
             }
         });
 
@@ -1112,7 +1126,7 @@ public class DayDetailsActivity extends AppCompatActivity {
             if ("todo".equals(selectedCategory[0])) {
                 showSingleDatePicker(selectedScheduleDate, selectedDateText, dateFormat);
             } else if ("weekly".equals(selectedCategory[0])) {
-                showCustomRangePicker(customStartDate, customEndDate, selectedDateText);
+                showWeekSelectionDialog(customStartDate, customEndDate, selectedDateText); // CHANGED
             }
         });
 
@@ -1333,8 +1347,10 @@ public class DayDetailsActivity extends AppCompatActivity {
 
                     final int finalTotalTasks = totalTasks;
 
-                    // ✅ If no tasks, create schedule immediately
+                    // ✅ If no tasks, save day schedules and create schedule immediately
                     if (finalTotalTasks == 0) {
+                        // ✅✅ CRITICAL FIX: Save day schedules even with no tasks
+                        saveDaySchedulesFromDialog(user.getUid(), planId, weekStart);
                         createWeeklySchedule(user, title, weekStart, time, hasReminder, reminderSpinner, planId, dialog);
                         return;
                     }
@@ -1367,6 +1383,8 @@ public class DayDetailsActivity extends AppCompatActivity {
                                     .addOnSuccessListener(taskRef -> {
                                         int completed = tasksAdded.incrementAndGet();
                                         if (completed == finalTotalTasks) {
+                                            // ✅✅ CRITICAL FIX: Save day schedules after all tasks saved
+                                            saveDaySchedulesFromDialog(user.getUid(), planId, weekStart);
                                             // ✅ All tasks saved - now create schedule reference
                                             createWeeklyScheduleInBackground(user, title, weekStart, time, hasReminder, reminderSpinner, planId);
                                         }
@@ -1467,7 +1485,8 @@ public class DayDetailsActivity extends AppCompatActivity {
         container.addView(taskView);
         taskInput.requestFocus();
     }
-    private void buildWeeklyDaysUI(LinearLayout container, Map<String, List<String>> weeklyTasks) {
+    private void buildWeeklyDaysUI(LinearLayout container, Map<String, List<String>> weeklyTasks,
+                                   Calendar[] weekStart, Calendar[] weekEnd) {
         container.removeAllViews();
         String[] days = {"Mon", "Tues", "Wed", "Thur", "Fri", "Sat", "Sun"};
 
@@ -1477,8 +1496,21 @@ public class DayDetailsActivity extends AppCompatActivity {
             TextView dayLabel = daySection.findViewById(R.id.dayLabel);
             LinearLayout tasksContainer = daySection.findViewById(R.id.dayTasksContainer);
             ImageView addTaskButton = daySection.findViewById(R.id.addDayTaskButton);
+            ImageView scheduleButton = daySection.findViewById(R.id.mondayScheduleButton);
 
             dayLabel.setText(day);
+
+            if (!weeklyTaskSchedules.containsKey(day)) {
+                weeklyTaskSchedules.put(day, new ArrayList<>());
+            }
+
+            scheduleButton.setOnClickListener(v -> {
+                if (weekStart[0] != null && weekEnd[0] != null) {
+                    showWeeklyTaskScheduleDialog(day, weekStart[0], weekEnd[0]);
+                } else {
+                    Toast.makeText(this, "Please select date range first", Toast.LENGTH_SHORT).show();
+                }
+            });
 
             addTaskButton.setOnClickListener(v -> {
                 addTaskInputField(tasksContainer, weeklyTasks.get(day), null);
@@ -1488,6 +1520,355 @@ public class DayDetailsActivity extends AppCompatActivity {
         }
     }
 
+    // 4. Add this new method to show the schedule dialog
+    private void showWeeklyTaskScheduleDialog(String dayName, Calendar weekStart, Calendar weekEnd) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_weekly_task_schedule, null);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        TextView dayNameTitle = dialogView.findViewById(R.id.dayNameTitle);
+        LinearLayout timeSchedulesContainer = dialogView.findViewById(R.id.timeSchedulesContainer);
+        Button addTimeScheduleButton = dialogView.findViewById(R.id.addTimeScheduleButton);
+        Button clearScheduleButton = dialogView.findViewById(R.id.clearScheduleButton);
+        Button cancelButton = dialogView.findViewById(R.id.cancelButton);
+        Button saveScheduleButton = dialogView.findViewById(R.id.saveScheduleButton);
+
+        String fullDayName = getFullDayName(dayName);
+        dayNameTitle.setText(fullDayName + " Schedule");
+
+        // ✅ Calculate the specific date for this day within the week range
+        Calendar specificDate = calculateDateForDay(dayName, weekStart, weekEnd);
+
+        List<TaskScheduleData> existingSchedules = weeklyTaskSchedules.get(dayName);
+
+        if (existingSchedules == null || existingSchedules.isEmpty()) {
+            addScheduleTimeView(timeSchedulesContainer, dayName, null, 1, specificDate);
+        } else {
+            int scheduleNum = 1;
+            for (TaskScheduleData schedule : existingSchedules) {
+                addScheduleTimeView(timeSchedulesContainer, dayName, schedule, scheduleNum, specificDate);
+                scheduleNum++;
+            }
+            clearScheduleButton.setVisibility(View.VISIBLE);
+        }
+
+        addTimeScheduleButton.setOnClickListener(v -> {
+            int newScheduleNum = timeSchedulesContainer.getChildCount() + 1;
+            addScheduleTimeView(timeSchedulesContainer, dayName, null, newScheduleNum, specificDate);
+            clearScheduleButton.setVisibility(View.VISIBLE);
+        });
+
+        clearScheduleButton.setOnClickListener(v -> {
+            weeklyTaskSchedules.get(dayName).clear();
+            Toast.makeText(this, fullDayName + " schedules cleared", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+
+        cancelButton.setOnClickListener(v -> dialog.dismiss());
+
+        saveScheduleButton.setOnClickListener(v -> {
+            List<TaskScheduleData> newSchedules = new ArrayList<>();
+            boolean allValid = true;
+
+            for (int i = 0; i < timeSchedulesContainer.getChildCount(); i++) {
+                View scheduleView = timeSchedulesContainer.getChildAt(i);
+                TextView selectedTimeText = scheduleView.findViewById(R.id.selectedTimeText);
+                CheckBox notificationCheckbox = scheduleView.findViewById(R.id.notificationCheckbox);
+                android.widget.Spinner notificationTimeSpinner = scheduleView.findViewById(R.id.notificationTimeSpinner);
+
+                Object tag = scheduleView.getTag();
+                if (tag instanceof ScheduleViewData) {
+                    ScheduleViewData data = (ScheduleViewData) tag;
+
+                    if (data.selectedTime == null || data.selectedTime.isEmpty()) {
+                        Toast.makeText(this, "Please select time for Schedule " + (i + 1),
+                                Toast.LENGTH_SHORT).show();
+                        allValid = false;
+                        break;
+                    }
+
+                    int reminderMinutes = 60;
+                    if (notificationCheckbox.isChecked()) {
+                        int[] notificationMinutesArray = {5, 10, 15, 30, 60, 120, 1440};
+                        reminderMinutes = notificationMinutesArray[notificationTimeSpinner.getSelectedItemPosition()];
+                    }
+
+                    TaskScheduleData schedule = new TaskScheduleData(
+                            specificDate, // Use the auto-calculated date
+                            data.selectedTime,
+                            notificationCheckbox.isChecked(),
+                            reminderMinutes
+                    );
+
+                    newSchedules.add(schedule);
+                }
+            }
+
+            if (allValid && !newSchedules.isEmpty()) {
+                weeklyTaskSchedules.put(dayName, newSchedules);
+                SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+                String message = fullDayName + " (" + sdf.format(specificDate.getTime()) + "): " +
+                        newSchedules.size() + " schedule(s) saved";
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                dialog.dismiss();
+            }
+        });
+
+        dialog.show();
+    }
+
+
+    // 5. Add helper class for view data
+    private static class ScheduleViewData {
+        Calendar selectedDate;
+        String selectedTime;
+    }
+    // 6. Add method to create schedule time views
+    private void addScheduleTimeView(LinearLayout container, String dayName,
+                                     TaskScheduleData existingSchedule, int scheduleNumber,
+                                     Calendar autoDate) {
+        View scheduleView = LayoutInflater.from(this)
+                .inflate(R.layout.item_schedule_time, container, false);
+
+        TextView scheduleNumberText = scheduleView.findViewById(R.id.scheduleNumberText);
+        LinearLayout datePickerButton = scheduleView.findViewById(R.id.datePickerButton);
+        TextView selectedDateText = scheduleView.findViewById(R.id.selectedDateText);
+        LinearLayout timePickerButton = scheduleView.findViewById(R.id.timePickerButton);
+        TextView selectedTimeText = scheduleView.findViewById(R.id.selectedTimeText);
+        CheckBox notificationCheckbox = scheduleView.findViewById(R.id.notificationCheckbox);
+        LinearLayout notificationTimeSection = scheduleView.findViewById(R.id.notificationTimeSection);
+        android.widget.Spinner notificationTimeSpinner = scheduleView.findViewById(R.id.notificationTimeSpinner);
+        ImageView removeScheduleButton = scheduleView.findViewById(R.id.removeScheduleButton);
+
+        scheduleNumberText.setText("Schedule " + scheduleNumber);
+
+        // ✅ HIDE DATE PICKER BUTTON - date is auto-set
+        datePickerButton.setVisibility(View.GONE);
+
+        // ✅ SHOW THE AUTO-CALCULATED DATE
+        SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM dd, yyyy", Locale.getDefault());
+        selectedDateText.setText(sdf.format(autoDate.getTime()));
+        selectedDateText.setVisibility(View.VISIBLE);
+
+        String[] notificationTimes = {"5 minutes", "10 minutes", "15 minutes", "30 minutes",
+                "1 hour", "2 hours", "1 day"};
+        int[] notificationMinutes = {5, 10, 15, 30, 60, 120, 1440};
+
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, notificationTimes);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        notificationTimeSpinner.setAdapter(adapter);
+
+        ScheduleViewData viewData = new ScheduleViewData();
+        viewData.selectedDate = autoDate; // Auto-set date
+        scheduleView.setTag(viewData);
+
+        if (existingSchedule != null) {
+            viewData.selectedTime = existingSchedule.time;
+            selectedTimeText.setText(existingSchedule.time);
+            notificationCheckbox.setChecked(existingSchedule.hasNotification);
+            notificationTimeSection.setVisibility(existingSchedule.hasNotification ?
+                    View.VISIBLE : View.GONE);
+
+            for (int i = 0; i < notificationMinutes.length; i++) {
+                if (notificationMinutes[i] == existingSchedule.reminderMinutes) {
+                    notificationTimeSpinner.setSelection(i);
+                    break;
+                }
+            }
+        }
+
+        timePickerButton.setOnClickListener(v -> {
+            Calendar cal = Calendar.getInstance();
+            int hour = cal.get(Calendar.HOUR_OF_DAY);
+            int minute = cal.get(Calendar.MINUTE);
+
+            android.app.TimePickerDialog timeDialog = new android.app.TimePickerDialog(
+                    this,
+                    (view, hourOfDay, minuteOfHour) -> {
+                        viewData.selectedTime = String.format(Locale.getDefault(),
+                                "%02d:%02d", hourOfDay, minuteOfHour);
+                        selectedTimeText.setText(viewData.selectedTime);
+                    },
+                    hour, minute, false
+            );
+            timeDialog.show();
+        });
+
+        notificationCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            notificationTimeSection.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        removeScheduleButton.setOnClickListener(v -> {
+            if (container.getChildCount() > 1) {
+                container.removeView(scheduleView);
+                updateScheduleNumbers(container);
+            } else {
+                Toast.makeText(this, "Keep at least one schedule", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        container.addView(scheduleView);
+    }
+
+    // 7. Add helper method to update schedule numbers
+    private void updateScheduleNumbers(LinearLayout container) {
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View scheduleView = container.getChildAt(i);
+            TextView scheduleNumberText = scheduleView.findViewById(R.id.scheduleNumberText);
+            scheduleNumberText.setText("Schedule " + (i + 1));
+        }
+    }
+
+    // 8. Add helper method to get full day name
+    private String getFullDayName(String shortDay) {
+        switch (shortDay) {
+            case "Mon": return "Monday";
+            case "Tues": return "Tuesday";
+            case "Wed": return "Wednesday";
+            case "Thur": return "Thursday";
+            case "Fri": return "Friday";
+            case "Sat": return "Saturday";
+            case "Sun": return "Sunday";
+            default: return shortDay;
+        }
+    }
+
+    // 9. Update saveWeeklyScheduleWithTasks to save task schedules
+    private void saveWeeklyScheduleWithTasksUpdated(FirebaseUser user, String title,
+                                                    Calendar weekStart, Calendar weekEnd, String time,
+                                                    boolean hasReminder, Spinner reminderSpinner,
+                                                    Map<String, List<String>> weeklyTasks, AlertDialog dialog) {
+
+        Toast.makeText(this, "💾 Saving weekly plan...", Toast.LENGTH_SHORT).show();
+
+        Map<String, Object> weeklyPlanData = new HashMap<>();
+        weeklyPlanData.put("title", title);
+        weeklyPlanData.put("description", "");
+        weeklyPlanData.put("startDate", new Timestamp(weekStart.getTime()));
+        weeklyPlanData.put("endDate", new Timestamp(weekEnd.getTime()));
+        weeklyPlanData.put("time", time != null ? time : "");
+        weeklyPlanData.put("createdAt", Timestamp.now());
+        weeklyPlanData.put("hasReminder", hasReminder);
+
+        if (hasReminder) {
+            String selectedReminderText = reminderSpinner.getSelectedItem().toString();
+            int reminderMinutes = parseReminderMinutes(selectedReminderText);
+            weeklyPlanData.put("reminderMinutes", reminderMinutes);
+        } else {
+            weeklyPlanData.put("reminderMinutes", 0);
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .add(weeklyPlanData)
+                .addOnSuccessListener(weeklyPlanRef -> {
+                    String planId = weeklyPlanRef.getId();
+
+                    int totalTasks = 0;
+                    for (Map.Entry<String, List<String>> entry : weeklyTasks.entrySet()) {
+                        totalTasks += entry.getValue().size();
+                    }
+
+                    final int finalTotalTasks = totalTasks;
+
+                    dialog.dismiss();
+                    Toast.makeText(this, "✅ Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
+
+                    AtomicInteger tasksAdded = new AtomicInteger(0);
+                    int position = 0;
+
+                    for (Map.Entry<String, List<String>> entry : weeklyTasks.entrySet()) {
+                        String day = entry.getKey();
+                        List<String> tasks = entry.getValue();
+
+                        for (String taskText : tasks) {
+                            Map<String, Object> taskData = new HashMap<>();
+                            taskData.put("taskText", taskText);
+                            taskData.put("day", day);
+                            taskData.put("isCompleted", false);
+                            taskData.put("position", position++);
+
+                            db.collection("users")
+                                    .document(user.getUid())
+                                    .collection("weeklyPlans")
+                                    .document(planId)
+                                    .collection("tasks")
+                                    .add(taskData)
+                                    .addOnSuccessListener(taskRef -> {
+                                        int completed = tasksAdded.incrementAndGet();
+                                        if (completed == finalTotalTasks) {
+                                            // Save day schedules
+                                            saveDaySchedulesFromDialog(user.getUid(), planId, weekStart);
+                                            createWeeklyScheduleInBackground(user, title, weekStart, time, hasReminder, reminderSpinner, planId);
+                                        }
+                                    });
+                        }
+                    }
+                });
+    }
+
+    // 10. Add method to save day schedules
+    // 10. Add method to save day schedules
+    private void saveDaySchedulesFromDialog(String userId, String planId, Calendar weekStart) {
+        for (Map.Entry<String, List<TaskScheduleData>> entry : weeklyTaskSchedules.entrySet()) {
+            String day = entry.getKey();
+            List<TaskScheduleData> schedules = entry.getValue();
+
+            for (int i = 0; i < schedules.size(); i++) {
+                TaskScheduleData schedule = schedules.get(i);
+                final int scheduleNumber = i + 1; // ✅ Make it final
+
+                Map<String, Object> scheduleData = new HashMap<>();
+                scheduleData.put("day", day);
+                scheduleData.put("date", new Timestamp(schedule.date.getTime()));
+                scheduleData.put("time", schedule.time);
+                scheduleData.put("hasReminder", schedule.hasNotification);
+                scheduleData.put("reminderMinutes", schedule.reminderMinutes);
+                scheduleData.put("scheduleNumber", scheduleNumber); // ✅ Use final variable
+
+                db.collection("users")
+                        .document(userId)
+                        .collection("weeklyPlans")
+                        .document(planId)
+                        .collection("daySchedules")
+                        .add(scheduleData)
+                        .addOnSuccessListener(documentReference -> {
+                            Log.d(TAG, "✅ Day schedule saved for " + day + " (Schedule " + scheduleNumber + ")"); // ✅ Use final variable
+                        });
+            }
+        }
+    }
+
+    // Helper method to calculate the specific date for a day name within a week range
+    private Calendar calculateDateForDay(String dayName, Calendar weekStart, Calendar weekEnd) {
+        Calendar date = (Calendar) weekStart.clone();
+
+        // Map day names to Calendar day constants
+        int targetDay;
+        switch (dayName) {
+            case "Sun": targetDay = Calendar.SUNDAY; break;
+            case "Mon": targetDay = Calendar.MONDAY; break;
+            case "Tues": targetDay = Calendar.TUESDAY; break;
+            case "Wed": targetDay = Calendar.WEDNESDAY; break;
+            case "Thur": targetDay = Calendar.THURSDAY; break;
+            case "Fri": targetDay = Calendar.FRIDAY; break;
+            case "Sat": targetDay = Calendar.SATURDAY; break;
+            default: return date;
+        }
+
+        // Find the date within the week range that matches the target day
+        while (!date.after(weekEnd)) {
+            if (date.get(Calendar.DAY_OF_WEEK) == targetDay) {
+                return date;
+            }
+            date.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        return weekStart; // Fallback
+    }
 
     private void showCustomRangePicker(Calendar[] startDate, Calendar[] endDate, TextView dateText) {
         if (startDate[0] == null) {
@@ -1782,5 +2163,123 @@ public class DayDetailsActivity extends AppCompatActivity {
         if (reminderText.contains("1 hour")) return 60;
         if (reminderText.contains("1 day")) return 1440;
         return 15;
+    }
+
+    // Add this method to replace showCustomRangePicker
+    // Replace the showWeekSelectionDialog method in DayDetailsActivity.java with this fixed version:
+
+    // UPDATED: Replace the existing showWeekSelectionDialog with this version
+    private void showWeekSelectionDialog(Calendar[] startDate, Calendar[] endDate, TextView dateText) {
+        String[] weekOptions = new String[5];
+
+        // Calculate current week starting from MONDAY
+        Calendar today = Calendar.getInstance();
+        int currentDayOfWeek = today.get(Calendar.DAY_OF_WEEK);
+
+        // Calculate days to Monday (Monday = 2 in Calendar)
+        int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
+
+        // This Week (Monday to Sunday)
+        Calendar thisWeekStart = (Calendar) today.clone();
+        thisWeekStart.add(Calendar.DAY_OF_MONTH, -daysToMonday);
+        thisWeekStart.set(Calendar.HOUR_OF_DAY, 0);
+        thisWeekStart.set(Calendar.MINUTE, 0);
+        thisWeekStart.set(Calendar.SECOND, 0);
+
+        Calendar thisWeekEnd = (Calendar) thisWeekStart.clone();
+        thisWeekEnd.add(Calendar.DAY_OF_MONTH, 6);
+        thisWeekEnd.set(Calendar.HOUR_OF_DAY, 23);
+        thisWeekEnd.set(Calendar.MINUTE, 59);
+        thisWeekEnd.set(Calendar.SECOND, 59);
+
+        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+
+        weekOptions[0] = "This Week (" + sdf.format(thisWeekStart.getTime()) + " - " + sdf.format(thisWeekEnd.getTime()) + ")";
+
+        Calendar nextWeekStart = (Calendar) thisWeekStart.clone();
+        nextWeekStart.add(Calendar.DAY_OF_MONTH, 7);
+        Calendar nextWeekEnd = (Calendar) thisWeekEnd.clone();
+        nextWeekEnd.add(Calendar.DAY_OF_MONTH, 7);
+        weekOptions[1] = "Next Week (" + sdf.format(nextWeekStart.getTime()) + " - " + sdf.format(nextWeekEnd.getTime()) + ")";
+
+        Calendar weekAfterStart = (Calendar) nextWeekStart.clone();
+        weekAfterStart.add(Calendar.DAY_OF_MONTH, 7);
+        Calendar weekAfterEnd = (Calendar) nextWeekEnd.clone();
+        weekAfterEnd.add(Calendar.DAY_OF_MONTH, 7);
+        weekOptions[2] = "Week After Next (" + sdf.format(weekAfterStart.getTime()) + " - " + sdf.format(weekAfterEnd.getTime()) + ")";
+
+        Calendar thirdWeekStart = (Calendar) weekAfterStart.clone();
+        thirdWeekStart.add(Calendar.DAY_OF_MONTH, 7);
+        Calendar thirdWeekEnd = (Calendar) weekAfterEnd.clone();
+        thirdWeekEnd.add(Calendar.DAY_OF_MONTH, 7);
+        weekOptions[3] = "Third Week Ahead (" + sdf.format(thirdWeekStart.getTime()) + " - " + sdf.format(thirdWeekEnd.getTime()) + ")";
+
+        weekOptions[4] = "Custom Date Range...";
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Select Week");
+        builder.setItems(weekOptions, (dialog, which) -> {
+            switch (which) {
+                case 0:
+                    startDate[0] = thisWeekStart;
+                    endDate[0] = thisWeekEnd;
+                    dateText.setText(sdf.format(thisWeekStart.getTime()) + " - " + sdf.format(thisWeekEnd.getTime()));
+                    break;
+                case 1:
+                    startDate[0] = nextWeekStart;
+                    endDate[0] = nextWeekEnd;
+                    dateText.setText(sdf.format(nextWeekStart.getTime()) + " - " + sdf.format(nextWeekEnd.getTime()));
+                    break;
+                case 2:
+                    startDate[0] = weekAfterStart;
+                    endDate[0] = weekAfterEnd;
+                    dateText.setText(sdf.format(weekAfterStart.getTime()) + " - " + sdf.format(weekAfterEnd.getTime()));
+                    break;
+                case 3:
+                    startDate[0] = thirdWeekStart;
+                    endDate[0] = thirdWeekEnd;
+                    dateText.setText(sdf.format(thirdWeekStart.getTime()) + " - " + sdf.format(thirdWeekEnd.getTime()));
+                    break;
+                case 4:
+                    showCustomRangePicker(startDate, endDate, dateText);
+                    break;
+            }
+        });
+        builder.setNegativeButton("CANCEL", null);
+        builder.show();
+    }
+    // ✅ NEW METHOD: Auto-calculate week range based on selected date
+    private void autoSetWeekRangeForSelectedDate(Calendar[] startDate, Calendar[] endDate, TextView dateText) {
+        // Use the selectedDate from DayDetailsActivity (the date clicked in calendar)
+        Calendar clickedDate = (Calendar) selectedDate.clone();
+
+        int currentDayOfWeek = clickedDate.get(Calendar.DAY_OF_WEEK);
+
+        // Calculate days to Monday (Monday = 2 in Calendar)
+        int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
+
+        // Calculate week start (Monday)
+        Calendar weekStart = (Calendar) clickedDate.clone();
+        weekStart.add(Calendar.DAY_OF_MONTH, -daysToMonday);
+        weekStart.set(Calendar.HOUR_OF_DAY, 0);
+        weekStart.set(Calendar.MINUTE, 0);
+        weekStart.set(Calendar.SECOND, 0);
+
+        // Calculate week end (Sunday)
+        Calendar weekEnd = (Calendar) weekStart.clone();
+        weekEnd.add(Calendar.DAY_OF_MONTH, 6); // Monday + 6 = Sunday
+        weekEnd.set(Calendar.HOUR_OF_DAY, 23);
+        weekEnd.set(Calendar.MINUTE, 59);
+        weekEnd.set(Calendar.SECOND, 59);
+
+        // Set the arrays
+        startDate[0] = weekStart;
+        endDate[0] = weekEnd;
+
+        // Update the TextView
+        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+        dateText.setText(sdf.format(weekStart.getTime()) + " - " + sdf.format(weekEnd.getTime()));
+
+        Log.d(TAG, "✅ Auto-set week range: " + sdf.format(weekStart.getTime()) + " - " + sdf.format(weekEnd.getTime()));
     }
 }

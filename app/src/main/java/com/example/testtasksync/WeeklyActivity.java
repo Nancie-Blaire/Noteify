@@ -12,6 +12,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -32,6 +33,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +46,21 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
+
+//FEATUES
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.provider.MediaStore;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.FileProvider;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import android.graphics.Color;
+
 
 
 public class WeeklyActivity extends AppCompatActivity {
@@ -77,21 +94,43 @@ public class WeeklyActivity extends AppCompatActivity {
     // ✅ Weekly day schedule
     private Map<String, List<DaySchedule>> daySchedules = new HashMap<>();
 
+    // FEATURES
+    private ImageButton headingsAndFont;
+    private ImageButton addDividerBtn;
+    private ImageButton insertImageBtn;
+    private ImageButton addThemeBtn;
+    private ImageButton addSubpageBtn;
+    private View keyboardToolbar;
+    private View colorPickerPanel;
+    private LinearLayout mainLayout;
+    private String currentBgColor = "#FAFAFA";
+
+    // Image handling
+    private ActivityResultLauncher<Intent> galleryLauncher;
+    private ActivityResultLauncher<Intent> cameraLauncher;
+    private ActivityResultLauncher<String> permissionLauncher;
+    private Uri currentPhotoUri;
+
+    private static final int MAX_IMAGE_WIDTH = 1024;
+    private static final int MAX_IMAGE_HEIGHT = 1024;
+    private static final int COMPRESSION_QUALITY = 80;
+
+    private String titleFontStyle = "normal";
+    private int titleFontSize = 16;
+    private String titleFontColor = "#000000";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_weekly);
 
-        // Initialize Firebase
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
 
-        // ✅ CRITICAL FIX: Get planId from intent FIRST
+        // ✅ FIX 1: Get planId FIRST
         Intent intent = getIntent();
         planId = intent.getStringExtra("planId");
         boolean fromNotification = intent.getBooleanExtra("fromNotification", false);
-
-        // ✅ Check if new plan AFTER getting intent data
         isNewPlan = (planId == null || planId.isEmpty());
 
         Log.d(TAG, "🎯 WeeklyActivity opened:");
@@ -99,7 +138,18 @@ public class WeeklyActivity extends AppCompatActivity {
         Log.d(TAG, "   isNewPlan: " + isNewPlan);
         Log.d(TAG, "   fromNotification: " + fromNotification);
 
-        // Initialize views
+        mainLayout = findViewById(R.id.mainLayout);
+
+        // ✅ FIX 2: Set default FIRST
+        currentBgColor = "#FAFAFA";
+        mainLayout.setBackgroundColor(Color.parseColor(currentBgColor));
+
+        // ✅ FIX 3: Load saved settings ONLY if not new plan
+        if (!isNewPlan) {
+            loadBackgroundColor();
+            loadTitleFormatting();
+        }
+
         weeklyTitle = findViewById(R.id.weeklyTitle);
         saveButton = findViewById(R.id.saveButton);
         backButton = findViewById(R.id.backButton);
@@ -108,10 +158,12 @@ public class WeeklyActivity extends AppCompatActivity {
         NotificationHelper.createNotificationChannel(this);
         requestNotificationPermission();
 
-        // Initialize with current week by default
-        setCurrentWeek();
+        // Set week range
+        if (isNewPlan) {
+            setCurrentWeek();
+        }
 
-        // Initialize day containers (RecyclerViews)
+        // Initialize day containers
         dayContainers.put("Mon", findViewById(R.id.monTasksContainer));
         dayContainers.put("Tues", findViewById(R.id.tuesTasksContainer));
         dayContainers.put("Wed", findViewById(R.id.wedTasksContainer));
@@ -120,15 +172,13 @@ public class WeeklyActivity extends AppCompatActivity {
         dayContainers.put("Sat", findViewById(R.id.satTasksContainer));
         dayContainers.put("Sun", findViewById(R.id.sunTasksContainer));
 
-        // Initialize task lists
         for (String day : days) {
             dayTasks.put(day, new ArrayList<>());
         }
 
-        // Setup RecyclerViews with adapters
         setupRecyclerViews();
 
-        // Set up add task buttons
+        // Add task buttons
         findViewById(R.id.addMonTask).setOnClickListener(v -> addTask("Mon"));
         findViewById(R.id.addTuesTask).setOnClickListener(v -> addTask("Tues"));
         findViewById(R.id.addWedTask).setOnClickListener(v -> addTask("Wed"));
@@ -137,7 +187,7 @@ public class WeeklyActivity extends AppCompatActivity {
         findViewById(R.id.addSatTask).setOnClickListener(v -> addTask("Sat"));
         findViewById(R.id.addSunTask).setOnClickListener(v -> addTask("Sun"));
 
-        // ✅ Setup per-day schedule buttons
+        // Day schedule buttons
         findViewById(R.id.mondayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Mon"));
         findViewById(R.id.tuesdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Tues"));
         findViewById(R.id.wednesdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Wed"));
@@ -146,15 +196,23 @@ public class WeeklyActivity extends AppCompatActivity {
         findViewById(R.id.saturdayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Sat"));
         findViewById(R.id.sundayScheduleButton).setOnClickListener(v -> showDayScheduleDialog("Sun"));
 
-        // Set up save, back, and schedule buttons
         saveButton.setOnClickListener(v -> saveWeeklyPlan());
         backButton.setOnClickListener(v -> finish());
         scheduleButton.setOnClickListener(v -> showScheduleDialog());
 
-        // ✅ Load existing plan or add default tasks
+        // ✅ REMOVED: Image and divider setup
+        keyboardToolbar = findViewById(R.id.keyboardToolbar);
+        headingsAndFont = findViewById(R.id.headingsandfont);
+        addThemeBtn = findViewById(R.id.addThemeOption);
+        addSubpageBtn = findViewById(R.id.addSubpageOption);
+        colorPickerPanel = findViewById(R.id.colorPickerPanel);
+
+        setupKeyboardToolbar();
+        setupColorPicker();
+        keyboardToolbar.setVisibility(View.VISIBLE);
+
         if (isNewPlan) {
             Log.d(TAG, "📝 Creating new plan - adding default tasks");
-            // Add 3 default tasks for each day
             for (String day : days) {
                 for (int i = 0; i < 3; i++) {
                     addTask(day);
@@ -165,6 +223,9 @@ public class WeeklyActivity extends AppCompatActivity {
             loadWeeklyPlan();
         }
     }
+
+    // ✅ FIXED setupRecyclerViews() method - Replace your existing method with this
+
     private void setupRecyclerViews() {
         for (String day : days) {
             RecyclerView recyclerView = dayContainers.get(day);
@@ -192,7 +253,6 @@ public class WeeklyActivity extends AppCompatActivity {
                                             .addOnSuccessListener(aVoid -> {
                                                 Log.d(TAG, "✅ Task completion updated");
 
-                                                // Cancel notification when completed
                                                 if (isCompleted) {
                                                     NotificationHelper.cancelNotification(
                                                             WeeklyActivity.this, task.getId());
@@ -232,12 +292,13 @@ public class WeeklyActivity extends AppCompatActivity {
 
             dayAdapters.put(day, adapter);
 
-            // ✅ IMPROVED: Setup drag and drop with BETTER cross-day support
+            // ✅ IMPROVED: Better drag logic with cross-day detection
             ItemTouchHelper.Callback callback = new ItemTouchHelper.Callback() {
 
                 private String draggedFromDay = null;
                 private WeeklyTask draggedTask = null;
                 private int draggedFromPosition = -1;
+                private boolean isDraggingToAnotherDay = false;
 
                 @Override
                 public int getMovementFlags(@NonNull RecyclerView recyclerView,
@@ -252,7 +313,37 @@ public class WeeklyActivity extends AppCompatActivity {
                                       @NonNull RecyclerView.ViewHolder viewHolder,
                                       @NonNull RecyclerView.ViewHolder target) {
 
-                    // ✅ Simply allow all moves - cross-day detection happens in clearView()
+                    // ✅ ALWAYS check if we're outside bounds on EVERY move attempt
+                    int[] location = new int[2];
+                    viewHolder.itemView.getLocationOnScreen(location);
+                    int itemTop = location[1];
+                    int itemBottom = location[1] + viewHolder.itemView.getHeight();
+                    int itemCenterY = itemTop + (viewHolder.itemView.getHeight() / 2);
+
+                    // Get the day section (parent of RecyclerView) bounds
+                    LinearLayout daysContainer = findViewById(R.id.daysContainer);
+                    int dayIndex = days.indexOf(day);
+                    View daySection = daysContainer.getChildAt(dayIndex);
+
+                    if (daySection != null) {
+                        int[] daySectionLoc = new int[2];
+                        daySection.getLocationOnScreen(daySectionLoc);
+                        int sectionTop = daySectionLoc[1];
+                        int sectionBottom = daySectionLoc[1] + daySection.getHeight();
+
+                        // ✅ If item is clearly outside this day's section, prevent reordering
+                        if (itemCenterY < sectionTop || itemCenterY > sectionBottom) {
+                            isDraggingToAnotherDay = true;
+                            Log.d(TAG, "🔄 Item outside " + day + " section (center: " + itemCenterY +
+                                    ", section: " + sectionTop + "-" + sectionBottom + ")");
+                            return false; // Prevent any reordering
+                        }
+                    }
+
+                    // ✅ Reset flag if we're back in bounds
+                    isDraggingToAnotherDay = false;
+
+                    // ✅ Allow normal reordering within same day
                     int fromPos = viewHolder.getAdapterPosition();
                     int toPos = target.getAdapterPosition();
 
@@ -285,6 +376,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
                         draggedFromDay = day;
                         draggedFromPosition = viewHolder.getAdapterPosition();
+                        isDraggingToAnotherDay = false; // Reset flag
 
                         if (draggedFromPosition >= 0 && draggedFromPosition < tasks.size()) {
                             draggedTask = tasks.get(draggedFromPosition);
@@ -310,21 +402,22 @@ public class WeeklyActivity extends AppCompatActivity {
                         viewHolder.itemView.setScaleX(1.05f);
                         viewHolder.itemView.setScaleY(1.05f);
 
-                        // ✅ CRITICAL: Disable NestedScrollView during drag
+                        // ✅ Disable NestedScrollView during drag
                         androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
                         if (scrollView != null) {
                             scrollView.requestDisallowInterceptTouchEvent(true);
-                            scrollView.setOnTouchListener((v, event) -> true); // Block scroll completely
+                            scrollView.setOnTouchListener((v, event) -> true);
                         }
                     } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {
                         // ✅ Re-enable NestedScrollView when drag ends
                         androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
                         if (scrollView != null) {
                             scrollView.requestDisallowInterceptTouchEvent(false);
-                            scrollView.setOnTouchListener(null); // Restore normal scroll
+                            scrollView.setOnTouchListener(null);
                         }
                     }
                 }
+
                 @Override
                 public void clearView(@NonNull RecyclerView recyclerView,
                                       @NonNull RecyclerView.ViewHolder viewHolder) {
@@ -339,12 +432,20 @@ public class WeeklyActivity extends AppCompatActivity {
                     androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
                     if (scrollView != null) {
                         scrollView.requestDisallowInterceptTouchEvent(false);
-                        scrollView.setOnTouchListener(null); // ⚠️ ADD THIS LINE!
+                        scrollView.setOnTouchListener(null);
                     }
 
-                    // Check for cross-day drop
-                    checkCrossDayDrop(viewHolder);
+                    // ✅ Check if we were dragging to another day
+                    if (isDraggingToAnotherDay) {
+                        checkCrossDayDrop(viewHolder);
+                        isDraggingToAnotherDay = false; // Reset flag
+                    } else {
+                        // Just reorder within same day
+                        updateTaskPositions(day);
+                        resetDragState();
+                    }
                 }
+
                 private void checkCrossDayDrop(RecyclerView.ViewHolder viewHolder) {
                     if (draggedTask == null || draggedFromDay == null) {
                         resetDragState();
@@ -354,63 +455,55 @@ public class WeeklyActivity extends AppCompatActivity {
                     // Get the dragged item's position on screen
                     int[] location = new int[2];
                     viewHolder.itemView.getLocationOnScreen(location);
-                    int itemTop = location[1];
-                    int itemBottom = location[1] + viewHolder.itemView.getHeight();
                     int itemCenterY = location[1] + (viewHolder.itemView.getHeight() / 2);
 
-                    Log.d(TAG, "🎯 Dropped at Y: " + itemCenterY + " (top: " + itemTop + ", bottom: " + itemBottom + ")");
+                    Log.d(TAG, "🎯 Dropped at Y: " + itemCenterY);
 
                     LinearLayout daysContainer = findViewById(R.id.daysContainer);
 
-                    // ✅ Increased margin for better detection (especially upward)
-                    int margin = (int) (100 * getResources().getDisplayMetrics().density);
+                    // ✅ Check which day section contains the item center
+                    String targetDay = null;
 
-                    // ✅ Check ALL days (not just those after current day)
                     for (int i = 0; i < days.size(); i++) {
-                        String targetDay = days.get(i);
-
-                        // Skip the day we're dragging from
-                        if (targetDay.equals(draggedFromDay)) continue;
-
+                        String dayName = days.get(i);
                         View daySection = daysContainer.getChildAt(i);
 
                         if (daySection != null) {
                             int[] daySectionLoc = new int[2];
                             daySection.getLocationOnScreen(daySectionLoc);
 
-                            // ✅ IMPROVED: Use the day section's actual bounds with extended margins
-                            int sectionTop = daySectionLoc[1] - margin;
-                            int sectionBottom = daySectionLoc[1] + daySection.getHeight() + margin;
+                            int sectionTop = daySectionLoc[1];
+                            int sectionBottom = daySectionLoc[1] + daySection.getHeight();
 
-                            Log.d(TAG, "📍 " + targetDay + " zone: " + sectionTop + " to " + sectionBottom);
+                            Log.d(TAG, "📍 Checking " + dayName + " zone: " + sectionTop + " to " + sectionBottom);
 
-                            // ✅ Check if item center OR any part of item overlaps with target day
-                            boolean centerInZone = itemCenterY >= sectionTop && itemCenterY <= sectionBottom;
-                            boolean topInZone = itemTop >= sectionTop && itemTop <= sectionBottom;
-                            boolean bottomInZone = itemBottom >= sectionTop && itemBottom <= sectionBottom;
-
-                            if (centerInZone || topInZone || bottomInZone) {
-                                Log.d(TAG, "✅ Moving to " + targetDay);
-
-                                // Get current position after any reordering
-                                List<WeeklyTask> fromTasks = dayTasks.get(draggedFromDay);
-                                int currentPosition = fromTasks.indexOf(draggedTask);
-
-                                if (currentPosition >= 0) {
-                                    moveTaskToAnotherDay(draggedTask, draggedFromDay, targetDay, currentPosition);
-                                } else {
-                                    Log.e(TAG, "❌ Task not found in source day list!");
-                                }
-
-                                resetDragState();
-                                return;
+                            // ✅ Check if center is within this day's section
+                            if (itemCenterY >= sectionTop && itemCenterY <= sectionBottom) {
+                                targetDay = dayName;
+                                Log.d(TAG, "🎯 Item center is in " + targetDay + " section");
+                                break;
                             }
                         }
                     }
 
-                    // If not moved to another day, just update positions within same day
-                    Log.d(TAG, "⚪ Stayed in " + draggedFromDay);
-                    updateTaskPositions(draggedFromDay);
+                    // ✅ If target day is different from source day, move it
+                    if (targetDay != null && !targetDay.equals(draggedFromDay)) {
+                        Log.d(TAG, "✅ Moving from " + draggedFromDay + " to " + targetDay);
+
+                        List<WeeklyTask> fromTasks = dayTasks.get(draggedFromDay);
+                        int currentPosition = fromTasks.indexOf(draggedTask);
+
+                        if (currentPosition >= 0) {
+                            moveTaskToAnotherDay(draggedTask, draggedFromDay, targetDay, currentPosition);
+                        } else {
+                            Log.e(TAG, "❌ Task not found in source day list!");
+                        }
+                    } else {
+                        // ✅ Same day or no target found - just reorder within same day
+                        Log.d(TAG, "⚪ Stayed in " + draggedFromDay + " - reordering");
+                        updateTaskPositions(draggedFromDay);
+                    }
+
                     resetDragState();
                 }
 
@@ -418,8 +511,10 @@ public class WeeklyActivity extends AppCompatActivity {
                     draggedTask = null;
                     draggedFromDay = null;
                     draggedFromPosition = -1;
+                    isDraggingToAnotherDay = false;
                 }
             };
+
             ItemTouchHelper touchHelper = new ItemTouchHelper(callback);
             touchHelper.attachToRecyclerView(recyclerView);
             dayTouchHelpers.put(day, touchHelper);
@@ -560,7 +655,6 @@ public class WeeklyActivity extends AppCompatActivity {
                             weeklyTitle.setText(title);
                         }
 
-                        // ✅ Only use these if schedule didn't have them
                         if (selectedTime == null || selectedTime.isEmpty()) {
                             String savedTime = documentSnapshot.getString("time");
                             if (savedTime != null && !savedTime.isEmpty()) {
@@ -568,31 +662,33 @@ public class WeeklyActivity extends AppCompatActivity {
                             }
                         }
 
-                        // Load week range
+                        // ✅ Load week range from Firebase
                         Timestamp startDateTimestamp = documentSnapshot.getTimestamp("startDate");
                         Timestamp endDateTimestamp = documentSnapshot.getTimestamp("endDate");
 
                         if (startDateTimestamp != null && endDateTimestamp != null) {
-                            if (startDate == null) {
-                                startDate = Calendar.getInstance();
-                                startDate.setTime(startDateTimestamp.toDate());
-                            }
+                            startDate = Calendar.getInstance();
+                            startDate.setTime(startDateTimestamp.toDate());
+                            startDate.set(Calendar.HOUR_OF_DAY, 0);
+                            startDate.set(Calendar.MINUTE, 0);
+                            startDate.set(Calendar.SECOND, 0);
 
                             endDate = Calendar.getInstance();
                             endDate.setTime(endDateTimestamp.toDate());
+                            endDate.set(Calendar.HOUR_OF_DAY, 23);
+                            endDate.set(Calendar.MINUTE, 59);
+                            endDate.set(Calendar.SECOND, 59);
+
+                            Log.d(TAG, "✅ Loaded week range: " +
+                                    new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
+                                    " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime()));
                         } else {
-                            // If no saved dates, use current week
-                            if (startDate == null) {
-                                setCurrentWeek();
-                            } else {
-                                // We have startDate from schedule, calculate endDate
-                                endDate = (Calendar) startDate.clone();
-                                endDate.add(Calendar.DAY_OF_MONTH, 6);
-                            }
+                            // ✅ Only set current week if no saved dates exist
+                            Log.d(TAG, "⚠️ No saved dates, using current week");
+                            setCurrentWeek();
                         }
 
-                        // ========================================
-                        // ✅ NEW: LOAD NOTIFICATION SETTINGS MULA SA SCHEDULES COLLECTION
+                        // Load notification settings
                         db.collection("users")
                                 .document(userId)
                                 .collection("schedules")
@@ -606,11 +702,9 @@ public class WeeklyActivity extends AppCompatActivity {
                                         Long reminderMinutesFromSchedule = scheduleDoc.getLong("reminderMinutes");
 
                                         if (hasReminderFromSchedule != null) {
-                                            // Update the class variable
                                             hasReminder = hasReminderFromSchedule;
                                         }
                                         if (reminderMinutesFromSchedule != null) {
-                                            // Update the class variable
                                             reminderMinutes = reminderMinutesFromSchedule.intValue();
                                         }
                                     }
@@ -618,12 +712,8 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to load schedule notification settings", e);
                                 });
-                        // END OF NEW CODE
-                        // ========================================
+                    }
 
-                    } // End of if (documentSnapshot.exists())
-
-                    // ✅ Load tasks after plan details and notification settings are initiated
                     loadWeeklyPlanTasks(userId);
                 })
                 .addOnFailureListener(e -> {
@@ -678,6 +768,9 @@ public class WeeklyActivity extends AppCompatActivity {
 
                     // ✅ Load day schedules
                     loadDaySchedules(userId);
+
+                    // ✅ ADD THIS:
+                    loadSubpages();
 
                     setupTasksRealtimeListener(userId);
                 })
@@ -1091,15 +1184,25 @@ public class WeeklyActivity extends AppCompatActivity {
         Calendar calendar = Calendar.getInstance();
         int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
 
-        // Calculate start of current week (Monday)
+        // Calculate start of current week (MONDAY)
         int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
         calendar.add(Calendar.DAY_OF_MONTH, -daysToMonday);
 
         startDate = (Calendar) calendar.clone();
+        startDate.set(Calendar.HOUR_OF_DAY, 0);
+        startDate.set(Calendar.MINUTE, 0);
+        startDate.set(Calendar.SECOND, 0);
 
-        // Calculate end of week (Sunday)
+        // Calculate end of week (SUNDAY) - 6 days from Monday
         calendar.add(Calendar.DAY_OF_MONTH, 6);
         endDate = (Calendar) calendar.clone();
+        endDate.set(Calendar.HOUR_OF_DAY, 23);
+        endDate.set(Calendar.MINUTE, 59);
+        endDate.set(Calendar.SECOND, 59);
+
+        Log.d(TAG, "✅ Set current week: " +
+                new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
+                " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime()));
     }
 
     // ✅ ADD this new method for per-day schedule dialog
@@ -1417,7 +1520,6 @@ public class WeeklyActivity extends AppCompatActivity {
         builder.setView(dialogView);
         AlertDialog dialog = builder.create();
 
-        // Get views from dialog
         LinearLayout weekRangePickerButton = dialogView.findViewById(R.id.weekRangePickerButton);
         TextView weekRangeText = dialogView.findViewById(R.id.weekRangeText);
         ImageView clearWeekButton = dialogView.findViewById(R.id.clearWeekButton);
@@ -1432,32 +1534,24 @@ public class WeeklyActivity extends AppCompatActivity {
         android.widget.Button cancelButton = dialogView.findViewById(R.id.cancelButton);
         android.widget.Button saveScheduleButton = dialogView.findViewById(R.id.saveScheduleButton);
 
-        // ✅ NEW: Setup notification spinner
         String[] notificationTimes = {"5 minutes", "10 minutes", "15 minutes", "30 minutes",
                 "1 hour", "2 hours", "1 day"};
         int[] notificationMinutes = {5, 10, 15, 30, 60, 120, 1440};
 
         android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                notificationTimes
-        );
+                this, android.R.layout.simple_spinner_item, notificationTimes);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         notificationTimeSpinner.setAdapter(adapter);
 
-        // Initialize with current week range if already set
-        if (startDate != null && endDate != null) {
-            updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
-        } else {
+        // ✅ FIX: Use existing week range if available, otherwise set current week
+        if (startDate == null || endDate == null) {
             setCurrentWeek();
-            updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
         }
+        updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
 
-        // ✅ NEW: Load existing notification settings
         notificationCheckbox.setChecked(hasReminder);
         notificationTimeSection.setVisibility(hasReminder ? View.VISIBLE : View.GONE);
 
-        // Set spinner to saved notification time
         for (int i = 0; i < notificationMinutes.length; i++) {
             if (notificationMinutes[i] == reminderMinutes) {
                 notificationTimeSpinner.setSelection(i);
@@ -1465,18 +1559,20 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         }
 
-        // Week range picker
+        // ✅ Display existing time if set
+        if (selectedTime != null && !selectedTime.isEmpty()) {
+            selectedTimeText.setText(selectedTime);
+        }
+
         weekRangePickerButton.setOnClickListener(v ->
                 showQuickWeekSelectorDialog(weekRangeText, clearWeekButton)
         );
 
-        // Clear week button
         clearWeekButton.setOnClickListener(v -> {
             setCurrentWeek();
             updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
         });
 
-        // Time picker
         timePickerButton.setOnClickListener(v -> {
             Calendar cal = Calendar.getInstance();
             int hour = cal.get(Calendar.HOUR_OF_DAY);
@@ -1493,33 +1589,27 @@ public class WeeklyActivity extends AppCompatActivity {
             timeDialog.show();
         });
 
-        // ✅ NEW: Notification checkbox listener
         notificationCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             notificationTimeSection.setVisibility(isChecked ? View.VISIBLE : View.GONE);
         });
 
-        // Cancel button
         cancelButton.setOnClickListener(v -> dialog.dismiss());
 
-        // ✅ UPDATED: Save button with notification handling
         saveScheduleButton.setOnClickListener(v -> {
             String selectedTimeValue = selectedTimeText.getText().toString();
 
-            // ✅ Save notification settings
             hasReminder = notificationCheckbox.isChecked();
             if (hasReminder) {
                 int selectedPos = notificationTimeSpinner.getSelectedItemPosition();
                 reminderMinutes = notificationMinutes[selectedPos];
             }
 
-            // Save the time
             if (!selectedTimeValue.equals("Select time")) {
                 selectedTime = selectedTimeValue;
             } else {
                 selectedTime = "";
             }
 
-            // Week range is already saved in startDate and endDate
             String message = "Schedule set for " +
                     new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
                     " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime());
@@ -1542,30 +1632,30 @@ public class WeeklyActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Select Week");
 
-        // Calculate week ranges
+        // Calculate week ranges starting from MONDAY
         Calendar calendar = Calendar.getInstance();
         int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
         int daysToMonday = (currentDayOfWeek == Calendar.SUNDAY) ? 6 : currentDayOfWeek - Calendar.MONDAY;
 
         SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
 
-        // This week
+        // This week (Monday to Sunday)
         Calendar thisWeekStart = (Calendar) calendar.clone();
         thisWeekStart.add(Calendar.DAY_OF_MONTH, -daysToMonday);
         Calendar thisWeekEnd = (Calendar) thisWeekStart.clone();
-        thisWeekEnd.add(Calendar.DAY_OF_MONTH, 6);
+        thisWeekEnd.add(Calendar.DAY_OF_MONTH, 6); // ✅ Monday + 6 = Sunday
 
-        // Next week
+        // Next week (Monday to Sunday)
         Calendar nextWeekStart = (Calendar) thisWeekStart.clone();
         nextWeekStart.add(Calendar.DAY_OF_MONTH, 7);
         Calendar nextWeekEnd = (Calendar) nextWeekStart.clone();
-        nextWeekEnd.add(Calendar.DAY_OF_MONTH, 6);
+        nextWeekEnd.add(Calendar.DAY_OF_MONTH, 6); // ✅ Monday + 6 = Sunday
 
-        // Week after next
+        // Week after next (Monday to Sunday)
         Calendar afterNextStart = (Calendar) thisWeekStart.clone();
         afterNextStart.add(Calendar.DAY_OF_MONTH, 14);
         Calendar afterNextEnd = (Calendar) afterNextStart.clone();
-        afterNextEnd.add(Calendar.DAY_OF_MONTH, 6);
+        afterNextEnd.add(Calendar.DAY_OF_MONTH, 6); // ✅ Monday + 6 = Sunday
 
         String[] options = {
                 "This Week (" + sdf.format(thisWeekStart.getTime()) + " - " + sdf.format(thisWeekEnd.getTime()) + ")",
@@ -1575,26 +1665,19 @@ public class WeeklyActivity extends AppCompatActivity {
         };
 
         builder.setItems(options, (dialog, which) -> {
-            Calendar cal = Calendar.getInstance();
-            int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-            int toMonday = (dayOfWeek == Calendar.SUNDAY) ? 6 : dayOfWeek - Calendar.MONDAY;
-
             switch (which) {
                 case 0: // This Week
-                    cal.add(Calendar.DAY_OF_MONTH, -toMonday);
-                    setWeekFromStartDate(cal);
+                    setWeekFromStartDate(thisWeekStart);
                     updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
                     break;
 
                 case 1: // Next Week
-                    cal.add(Calendar.DAY_OF_MONTH, -toMonday + 7);
-                    setWeekFromStartDate(cal);
+                    setWeekFromStartDate(nextWeekStart);
                     updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
                     break;
 
                 case 2: // Week After Next
-                    cal.add(Calendar.DAY_OF_MONTH, -toMonday + 14);
-                    setWeekFromStartDate(cal);
+                    setWeekFromStartDate(afterNextStart);
                     updateWeekRangeDisplayInDialog(weekRangeText, clearWeekButton);
                     break;
 
@@ -1610,8 +1693,15 @@ public class WeeklyActivity extends AppCompatActivity {
 
     private void setWeekFromStartDate(Calendar start) {
         startDate = (Calendar) start.clone();
+        startDate.set(Calendar.HOUR_OF_DAY, 0);
+        startDate.set(Calendar.MINUTE, 0);
+        startDate.set(Calendar.SECOND, 0);
+
         endDate = (Calendar) start.clone();
-        endDate.add(Calendar.DAY_OF_MONTH, 6);
+        endDate.add(Calendar.DAY_OF_MONTH, 6); // Monday + 6 = Sunday
+        endDate.set(Calendar.HOUR_OF_DAY, 23);
+        endDate.set(Calendar.MINUTE, 59);
+        endDate.set(Calendar.SECOND, 59);
     }
 
     private void showCustomWeekPickerDialog(TextView weekRangeText, ImageView clearWeekButton) {
@@ -1759,4 +1849,499 @@ public class WeeklyActivity extends AppCompatActivity {
 
         return super.dispatchTouchEvent(ev);
     }
+    // KEYBOARD TOOLBAR SETUP
+    private void setupKeyboardToolbar() {
+        // Headings & Font
+        headingsAndFont.setOnClickListener(v -> showHeadingOptions());
+
+        // Theme
+        addThemeBtn.setOnClickListener(v -> toggleColorPicker());
+
+        // Subpage (create new weekly plan)
+        addSubpageBtn.setOnClickListener(v -> createSubWeeklyPlan());
+    }
+
+    // HEADINGS & FONTS
+    private void showHeadingOptions() {
+        Toast.makeText(this, "⚠️ Font styles only apply to the plan title, not tasks",
+                Toast.LENGTH_LONG).show();
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all option views
+        LinearLayout heading1Option = sheetView.findViewById(R.id.heading1Option);
+        LinearLayout heading2Option = sheetView.findViewById(R.id.heading2Option);
+        LinearLayout heading3Option = sheetView.findViewById(R.id.heading3Option);
+        LinearLayout boldOption = sheetView.findViewById(R.id.boldOption);
+        LinearLayout italicOption = sheetView.findViewById(R.id.italicOption);
+        LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
+        LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
+
+        // Font color options
+        LinearLayout fontColorDefault = sheetView.findViewById(R.id.fontColorDefault);
+        LinearLayout fontColorRed = sheetView.findViewById(R.id.fontColorRed);
+        LinearLayout fontColorOrange = sheetView.findViewById(R.id.fontColorOrange);
+        LinearLayout fontColorYellow = sheetView.findViewById(R.id.fontColorYellow);
+        LinearLayout fontColorGreen = sheetView.findViewById(R.id.fontColorGreen);
+        LinearLayout fontColorBlue = sheetView.findViewById(R.id.fontColorBlue);
+        LinearLayout fontColorPurple = sheetView.findViewById(R.id.fontColorPurple);
+        LinearLayout fontColorPink = sheetView.findViewById(R.id.fontColorPink);
+        LinearLayout fontColorBrown = sheetView.findViewById(R.id.fontColorBrown);
+        LinearLayout fontColorGray = sheetView.findViewById(R.id.fontColorGray);
+
+        // Heading listeners
+        if (heading1Option != null) {
+            heading1Option.setOnClickListener(v -> {
+                applyTextStyle("heading1");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading2Option != null) {
+            heading2Option.setOnClickListener(v -> {
+                applyTextStyle("heading2");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading3Option != null) {
+            heading3Option.setOnClickListener(v -> {
+                applyTextStyle("heading3");
+                bottomSheet.dismiss();
+            });
+        }
+
+        // Font style listeners
+        if (boldOption != null) {
+            boldOption.setOnClickListener(v -> {
+                applyTextStyle("bold");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (italicOption != null) {
+            italicOption.setOnClickListener(v -> {
+                applyTextStyle("italic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (boldItalicOption != null) {
+            boldItalicOption.setOnClickListener(v -> {
+                applyTextStyle("boldItalic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (normalOption != null) {
+            normalOption.setOnClickListener(v -> {
+                applyTextStyle("normal");
+                bottomSheet.dismiss();
+            });
+        }
+
+        // Font color listeners
+        if (fontColorDefault != null) {
+            fontColorDefault.setOnClickListener(v -> {
+                applyFontColor("#333333");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorRed != null) {
+            fontColorRed.setOnClickListener(v -> {
+                applyFontColor("#E53935");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorOrange != null) {
+            fontColorOrange.setOnClickListener(v -> {
+                applyFontColor("#FB8C00");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorYellow != null) {
+            fontColorYellow.setOnClickListener(v -> {
+                applyFontColor("#FDD835");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGreen != null) {
+            fontColorGreen.setOnClickListener(v -> {
+                applyFontColor("#43A047");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBlue != null) {
+            fontColorBlue.setOnClickListener(v -> {
+                applyFontColor("#1E88E5");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPurple != null) {
+            fontColorPurple.setOnClickListener(v -> {
+                applyFontColor("#8E24AA");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPink != null) {
+            fontColorPink.setOnClickListener(v -> {
+                applyFontColor("#D81B60");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBrown != null) {
+            fontColorBrown.setOnClickListener(v -> {
+                applyFontColor("#6D4C41");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGray != null) {
+            fontColorGray.setOnClickListener(v -> {
+                applyFontColor("#757575");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    private void loadTitleFormatting() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || planId == null || planId.isEmpty()) {
+            Log.d(TAG, "⚠️ Cannot load formatting - no user or planId");
+            return;
+        }
+
+        db.collection("users").document(user.getUid())
+                .collection("weeklyPlans").document(planId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        String savedFontStyle = doc.getString("titleFontStyle");
+                        titleFontStyle = (savedFontStyle != null) ? savedFontStyle : "normal";
+
+                        Long fontSize = doc.getLong("titleFontSize");
+                        titleFontSize = (fontSize != null) ? fontSize.intValue() : 16;
+
+                        String savedFontColor = doc.getString("titleFontColor");
+                        titleFontColor = (savedFontColor != null) ? savedFontColor : "#000000";
+
+                        applyTitleFormattingFromData();
+                        Log.d(TAG, "✅ Title formatting loaded");
+                    } else {
+                        Log.d(TAG, "📄 Document doesn't exist yet");
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to load title formatting", e);
+                });
+    }
+
+    // 4. ADD NEW METHOD - Apply formatting:
+    private void applyTitleFormattingFromData() {
+        weeklyTitle.setTextSize(titleFontSize);
+        weeklyTitle.setTextColor(Color.parseColor(titleFontColor));
+
+        switch (titleFontStyle) {
+            case "bold":
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "italic":
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.ITALIC);
+                break;
+            case "boldItalic":
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                break;
+            default:
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
+                break;
+        }
+    }
+
+    // 5. REPLACE applyTextStyle():
+    private void applyTextStyle(String style) {
+        titleFontStyle = style;
+
+        switch (style) {
+            case "heading1":
+                titleFontSize = 32;
+                weeklyTitle.setTextSize(32);
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "heading2":
+                titleFontSize = 24;
+                weeklyTitle.setTextSize(24);
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "heading3":
+                titleFontSize = 20;
+                weeklyTitle.setTextSize(20);
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "bold":
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "italic":
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.ITALIC);
+                break;
+            case "boldItalic":
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                break;
+            case "normal":
+                titleFontSize = 16;
+                weeklyTitle.setTextSize(16);
+                weeklyTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
+                break;
+        }
+
+        saveTitleFormatting();
+        Toast.makeText(this, "Title style applied", Toast.LENGTH_SHORT).show();
+    }
+
+    // 6. REPLACE applyFontColor():
+    private void applyFontColor(String color) {
+        titleFontColor = color;
+        weeklyTitle.setTextColor(Color.parseColor(color));
+        saveTitleFormatting();
+        Toast.makeText(this, "Color applied", Toast.LENGTH_SHORT).show();
+    }
+    private void saveTitleFormatting() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        if (isNewPlan || planId == null || planId.isEmpty()) {
+            planId = db.collection("users")
+                    .document(user.getUid())
+                    .collection("weeklyPlans")
+                    .document().getId();
+            isNewPlan = false;
+            Log.d(TAG, "✅ Generated new planId for formatting: " + planId);
+        }
+
+        Map<String, Object> formatting = new HashMap<>();
+        formatting.put("titleFontStyle", titleFontStyle);
+        formatting.put("titleFontSize", titleFontSize);
+        formatting.put("titleFontColor", titleFontColor);
+        formatting.put("title", weeklyTitle.getText().toString().trim());
+        formatting.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+        db.collection("users").document(user.getUid())
+                .collection("weeklyPlans").document(planId)
+                .set(formatting, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Title formatting saved");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to save title formatting", e);
+                });
+    }
+
+    // COLOR PICKER / THEMES
+    private void setupColorPicker() {
+        findViewById(R.id.colorDefault).setOnClickListener(v -> changeBackgroundColor("#FAFAFA"));
+        findViewById(R.id.colorRed).setOnClickListener(v -> changeBackgroundColor("#FFCDD2"));
+        findViewById(R.id.colorPink).setOnClickListener(v -> changeBackgroundColor("#F8BBD0"));
+        findViewById(R.id.colorPurple).setOnClickListener(v -> changeBackgroundColor("#E1BEE7"));
+        findViewById(R.id.colorBlue).setOnClickListener(v -> changeBackgroundColor("#BBDEFB"));
+        findViewById(R.id.colorCyan).setOnClickListener(v -> changeBackgroundColor("#B2EBF2"));
+        findViewById(R.id.colorGreen).setOnClickListener(v -> changeBackgroundColor("#C8E6C9"));
+        findViewById(R.id.colorYellow).setOnClickListener(v -> changeBackgroundColor("#FFF9C4"));
+        findViewById(R.id.colorOrange).setOnClickListener(v -> changeBackgroundColor("#FFE0B2"));
+        findViewById(R.id.colorBrown).setOnClickListener(v -> changeBackgroundColor("#D7CCC8"));
+        findViewById(R.id.colorGrey).setOnClickListener(v -> changeBackgroundColor("#CFD8DC"));
+    }
+
+    private void toggleColorPicker() {
+        if (colorPickerPanel.getVisibility() == View.VISIBLE) {
+            colorPickerPanel.setVisibility(View.GONE);
+        } else {
+            colorPickerPanel.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void changeBackgroundColor(String color) {
+        mainLayout.setBackgroundColor(Color.parseColor(color));
+        currentBgColor = color;
+        colorPickerPanel.setVisibility(View.GONE);
+
+        // ✅ Save immediately
+        saveBackgroundColor(color);
+    }
+
+    private void saveBackgroundColor(String color) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        if (isNewPlan || planId == null || planId.isEmpty()) {
+            planId = db.collection("users")
+                    .document(user.getUid())
+                    .collection("weeklyPlans")
+                    .document().getId();
+            isNewPlan = false;
+            Log.d(TAG, "✅ Generated new planId for background: " + planId);
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("backgroundColor", color);
+        updates.put("title", weeklyTitle.getText().toString().trim());
+        updates.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+        db.collection("users").document(user.getUid())
+                .collection("weeklyPlans").document(planId)
+                .set(updates, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Background color saved: " + color);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to save background color", e);
+                });
+    }
+
+    // ✅ FIXED loadBackgroundColor()
+    private void loadBackgroundColor() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || planId == null || planId.isEmpty()) {
+            Log.d(TAG, "⚠️ Cannot load background - no user or planId");
+            return;
+        }
+
+        db.collection("users").document(user.getUid())
+                .collection("weeklyPlans").document(planId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists() && doc.contains("backgroundColor")) {
+                        String color = doc.getString("backgroundColor");
+                        if (color != null && !color.isEmpty()) {
+                            currentBgColor = color;
+                            mainLayout.setBackgroundColor(Color.parseColor(color));
+                            Log.d(TAG, "✅ Background color loaded: " + color);
+                        }
+                    } else {
+                        Log.d(TAG, "📄 Document exists but no backgroundColor field");
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to load background color", e);
+                });
+    }
+
+
+    // SUBPAGE (Create new linked weekly plan)
+    private void createSubWeeklyPlan() {
+        if (isNewPlan) {
+            Toast.makeText(this, "Please save this plan first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        String newPlanId = db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document().getId();
+
+        Map<String, Object> subplanData = new HashMap<>();
+        subplanData.put("title", "Sub-plan");
+        subplanData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        subplanData.put("parentPlanId", planId);
+        subplanData.put("taskCount", 0);
+        subplanData.put("completedCount", 0);
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document(newPlanId)
+                .set(subplanData)
+                .addOnSuccessListener(aVoid -> {
+                    Map<String, Object> subpageRef = new HashMap<>();
+                    subpageRef.put("subpageId", newPlanId);
+                    subpageRef.put("title", "Sub-plan");
+                    subpageRef.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+                    db.collection("users")
+                            .document(user.getUid())
+                            .collection("weeklyPlans")
+                            .document(planId)
+                            .collection("subpages")
+                            .add(subpageRef)
+                            .addOnSuccessListener(docRef -> {
+                                Toast.makeText(this, "Sub-plan created", Toast.LENGTH_SHORT).show();
+
+                                loadSubpages();
+                                Intent intent = new Intent(this, WeeklyActivity.class);
+                                intent.putExtra("planId", newPlanId);
+                                startActivity(intent);
+                            });
+                });
+    }
+    private void loadSubpages() {
+        if (isNewPlan || planId == null || planId.isEmpty()) {
+            Log.d(TAG, "⚠️ Skipping subpages - new plan or no planId");
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        LinearLayout mainContainer = findViewById(R.id.mainLayout);
+
+        // ✅ FIX: Remove old subpage views first
+        List<View> subpageViews = new ArrayList<>();
+        for (int i = 0; i < mainContainer.getChildCount(); i++) {
+            View child = mainContainer.getChildAt(i);
+            if (child.findViewById(R.id.subpageTitle) != null) {
+                subpageViews.add(child);
+            }
+        }
+        for (View view : subpageViews) {
+            mainContainer.removeView(view);
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document(planId)
+                .collection("subpages")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    Log.d(TAG, "📄 Found " + queryDocumentSnapshots.size() + " subpages");
+
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        String subpageId = doc.getString("subpageId");
+                        String subpageTitle = doc.getString("title");
+
+                        View subpageView = LayoutInflater.from(this)
+                                .inflate(R.layout.item_subpage, null, false);
+
+                        TextView titleText = subpageView.findViewById(R.id.subpageTitle);
+                        titleText.setText(subpageTitle != null ? subpageTitle : "Sub-plan");
+
+                        subpageView.setOnClickListener(v -> {
+                            Intent intent = new Intent(this, WeeklyActivity.class);
+                            intent.putExtra("planId", subpageId);
+                            startActivity(intent);
+                        });
+
+                        int insertIndex = mainContainer.getChildCount() - 2;
+                        mainContainer.addView(subpageView, insertIndex);
+
+                        Log.d(TAG, "✅ Added subpage view: " + subpageTitle);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to load subpages", e);
+                });
+    }
+
 }

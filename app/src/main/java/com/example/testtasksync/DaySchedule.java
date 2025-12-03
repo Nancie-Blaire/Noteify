@@ -63,7 +63,7 @@ public class DaySchedule {
     public void setReminderMinutes(int reminderMinutes) {
         this.reminderMinutes = reminderMinutes;
     }
-
+ 
     public int getScheduleNumber() {
         return scheduleNumber;
     }

@@ -26,13 +26,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class BookmarksActivity extends AppCompatActivity implements BookmarkAdapter.OnBookmarkClickListener {
+public class SubpageBookmarksActivity extends AppCompatActivity implements BookmarkAdapter.OnBookmarkClickListener {
 
     private RecyclerView bookmarksRecyclerView;
     private BookmarkAdapter bookmarkAdapter;
     private FirebaseFirestore db;
     private FirebaseAuth auth;
     private String noteId;
+    private String subpageId;
     private ImageView backBtn;
     private LinearLayout emptyView;
 
@@ -42,6 +43,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         setContentView(R.layout.activity_bookmarks);
 
         noteId = getIntent().getStringExtra("noteId");
+        subpageId = getIntent().getStringExtra("subpageId");
 
         backBtn = findViewById(R.id.backBtn);
         bookmarksRecyclerView = findViewById(R.id.bookmarksRecyclerView);
@@ -68,6 +70,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
                 .collection("bookmarks")
                 .orderBy("timestamp")
                 .addSnapshotListener((value, error) -> {
@@ -96,16 +99,17 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
                     }
                 });
     }
+
     @Override
     public void onBookmarkClick(Bookmark bookmark) {
-        // Return to NoteActivity and scroll to the bookmarked block
-        Intent intent = new Intent(this, NoteActivity.class);
+        // Create intent to go back to SubpageActivity with scroll position
+        Intent intent = new Intent(SubpageBookmarksActivity.this, SubpageActivity.class);
         intent.putExtra("noteId", noteId);
-        intent.putExtra("scrollToBlockId", bookmark.getBlockId());
+        intent.putExtra("subpageId", subpageId);
         intent.putExtra("scrollToPosition", bookmark.getStartIndex());
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
-        finish();
+        finish(); // Close SubpageBookmarksActivity
     }
 
     @Override
@@ -158,12 +162,12 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         // Set initial style selection
         if ("highlight".equals(selectedStyle[0])) {
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange text
+            styleHighlight.setTextColor(Color.parseColor("#ff9376"));
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
             styleUnderline.setTextColor(Color.parseColor("#666666"));
         } else {
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange text
+            styleUnderline.setTextColor(Color.parseColor("#ff9376"));
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
             styleHighlight.setTextColor(Color.parseColor("#666666"));
         }
@@ -189,7 +193,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         styleHighlight.setOnClickListener(v -> {
             selectedStyle[0] = "highlight";
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange
+            styleHighlight.setTextColor(Color.parseColor("#ff9376"));
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
             styleUnderline.setTextColor(Color.parseColor("#666666"));
         });
@@ -197,7 +201,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         styleUnderline.setOnClickListener(v -> {
             selectedStyle[0] = "underline";
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange
+            styleUnderline.setTextColor(Color.parseColor("#ff9376"));
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
             styleHighlight.setTextColor(Color.parseColor("#666666"));
         });
@@ -266,6 +270,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
                 .collection("bookmarks").document(bookmarkId)
                 .update(updates)
                 .addOnSuccessListener(aVoid ->
@@ -280,6 +285,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
                 .collection("bookmarks").document(bookmark.getId())
                 .delete()
                 .addOnSuccessListener(aVoid ->

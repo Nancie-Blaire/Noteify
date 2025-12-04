@@ -101,11 +101,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private View colorPickerPanel;
     private RelativeLayout noteLayout;
     private String currentNoteColor = "#FAFAFA";
-    private boolean isSelectingForBookmark = false;
-    private int bookmarkStartIndex = -1;
-    private int bookmarkEndIndex = -1;
-    private String selectedBlockIdForBookmark = null;
-    private String selectedTextForBookmark = null;
+    // Add these fields at the top
+    private String scrollToBlockId = null;
+    private int scrollToPosition = -1;
+    private Bookmark[] allBookmarks;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,8 +141,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         View emptySpace = findViewById(R.id.emptySpace);
         setupEmptySpaceClick(emptySpace);
 
-
-
         // Initialize keyboard toolbar buttons
         headingsAndFont = findViewById(R.id.headingsandfont);
         addDividerBtn = findViewById(R.id.addDividerOption);
@@ -164,6 +161,10 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         adapter = new NoteBlockAdapter(blocks, this, noteId);
         blocksRecycler.setLayoutManager(new LinearLayoutManager(this));
         blocksRecycler.setAdapter(adapter);
+
+        // ✅ Get scroll intent extras
+        scrollToBlockId = getIntent().getStringExtra("scrollToBlockId");
+        scrollToPosition = getIntent().getIntExtra("scrollToPosition", -1);
 
         // Setup image pickers
         setupImagePickers();
@@ -244,9 +245,105 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     @Override
     protected void onResume() {
         super.onResume();
+
         if (noteId != null) {
             loadBlocks();
+
+            // ✅ Scroll to bookmark after blocks are loaded
+            if (scrollToBlockId != null) {
+                blocksRecycler.postDelayed(() -> {
+                    scrollToBookmark(scrollToBlockId, scrollToPosition);
+                    scrollToBlockId = null;
+                    scrollToPosition = -1;
+                }, 300);
+            }
         }
+    }
+
+    // ✅ NEW: Scroll to specific block and highlight bookmark
+    private void scrollToBookmark(String blockId, int charPosition) {
+        // Find block position in list
+        int blockPosition = -1;
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getId().equals(blockId)) {
+                blockPosition = i;
+                break;
+            }
+        }
+
+        if (blockPosition == -1) return;
+
+        final int finalPosition = blockPosition;
+
+        // Scroll to block
+        blocksRecycler.smoothScrollToPosition(finalPosition);
+
+        // Highlight and focus after scroll
+        blocksRecycler.postDelayed(() -> {
+            RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(finalPosition);
+            if (holder != null) {
+                View view = holder.itemView;
+                EditText editText = view.findViewById(R.id.contentEdit);
+
+                if (editText != null) {
+                    // Focus the EditText
+                    editText.requestFocus();
+
+                    // Set cursor position
+                    if (charPosition >= 0 && charPosition <= editText.getText().length()) {
+                        editText.setSelection(charPosition);
+                    }
+
+                    // Flash highlight animation
+                    flashBookmarkHighlight(editText, blockId);
+                }
+            }
+        }, 500);
+    }
+
+    // ✅ NEW: Flash animation to show user where the bookmark is
+    private void flashBookmarkHighlight(EditText editText, String blockId) {
+        String content = editText.getText().toString();
+        android.text.SpannableString spannable = new android.text.SpannableString(content);
+
+        // Find bookmarks in this block
+        List<Bookmark> blockBookmarks = new ArrayList<>();
+        for (Bookmark b : allBookmarks) {
+            if (blockId.equals(b.getBlockId())) {
+                blockBookmarks.add(b);
+            }
+        }
+
+        // Apply flash highlight
+        for (Bookmark bookmark : blockBookmarks) {
+            int start = bookmark.getStartIndex();
+            int end = bookmark.getEndIndex();
+
+            if (start >= 0 && end <= content.length() && start < end) {
+                // Yellow flash background
+                spannable.setSpan(
+                        new android.text.style.BackgroundColorSpan(Color.parseColor("#FFFF00")),
+                        start, end,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+        }
+
+        editText.setText(spannable);
+
+        // Remove flash after 1 second and restore original highlight
+        editText.postDelayed(() -> {
+            adapter.notifyItemChanged(blocks.indexOf(findBlockById(blockId)));
+        }, 1000);
+    }
+
+    private NoteBlock findBlockById(String blockId) {
+        for (NoteBlock block : blocks) {
+            if (block.getId().equals(blockId)) {
+                return block;
+            }
+        }
+        return null;
     }
 
     private void loadBlocks() {

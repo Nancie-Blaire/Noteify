@@ -1,6 +1,5 @@
 package com.example.testtasksync;
 
-import android.content.Context;
 import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,7 +12,6 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.ScheduleViewHolder> {
@@ -23,13 +21,13 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
     private OnTaskCompletionListener completionListener;
     private boolean isDeleteMode = false;
     private List<Schedule> selectedSchedules = new ArrayList<>();
-    private Context context;
 
     public interface OnScheduleClickListener {
         void onScheduleClick(Schedule schedule);
         void onScheduleLongClick(Schedule schedule);
     }
 
+    // ✅ Listener for checkbox clicks
     public interface OnTaskCompletionListener {
         void onTaskCompleted(Schedule schedule);
     }
@@ -39,6 +37,7 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
         this.listener = listener;
     }
 
+    // ✅ Set completion listener
     public void setCompletionListener(OnTaskCompletionListener listener) {
         this.completionListener = listener;
     }
@@ -55,17 +54,10 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
         this.selectedSchedules = selected;
     }
 
-    // ✅ UPDATED: Method to update the entire list
-    public void updateScheduleList(List<Schedule> newScheduleList) {
-        this.scheduleList = newScheduleList;
-        notifyDataSetChanged();
-    }
-
     @NonNull
     @Override
     public ScheduleViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        context = parent.getContext();
-        View view = LayoutInflater.from(context)
+        View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_schedule, parent, false);
         return new ScheduleViewHolder(view);
     }
@@ -73,71 +65,12 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
     @Override
     public void onBindViewHolder(@NonNull ScheduleViewHolder holder, int position) {
         Schedule schedule = scheduleList.get(position);
-        holder.bind(schedule, listener, completionListener, isDeleteMode,
-                selectedSchedules.contains(schedule), context);
+        holder.bind(schedule, listener, completionListener, isDeleteMode, selectedSchedules.contains(schedule));
     }
 
     @Override
     public int getItemCount() {
         return scheduleList.size();
-    }
-
-    // ✅ IMPROVED: Method to remove item with better notification
-    public void removeItem(int position) {
-        if (position >= 0 && position < scheduleList.size()) {
-            scheduleList.remove(position);
-            notifyItemRemoved(position);
-            notifyItemRangeChanged(position, scheduleList.size() - position);
-        }
-    }
-
-    // ✅ IMPROVED: Method to remove single schedule by object
-    public void removeSchedule(Schedule schedule) {
-        int position = -1;
-
-        // Find the position by ID to ensure we're removing the correct item
-        for (int i = 0; i < scheduleList.size(); i++) {
-            if (scheduleList.get(i).getId().equals(schedule.getId())) {
-                position = i;
-                break;
-            }
-        }
-
-        if (position >= 0 && position < scheduleList.size()) {
-            scheduleList.remove(position);
-            notifyItemRemoved(position);
-            // Notify all items after this position to rebind
-            if (position < scheduleList.size()) {
-                notifyItemRangeChanged(position, scheduleList.size() - position);
-            }
-        }
-    }
-
-    // ✅ IMPROVED: Method to remove multiple items with proper animation
-    public void removeItems(List<Schedule> itemsToRemove) {
-        List<Integer> positions = new ArrayList<>();
-        for (Schedule schedule : itemsToRemove) {
-            int pos = scheduleList.indexOf(schedule);
-            if (pos >= 0) {
-                positions.add(pos);
-            }
-        }
-
-        Collections.sort(positions, Collections.reverseOrder());
-
-        for (int position : positions) {
-            if (position >= 0 && position < scheduleList.size()) {
-                scheduleList.remove(position);
-                notifyItemRemoved(position);
-            }
-        }
-
-        if (!positions.isEmpty()) {
-            int lowestPosition = positions.get(positions.size() - 1);
-            if (lowestPosition < scheduleList.size()) {
-                notifyItemRangeChanged(lowestPosition, scheduleList.size() - lowestPosition);
-            }
-        }
     }
 
     public static class ScheduleViewHolder extends RecyclerView.ViewHolder {
@@ -160,53 +93,24 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
         }
 
         public void bind(Schedule schedule, OnScheduleClickListener listener,
-                         OnTaskCompletionListener completionListener, boolean isDeleteMode,
-                         boolean isSelected, Context context) {
+                         OnTaskCompletionListener completionListener, boolean isDeleteMode, boolean isSelected) {
+            // Set title
             scheduleTitle.setText(schedule.getTitle());
 
-            // Set time with format preference
+            // Set time
             if (schedule.getTime() != null && !schedule.getTime().isEmpty()) {
-                String timeFormat = Settings.getTimeFormat(context);
+                String[] timeParts = schedule.getTime().split(" ");
+                if (timeParts.length >= 1) {
+                    scheduleTime.setText(timeParts[0]); // e.g., "10:00"
+                    scheduleTime.setVisibility(View.VISIBLE);
+                    scheduleAmPm.setVisibility(View.VISIBLE);
 
-                try {
-                    String[] timeParts = schedule.getTime().split(":");
-                    if (timeParts.length == 2) {
-                        int hour = Integer.parseInt(timeParts[0]);
-                        int minute = Integer.parseInt(timeParts[1]);
-
-                        if (timeFormat.equals("military")) {
-                            String time = String.format("%02d:%02d", hour, minute);
-                            scheduleTime.setText(time);
-                            scheduleAmPm.setVisibility(View.GONE);
-                        } else {
-                            int displayHour = hour;
-                            String amPm;
-
-                            if (hour == 0) {
-                                displayHour = 12;
-                                amPm = "AM";
-                            } else if (hour < 12) {
-                                amPm = "AM";
-                            } else if (hour == 12) {
-                                amPm = "PM";
-                            } else {
-                                displayHour = hour - 12;
-                                amPm = "PM";
-                            }
-
-                            String time = String.format("%d:%02d", displayHour, minute);
-                            scheduleTime.setText(time);
-                            scheduleAmPm.setText(amPm);
-                            scheduleAmPm.setVisibility(View.VISIBLE);
-                        }
-
-                        scheduleTime.setVisibility(View.VISIBLE);
+                    if (timeParts.length >= 2) {
+                        scheduleAmPm.setText(timeParts[1]); // e.g., "AM" or "PM"
                     } else {
-                        scheduleTime.setVisibility(View.GONE);
-                        scheduleAmPm.setVisibility(View.GONE);
+                        scheduleAmPm.setText("");
                     }
-                } catch (Exception e) {
-                    android.util.Log.e("DayScheduleAdapter", "Error parsing time: " + schedule.getTime(), e);
+                } else {
                     scheduleTime.setVisibility(View.GONE);
                     scheduleAmPm.setVisibility(View.GONE);
                 }
@@ -233,41 +137,35 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
             // Show reminder icon if reminder is set
             reminderIcon.setVisibility(schedule.hasReminder() ? View.VISIBLE : View.GONE);
 
-            // Show checkbox only for weekly and todo_task categories
+            // ✅ Show checkbox only for weekly and todo_task categories
             String scheduleCategory = schedule.getCategory();
+            android.util.Log.d("DayScheduleAdapter", "🔍 Binding schedule: " + schedule.getTitle() + " | Category: " + scheduleCategory);
 
             if ("weekly".equals(scheduleCategory) || "todo_task".equals(scheduleCategory)) {
                 scheduleCheckbox.setVisibility(View.VISIBLE);
 
-                // ✅ CRITICAL: Clear ALL listeners first
+                android.util.Log.d("DayScheduleAdapter", "✅ Showing checkbox for: " + schedule.getTitle());
+
+                // ✅ CRITICAL: Remove listener BEFORE setting checked state to prevent false triggers
                 scheduleCheckbox.setOnCheckedChangeListener(null);
-                scheduleCheckbox.setOnClickListener(null);
-                scheduleCheckbox.setChecked(false);
-                scheduleCheckbox.setEnabled(true);
+                scheduleCheckbox.setChecked(false); // Reset to unchecked
 
-                // ✅ Set new click listener
-                scheduleCheckbox.setOnClickListener(v -> {
-                    CheckBox cb = (CheckBox) v;
-                    android.util.Log.d("DayScheduleAdapter", "🖱️ Checkbox clicked for: " + schedule.getTitle());
-                    android.util.Log.d("DayScheduleAdapter", "📍 Current checked state: " + cb.isChecked());
+                // ✅ Set listener AFTER resetting checked state
+                scheduleCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    android.util.Log.d("DayScheduleAdapter", "📦 Checkbox changed! Checked: " + isChecked + " | Task: " + schedule.getTitle());
 
-                    if (cb.isChecked() && completionListener != null) {
-                        android.util.Log.d("DayScheduleAdapter", "✅ Calling completionListener for: " + schedule.getTitle());
-
-                        // Disable checkbox to prevent double-clicks
-                        cb.setEnabled(false);
-
-                        // Call the completion listener
-                        completionListener.onTaskCompleted(schedule);
-                    } else if (!cb.isChecked()) {
-                        // If somehow unchecked, keep it unchecked
-                        android.util.Log.d("DayScheduleAdapter", "⚠️ Checkbox unchecked, ignoring");
+                    if (isChecked) {
+                        if (completionListener != null) {
+                            android.util.Log.d("DayScheduleAdapter", "🚀 Calling completionListener.onTaskCompleted()");
+                            completionListener.onTaskCompleted(schedule);
+                        } else {
+                            android.util.Log.e("DayScheduleAdapter", "❌ completionListener is NULL!");
+                        }
                     }
                 });
             } else {
                 scheduleCheckbox.setVisibility(View.GONE);
-                scheduleCheckbox.setOnCheckedChangeListener(null);
-                scheduleCheckbox.setOnClickListener(null);
+                scheduleCheckbox.setOnCheckedChangeListener(null); // Clear listener
             }
 
             // Highlight if selected in delete mode
@@ -295,13 +193,13 @@ public class DayScheduleAdapter extends RecyclerView.Adapter<DayScheduleAdapter.
         private int getCategoryColor(String category) {
             switch (category) {
                 case "todo":
-                    return Color.parseColor("#4CAF50");
+                    return Color.parseColor("#4CAF50"); // Green
                 case "todo_task":
-                    return Color.parseColor("#66BB6A");
+                    return Color.parseColor("#66BB6A"); // Light Green
                 case "weekly":
-                    return Color.parseColor("#2196F3");
+                    return Color.parseColor("#2196F3"); // Blue
                 case "holiday":
-                    return Color.parseColor("#F44336");
+                    return Color.parseColor("#F44336"); // Red
                 default:
                     return Color.parseColor("#4CAF50");
             }

@@ -11,8 +11,9 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="120dp"
-        android:layout_marginTop="20dp"
-        android:background="#8daaa6">
+        android:layout_marginTop="30dp"
+        android:background="#8DAAA6"
+        android:layout_marginBottom="10dp">
 
         <!-- Back Button -->
         <ImageView
@@ -21,7 +22,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_revert_back_btn"
             android:contentDescription="Back"
-            app:tint="#000000"
+            app:tint="#FFFFFF"
             android:padding="8dp"
             android:layout_alignParentStart="true"
             android:layout_marginStart="8dp"
@@ -36,7 +37,7 @@
             android:text="Weekly Planner"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:textColor="#000000"
+            android:textColor="#FFFFFF"
             android:layout_toEndOf="@id/backButton"
             android:layout_alignTop="@id/backButton"
             android:layout_alignBottom="@id/backButton"
@@ -58,7 +59,7 @@
             android:inputType="textCapWords"
             android:maxLines="1"
             android:text="Title of Weekly Planner"
-            android:textColor="#000000"
+            android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textAlignment="viewEnd"
             android:gravity="end"/>
@@ -84,6 +85,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Set Due Date"
                 android:padding="8dp"
+                app:tint="#FFFFFF"
                 android:src="@drawable/ic_calendar" />
 
             <ImageView
@@ -94,6 +96,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Save"
                 android:padding="8dp"
+                app:tint="#FFFFFF"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_check" />
 
@@ -133,7 +136,10 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_marginEnd="10dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="10dp"
                             android:text="MONDAY"
                             android:letterSpacing=".2"
                             android:textSize="20sp"
@@ -165,6 +171,8 @@
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
 
@@ -185,7 +193,10 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_marginEnd="10dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="10dp"
                             android:text="TUESDAY"
                             android:letterSpacing=".2"
                             android:textSize="20sp"
@@ -217,6 +228,8 @@
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
 
@@ -237,7 +250,10 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_marginEnd="10dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="10dp"
                             android:text="WEDNESDAY"
                             android:letterSpacing=".2"
                             android:textSize="20sp"
@@ -269,6 +285,8 @@
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
 
@@ -289,7 +307,10 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_marginEnd="10dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="10dp"
                             android:text="THURSDAY"
                             android:letterSpacing=".2"
                             android:textSize="20sp"
@@ -321,6 +342,8 @@
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
 
@@ -341,7 +364,10 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_marginEnd="10dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="10dp"
                             android:text="FRIDAY"
                             android:letterSpacing=".2"
                             android:textSize="20sp"
@@ -373,6 +399,8 @@
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
 
@@ -393,7 +421,10 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_marginEnd="10dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="10dp"
                             android:text="SATURDAY"
                             android:letterSpacing=".2"
                             android:textSize="20sp"
@@ -425,6 +456,8 @@
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
 
@@ -445,7 +478,10 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_marginEnd="10dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="10dp"
                             android:text="SUNDAY"
                             android:letterSpacing=".2"
                             android:textSize="20sp"
@@ -477,6 +513,8 @@
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
                         android:orientation="vertical"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
 

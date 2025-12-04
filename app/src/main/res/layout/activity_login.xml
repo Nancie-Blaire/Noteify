@@ -34,7 +34,7 @@
             android:letterSpacing="0.3"
             android:text="NOTEIFY"
             android:textColor="#333333"
-            android:textSize="24sp"
+            android:textSize="25sp"
             android:textStyle="bold" />
 
         <!-- Tagline -->
@@ -45,8 +45,8 @@
             android:fontFamily="@font/inter_itallic"
             android:letterSpacing="0.1"
             android:text="Stay organized. Stay on time."
-            android:textColor="#757575"
-            android:textSize="13sp" />
+            android:textColor="#666666"
+            android:textSize="16sp" />
 
         <!-- Email Input -->
         <LinearLayout
@@ -122,7 +122,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:layout_marginBottom="13dp"
+            android:layout_marginBottom="20dp"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="@font/inter_regular"
@@ -138,7 +138,7 @@
             android:id="@+id/btnLogin"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="3dp"
             android:backgroundTint="#FF9376"
             android:fontFamily="@font/inter_regular"
             android:letterSpacing=".05"
@@ -153,7 +153,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="3dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -233,7 +233,7 @@
                     android:fontFamily="@font/inter_regular"
                     android:text="Don't have an account? "
                     android:textColor="#000000"
-                    android:textSize="13sp" />
+                    android:textSize="12sp" />
 
                 <TextView
                     android:id="@+id/tvSignUpRedirect"
@@ -246,7 +246,7 @@
                     android:padding="4dp"
                     android:text="@string/underlined_text_signup"
                     android:textColor="#000000"
-                    android:textSize="13sp"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
             </LinearLayout>
 

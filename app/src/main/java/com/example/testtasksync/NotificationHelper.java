@@ -21,13 +21,6 @@ public class NotificationHelper {
     private static final String APP_NAME = "Noteify";
 
     /**
-     * ✅ Check if notifications are enabled in settings
-     */
-    private static boolean areNotificationsEnabled(Context context) {
-        return Settings.areNotificationsEnabled(context);
-    }
-
-    /**
      * Create notification channel (required for Android 8.0+)
      */
     public static void createNotificationChannel(Context context) {
@@ -51,18 +44,12 @@ public class NotificationHelper {
     }
 
     /**
-     * ✅ UPDATED: Check notification settings before scheduling
+     * ✅ FIXED: Now passes listId to notification
      */
     public static void scheduleTodoListNotification(Context context, String listId,
                                                     String listTitle,
                                                     Date scheduleDate, String scheduleTime,
                                                     int reminderMinutes) {
-        // ✅ CHECK: If notifications are disabled in settings, skip
-        if (!areNotificationsEnabled(context)) {
-            Log.d(TAG, "⚠️ Notifications are disabled in settings, skipping");
-            return;
-        }
-
         if (scheduleDate == null) {
             Log.d(TAG, "⚠️ No schedule date, skipping notification");
             return;
@@ -98,23 +85,18 @@ public class NotificationHelper {
 
         Log.d(TAG, "✅ Scheduling TODO LIST notification: " + listTitle);
 
+        // ✅ FIXED: Pass listId as sourceId
         scheduleNotification(context, listId, APP_NAME, listTitle,
                 notificationTime.getTimeInMillis(), "todo", listId);
     }
 
     /**
-     * ✅ UPDATED: Check notification settings before scheduling
+     * ✅ FIXED: Now passes listId to notification
      */
     public static void scheduleTodoTaskNotification(Context context, String listId,
                                                     String taskId, String taskText,
                                                     Date scheduleDate, String scheduleTime,
                                                     int reminderMinutes) {
-        // ✅ CHECK: If notifications are disabled in settings, skip
-        if (!areNotificationsEnabled(context)) {
-            Log.d(TAG, "⚠️ Notifications are disabled in settings, skipping");
-            return;
-        }
-
         if (scheduleDate == null) {
             Log.d(TAG, "⚠️ No schedule date, skipping notification");
             return;
@@ -150,23 +132,18 @@ public class NotificationHelper {
 
         Log.d(TAG, "✅ Scheduling individual TASK notification: " + taskText);
 
+        // ✅ FIXED: Pass listId as sourceId
         scheduleNotification(context, taskId, APP_NAME, taskText,
                 notificationTime.getTimeInMillis(), "todo_task", listId);
     }
 
     /**
-     * ✅ UPDATED: Check notification settings before scheduling
+     * ✅ FIXED: Now passes planId to notification
      */
     public static void scheduleWeeklyTaskNotification(Context context, String taskId,
                                                       String planTitle, String taskText,
                                                       String day, Date startDate,
                                                       String time, int reminderMinutes) {
-        // ✅ CHECK: If notifications are disabled in settings, skip
-        if (!areNotificationsEnabled(context)) {
-            Log.d(TAG, "⚠️ Notifications are disabled in settings, skipping");
-            return;
-        }
-
         if (startDate == null || time == null || time.isEmpty()) {
             Log.d(TAG, "⚠️ Missing date or time for weekly task");
             return;
@@ -207,6 +184,7 @@ public class NotificationHelper {
 
         String notificationMessage = taskText + " (" + planTitle + " - " + day + ")";
 
+        // ✅ FIXED: Extract planId correctly (it's now the first part before "_")
         String planId = taskId.split("_")[0];
 
         scheduleNotification(context, taskId, APP_NAME, notificationMessage,
@@ -214,7 +192,7 @@ public class NotificationHelper {
     }
 
     /**
-     * Schedule notification with sourceId for navigation
+     * ✅ FIXED: Schedule notification with sourceId for navigation
      */
     private static void scheduleNotification(Context context, String id,
                                              String title, String message,
@@ -224,7 +202,7 @@ public class NotificationHelper {
         intent.putExtra("title", title);
         intent.putExtra("message", message);
         intent.putExtra("type", type);
-        intent.putExtra("sourceId", sourceId);
+        intent.putExtra("sourceId", sourceId); // ✅ ADDED: Pass sourceId for navigation
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
                 context,
@@ -273,19 +251,6 @@ public class NotificationHelper {
             alarmManager.cancel(pendingIntent);
             pendingIntent.cancel();
             Log.d(TAG, "❌ Notification cancelled for task: " + taskId);
-        }
-    }
-
-    /**
-     * ✅ NEW: Cancel ALL scheduled notifications (useful when disabling notifications)
-     */
-    public static void cancelAllNotifications(Context context) {
-        // Cancel all pending notifications in the notification tray
-        NotificationManager notificationManager =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (notificationManager != null) {
-            notificationManager.cancelAll();
-            Log.d(TAG, "❌ All notifications cancelled");
         }
     }
 

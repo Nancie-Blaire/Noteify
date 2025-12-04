@@ -20,7 +20,7 @@
             android:layout_height="wrap_content"
             android:text="Settings"
             android:textColor="#000000"
-            android:textSize="20sp"
+            android:textSize="25sp"
             android:textStyle="bold"
             android:layout_marginStart="12dp"/>
     </LinearLayout>
@@ -70,9 +70,9 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="TIME FORMAT"
+                        android:text="Time Format"
                         android:textColor="#333333"
-                        android:textSize="14sp"
+                        android:textSize="18sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -183,9 +183,9 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="NOTIFICATION"
+                        android:text="Notification"
                         android:textColor="#333333"
-                        android:textSize="14sp"
+                        android:textSize="18sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -250,9 +250,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="PROFILE"
+                    android:text="Profile"
                     android:textColor="#333333"
-                    android:textSize="14sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -278,9 +278,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="THEME"
+                    android:text="Theme"
                     android:textColor="#333333"
-                    android:textSize="14sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -306,9 +306,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="BIN"
+                    android:text="Bin"
                     android:textColor="#333333"
-                    android:textSize="14sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -333,9 +333,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="PRIVACY"
+                    android:text="Privacy"
                     android:textColor="#333333"
-                    android:textSize="14sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"/>
 
                 <ImageView

@@ -17,12 +17,6 @@ public class NotificationReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "📬 Notification received!");
 
-        // ✅ CRITICAL FIX: Check if notifications are enabled BEFORE showing
-        if (!Settings.areNotificationsEnabled(context)) {
-            Log.d(TAG, "❌ Notifications are disabled in settings. Skipping notification display.");
-            return; // Don't show the notification
-        }
-
         int notificationId = intent.getIntExtra("notification_id", 0);
         String title = intent.getStringExtra("title");
         String message = intent.getStringExtra("message");

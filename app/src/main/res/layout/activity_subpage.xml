@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/subpageLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FAFAFA">
+    android:background="#FAFAFA"
+    tools:context=".SubpageActivity">
 
-    <!-- Top Bar -->
+    <!-- Top Bar with Check Button -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -14,256 +16,69 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="8dp"
-        android:background="@android:color/transparent"
-        android:elevation="2dp">
+        android:background="#8DAAA6"
+        android:elevation="2dp"
+        android:layout_marginTop="30dp">
 
         <ImageView
             android:id="@+id/checkBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="12dp"
+            app:tint="#FFFFFF"
             android:src="@drawable/ic_check"
             android:contentDescription="Back"
             android:background="?attr/selectableItemBackgroundBorderless" />
-        <ImageView
-            android:id="@+id/viewBookmarksBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:src="@drawable/ic_bookmark"
-            android:contentDescription="View Bookmarks"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="#666666" />
+
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Subpage"
-            android:textSize="16sp"
-            android:textColor="#666"
-            android:gravity="center"
-            android:textStyle="bold" />
-
-        <View
-            android:layout_width="48dp"
-            android:layout_height="48dp" />
+            android:textSize="18sp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginStart="8dp"/>/>
 
     </LinearLayout>
 
-    <!-- Color Picker Panel -->
-    <HorizontalScrollView
-        android:id="@+id/subpageColorPickerPanel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/topBar"
-        android:background="#FFFFFF"
-        android:elevation="4dp"
-        android:padding="12dp"
-        android:visibility="gone"
-        android:scrollbars="none">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <View android:id="@+id/subpageColorDefault" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FAFAFA" android:tag="#FAFAFA" />
-            <View android:id="@+id/subpageColorRed" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFCDD2" android:tag="#FFCDD2" />
-            <View android:id="@+id/subpageColorPink" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#F8BBD0" android:tag="#F8BBD0" />
-            <View android:id="@+id/subpageColorPurple" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#E1BEE7" android:tag="#E1BEE7" />
-            <View android:id="@+id/subpageColorBlue" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#BBDEFB" android:tag="#BBDEFB" />
-            <View android:id="@+id/subpageColorCyan" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#B2EBF2" android:tag="#B2EBF2" />
-            <View android:id="@+id/subpageColorGreen" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#C8E6C9" android:tag="#C8E6C9" />
-            <View android:id="@+id/subpageColorYellow" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFF9C4" android:tag="#FFF9C4" />
-            <View android:id="@+id/subpageColorOrange" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#FFE0B2" android:tag="#FFE0B2" />
-            <View android:id="@+id/subpageColorBrown" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#D7CCC8" android:tag="#D7CCC8" />
-            <View android:id="@+id/subpageColorGrey" android:layout_width="48dp" android:layout_height="48dp" android:layout_margin="6dp" android:background="@drawable/profile_circle_bg" android:backgroundTint="#CFD8DC" android:tag="#CFD8DC" />
-
-        </LinearLayout>
-    </HorizontalScrollView>
-
-    <!-- Subpage Title -->
-    <EditText
-        android:id="@+id/subpageTitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/subpageColorPickerPanel"
-        android:hint="Subpage Title"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:inputType="textCapSentences"
-        android:background="@android:color/transparent"
-        android:padding="20dp"
-        android:textColor="#000"
-        android:maxLines="2" />
-
-    <!-- NestedScrollView wrapper for RecyclerView + Empty Space -->
-    <androidx.core.widget.NestedScrollView
+    <!-- Main Content Area -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/subpageTitle"
-        android:layout_above="@id/subpageKeyboardToolbar"
-        android:fillViewport="true"
-        android:overScrollMode="never">
+        android:layout_below="@id/topBar"
+        android:orientation="vertical"
+        android:padding="20dp">
 
-        <LinearLayout
+        <!-- Subpage Title -->
+        <EditText
+            android:id="@+id/subpageTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:hint="Subpage Title"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:inputType="textCapSentences"
+            android:background="@android:color/transparent"
+            android:padding="8dp"
+            android:textColor="#666666"
+            android:layout_marginBottom="12dp" />
 
-            <!-- Blocks RecyclerView -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/subpageBlocksRecycler"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="16dp"
-                android:nestedScrollingEnabled="false"
-                android:overScrollMode="never"
-                android:clipToPadding="false" />
+        <!-- Subpage Content -->
+        <EditText
+            android:id="@+id/subpageContent"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:hint="Start typing..."
+            android:gravity="top"
+            android:textSize="16sp"
+            android:inputType="textMultiLine"
+            android:background="@android:color/transparent"
+            android:padding="8dp"
+            android:textColor="#666666"
+            android:overScrollMode="always" />
 
-            <!-- Clickable Empty Space -->
-            <View
-                android:id="@+id/subpageEmptySpace"
-                android:layout_width="match_parent"
-                android:layout_height="400dp"
-                android:background="@android:color/transparent"
-                android:clickable="true"
-                android:focusable="true" />
-
-        </LinearLayout>
-
-    </androidx.core.widget.NestedScrollView>
-
-    <!-- Keyboard Toolbar (Always Visible at Bottom) -->
-    <HorizontalScrollView
-        android:id="@+id/subpageKeyboardToolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:background="#8daaa6"
-        android:elevation="4dp"
-        android:scrollbars="none">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="1dp"
-            android:gravity="center_vertical">
-
-            <!-- Headings & Fonts -->
-            <ImageButton
-                android:id="@+id/subpageHeadingsAndFont"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/headings_fonts"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Text Style"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Divider -->
-            <ImageButton
-                android:id="@+id/subpageAddDivider"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/ic_notes_feature_divider"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Divider"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Bullet List -->
-            <ImageButton
-                android:id="@+id/subpageAddBullet"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/bullet_points"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Bullet List"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Numbered List -->
-            <ImageButton
-                android:id="@+id/subpageAddNumbered"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/numbered_list"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Numbered List"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Checkbox -->
-            <ImageButton
-                android:id="@+id/subpageAddCheckbox"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/checkbox"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Checkbox"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Link -->
-            <ImageButton
-                android:id="@+id/subpageAddLink"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/link"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Link"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Image -->
-            <ImageButton
-                android:id="@+id/subpageInsertImage"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/ic_insert_image"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Image"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Indent -->
-            <ImageButton
-                android:id="@+id/subpageIndent"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/indent"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Indent"
-                app:tint="#FFFFFF" />
-
-            <!-- Outdent -->
-            <ImageButton
-                android:id="@+id/subpageOutdent"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/outdent"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Outdent"
-                app:tint="#FFFFFFFF" />
-
-            <!-- Theme -->
-            <ImageButton
-                android:id="@+id/subpageAddTheme"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="4dp"
-                android:src="@drawable/ic_notes_feature_palette"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Theme"
-                app:tint="#FFFFFFFF" />
-
-        </LinearLayout>
-
-    </HorizontalScrollView>
+    </LinearLayout>
 
 </RelativeLayout>

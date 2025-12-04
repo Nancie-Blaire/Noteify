@@ -13,18 +13,20 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Styles"
-        android:textSize="18sp"
+        android:textSize="25sp"
         android:textStyle="bold"
-        android:textColor="#333333"
-        android:layout_marginBottom="16dp" />
+        android:textColor="#000000"
+        android:layout_marginBottom="24dp"
+        android:layout_marginTop="15dp"/>
 
     <!-- Headings Section -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Headings"
-        android:textSize="14sp"
-        android:textColor="#666666"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        android:textStyle="bold"
         android:layout_marginBottom="8dp" />
 
     <LinearLayout
@@ -120,8 +122,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Font Styles"
-        android:textSize="14sp"
-        android:textColor="#666666"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        android:textStyle="bold"
         android:layout_marginBottom="8dp" />
 
     <LinearLayout

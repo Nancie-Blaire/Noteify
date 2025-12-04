@@ -8,12 +8,15 @@
 
     <!-- Top Bar -->
     <LinearLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="16dp"
-        android:background="#f4e8df">
+        android:paddingHorizontal="8dp"
+        android:background="#8DAAA6"
+        android:elevation="2dp"
+        android:layout_marginTop="30dp">
 
         <!-- Back Button -->
         <ImageButton
@@ -23,7 +26,7 @@
             android:src="@android:drawable/ic_menu_revert"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Back"
-            android:tint="#000000"/>
+            android:tint="#FFFFFF"/>
 
         <!-- Title -->
         <TextView
@@ -31,9 +34,9 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Prios"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="#000000"
+            android:textColor="#FFFFFF"
             android:layout_marginStart="16dp"/>
 
         <!-- Toolbar Button -->

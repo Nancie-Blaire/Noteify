@@ -20,7 +20,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="16dp"
+            android:layout_marginTop="10dp">
 
             <!-- Top Bar with Search -->
             <LinearLayout
@@ -79,6 +80,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="170dp"
                     android:layout_marginBottom="24dp"
+                    android:layout_marginStart="15dp"
+                    android:layout_marginEnd="15dp"
                     app:cardBackgroundColor="@android:color/transparent"
                     android:background="@drawable/home_time_bg_v2">
                     <!-- Time and Date Text -->
@@ -87,7 +90,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:layout_gravity="center_vertical"
-                        android:layout_marginStart="24dp"
+                        android:layout_marginStart="25dp"
                         android:layout_marginBottom="6dp"
                         android:baselineAligned="false">
 
@@ -149,7 +152,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Prios"
-                    android:textSize="16sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="#000000"/>
 
@@ -188,9 +191,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Recently Open"
-                    android:textSize="16sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
-                    android:textColor="#424242" />
+                    android:textColor="#000000" />
 
                 <Space
                     android:layout_width="wrap_content"

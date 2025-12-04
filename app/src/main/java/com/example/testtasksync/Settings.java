@@ -13,7 +13,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -118,23 +117,13 @@ public class Settings extends Fragment {
             });
         }
 
-        // ✅ UPDATED: Notification Radio Group Listener
+        // Notification Radio Group Listener
         if (notificationRadioGroup != null) {
             notificationRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
                 if (checkedId == R.id.rbNotificationOn) {
                     saveNotificationSetting(true);
-                    // ✅ NEW: Re-schedule all existing tasks when enabling notifications
-                    rescheduleAllNotifications();
-                    Toast.makeText(requireContext(),
-                            "Notifications enabled. Scheduling reminders...",
-                            Toast.LENGTH_SHORT).show();
                 } else if (checkedId == R.id.rbNotificationOff) {
                     saveNotificationSetting(false);
-                    // ✅ Cancel all existing notifications when disabled
-                    NotificationHelper.cancelAllNotifications(requireContext());
-                    Toast.makeText(requireContext(),
-                            "Notifications disabled. All scheduled reminders cancelled.",
-                            Toast.LENGTH_SHORT).show();
                 }
             });
         }
@@ -224,13 +213,8 @@ public class Settings extends Fragment {
 
     private void saveNotificationSetting(boolean enabled) {
         preferences.edit().putBoolean(KEY_NOTIFICATION, enabled).apply();
-    }
-
-    /**
-     * ✅ NEW: Re-schedule all notifications for existing tasks when notifications are enabled
-     */
-    private void rescheduleAllNotifications() {
-        NotificationScheduler.rescheduleAllNotifications(requireContext());
+        // TODO: Enable/disable notifications
+        // You might want to enable/disable notification channels here
     }
 
     // Public method to get time format (can be called from other activities)

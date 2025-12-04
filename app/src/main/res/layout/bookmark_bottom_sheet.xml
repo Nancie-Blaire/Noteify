@@ -9,10 +9,10 @@
     <!-- Color Label -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="40dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="12dp">
+        android:layout_marginTop="30dp">
 
         <ImageView
             android:layout_width="24dp"
@@ -25,7 +25,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Color"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="#000000" />
 
@@ -139,10 +139,11 @@
     <!-- Style Label -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="40dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="12dp">
+        android:layout_marginTop="5dp"
+        android:layout_marginBottom="8dp">
 
         <ImageView
             android:layout_width="24dp"
@@ -155,7 +156,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Style"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="#000000" />
 
@@ -178,8 +179,8 @@
             android:text="Highlight"
             android:gravity="center"
             android:textSize="14sp"
-            android:textColor="#666666"
-            android:background="@drawable/style_unselected"
+            android:textColor="#000000"
+            android:background="@drawable/rounded_bg"
             android:clickable="true"
             android:focusable="true" />
 
@@ -191,8 +192,8 @@
             android:text="Underline"
             android:gravity="center"
             android:textSize="14sp"
-            android:textColor="#666666"
-            android:background="@drawable/style_unselected"
+            android:textColor="#000000"
+            android:background="@drawable/rounded_bg"
             android:clickable="true"
             android:focusable="true" />
 
@@ -201,10 +202,10 @@
     <!-- Notes Label -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="40dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="12dp">
+        android:layout_marginTop="5dp">
 
         <ImageView
             android:layout_width="24dp"
@@ -217,7 +218,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Caption"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="#000000" />
 
@@ -246,14 +247,15 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="end"
-        android:layout_marginTop="16dp">
+        android:layout_marginTop="16dp"
+        >
 
         <TextView
             android:id="@+id/cancelBtn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Cancel"
-            android:textSize="16sp"
+            android:textSize="12sp"
             android:textColor="#F44336"
             android:textStyle="bold"
             android:padding="12dp"
@@ -267,7 +269,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="OK"
-            android:textSize="16sp"
+            android:textSize="12sp"
             android:textColor="#4CAF50"
             android:textStyle="bold"
             android:padding="12dp"

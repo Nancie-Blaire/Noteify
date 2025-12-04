@@ -1,8 +1,10 @@
 package com.example.testtasksync;
 
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,10 +19,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Base64;
@@ -33,8 +32,16 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import org.json.JSONObject;
 import org.json.JSONException;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.UnderlineSpan;
+import java.util.HashMap;
+import java.util.Map;
+
 
 public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+    private Map<String, List<Bookmark>> blockBookmarksMap = new HashMap<>();
 
     private List<NoteBlock> blocks;
     private OnBlockChangeListener listener;
@@ -49,9 +56,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private static final int TYPE_DIVIDER = 6;
     private static final int TYPE_SUBPAGE = 7;
     private static final int TYPE_LINK = 8;
-
-    private List<Bookmark> allBookmarks = new ArrayList<>();
-
 
     public interface OnBlockChangeListener {
         void onBlockChanged(NoteBlock block);
@@ -184,502 +188,128 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         return (int) (dp * view.getContext().getResources().getDisplayMetrics().density);
     }
 
-    // ViewHolder classes
     class TextViewHolder extends RecyclerView.ViewHolder {
         EditText contentEdit;
-        private boolean isProcessingEnter = false;
-
-        private long lastTapTime = 0;
-        private static final long DOUBLE_TAP_DELAY = 300;
-        private List<Bookmark> allBookmarks;
-
-
+        TextWatcher textWatcher;
 
         TextViewHolder(View view) {
             super(view);
             contentEdit = view.findViewById(R.id.contentEdit);
 
+            // ✅ Setup custom selection menu
             setupCustomSelectionMenu();
-
-            // ✅ ADD: Long press to show bookmark options
-            contentEdit.setOnLongClickListener(v -> {
-                int pos = getAdapterPosition();
-                if (pos == RecyclerView.NO_POSITION) return false;
-
-                NoteBlock block = blocks.get(pos);
-                int cursorPos = contentEdit.getSelectionStart();
-
-                // Check if cursor is inside a bookmark
-                Bookmark clickedBookmark = getBookmarkAtPosition(block.getId(), cursorPos);
-
-                if (clickedBookmark != null) {
-                    showBookmarkContextMenu(
-                            v,
-                            clickedBookmark.getText(),
-                            clickedBookmark.getBlockId(),
-                            clickedBookmark.getStartIndex(),
-                            clickedBookmark.getEndIndex()
-                    );
-                }
-
-                return false;
-            });
-
-            // ✅ ADD: Double tap to bookmark
-            contentEdit.setOnClickListener(v -> {
-                long currentTime = System.currentTimeMillis();
-
-                if (currentTime - lastTapTime < DOUBLE_TAP_DELAY) {
-                    // Double tap detected!
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    // ✅ If no selection, auto-select word at cursor
-                    if (start == end) {
-                        String text = contentEdit.getText().toString();
-                        int wordStart = start;
-                        int wordEnd = end;
-
-                        // Find word boundaries
-                        while (wordStart > 0 && !Character.isWhitespace(text.charAt(wordStart - 1))) {
-                            wordStart--;
-                        }
-                        while (wordEnd < text.length() && !Character.isWhitespace(text.charAt(wordEnd))) {
-                            wordEnd++;
-                        }
-
-                        if (wordStart < wordEnd) {
-                            contentEdit.setSelection(wordStart, wordEnd);
-                            start = wordStart;
-                            end = wordEnd;
-                        }
-                    }
-
-                    if (start != end && start >= 0 && end <= contentEdit.getText().length()) {
-                        String selectedText = contentEdit.getText().toString().substring(start, end);
-                        showBookmarkBottomSheet(selectedText, block.getId(), start, end);
-                    } else {
-                        Toast.makeText(v.getContext(), "Select text first, then double tap",
-                                Toast.LENGTH_SHORT).show();
-                    }
-
-                    lastTapTime = 0;
-                } else {
-                    lastTapTime = currentTime;
-                }
-            });
-
-            contentEdit.addTextChangedListener(new TextWatcher() {
-                private String textBeforeChange = "";
-                private int cursorPositionBeforeChange = 0;
-
-                @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                    textBeforeChange = s.toString();
-                    cursorPositionBeforeChange = contentEdit.getSelectionStart();
-                }
-
-                @Override
-                public void onTextChanged(CharSequence s, int start, int before, int after) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return;
-
-                    // ✅ FIX: Detect Enter key press
-                    if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
-                        isProcessingEnter = true;
-
-                        // Remove the newline character
-                        String textWithoutNewline = s.toString().substring(0, start) +
-                                (start + 1 < s.length() ? s.toString().substring(start + 1) : "");
-
-                        contentEdit.setText(textWithoutNewline);
-                        contentEdit.setSelection(Math.min(start, textWithoutNewline.length()));
-
-                        String textBefore = start > 0 ? textWithoutNewline.substring(0, start) : "";
-                        String textAfter = start < textWithoutNewline.length() ? textWithoutNewline.substring(start) : "";
-
-                        NoteBlock block = blocks.get(pos);
-                        block.setContent(textBefore);
-
-                        listener.onEnterPressed(pos, textBefore, textAfter);
-
-                        isProcessingEnter = false;
-                        return;
-                    }
-
-                    if (!isProcessingEnter) {
-                        NoteBlock block = blocks.get(pos);
-                        block.setContent(s.toString());
-                        listener.onBlockChanged(block);
-                    }
-                }
-
-
-                @Override
-                public void afterTextChanged(Editable s) {}
-            });
-
-            // ✅ OPTIONAL: Add KeyListener for better Enter handling
-            contentEdit.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() == KeyEvent.ACTION_DOWN &&
-                        keyCode == KeyEvent.KEYCODE_ENTER) {
-
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    int cursorPos = contentEdit.getSelectionStart();
-                    String currentText = contentEdit.getText().toString();
-
-                    // ✅ Split at cursor
-                    String textBefore = cursorPos > 0 ? currentText.substring(0, cursorPos) : "";
-                    String textAfter = cursorPos < currentText.length() ? currentText.substring(cursorPos) : "";
-
-                    // Update current block
-                    NoteBlock block = blocks.get(pos);
-                    block.setContent(textBefore);
-
-                    // Notify to create new block
-                    listener.onEnterPressed(pos, textBefore, textAfter);
-
-                    return true; // Consume the event
-                }
-                return false;
-            });
-        }
-        private Bookmark getBookmarkAtPosition(String blockId, int position) {
-            for (Bookmark bookmark : allBookmarks) {
-                if (blockId.equals(bookmark.getBlockId())) {
-                    if (position >= bookmark.getStartIndex() && position <= bookmark.getEndIndex()) {
-                        return bookmark;
-                    }
-                }
-            }
-            return null;
         }
 
         private void setupCustomSelectionMenu() {
             contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
                 @Override
                 public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    if (start >= end) return false;
-
-                    // Check if selection is within an existing bookmark
-                    Bookmark existingBookmark = getBookmarkAtSelection(block.getId(), start, end);
-
-                    menu.clear(); // Remove default options
-
-                    if (existingBookmark != null) {
-                        // ✅ Selection is INSIDE a bookmark - show EXPAND option
-                        menu.add(0, 1, 0, "📌 Expand Bookmark");
-                        menu.add(0, 2, 0, "✏️ Edit Bookmark");
-                        menu.add(0, 3, 0, "🗑️ Delete Bookmark");
-                    } else {
-                        // ✅ New selection - show BOOKMARK option
-                        menu.add(0, 0, 0, "📌 Bookmark");
-                    }
-
-                    // Add default Cut/Copy/Paste
-                    menu.add(0, android.R.id.cut, 0, "Cut");
-                    menu.add(0, android.R.id.copy, 0, "Copy");
-                    menu.add(0, android.R.id.paste, 0, "Paste");
-                    menu.add(0, android.R.id.selectAll, 0, "Select all");
-
+                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
+                            .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
                     return true;
-                }
-                @Override
-                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    switch (item.getItemId()) {
-                        case 0: // Create new bookmark
-                            String selectedText = contentEdit.getText().toString().substring(start, end);
-                            showBookmarkBottomSheet(selectedText, block.getId(), start, end);
-                            mode.finish();
-                            return true;
-
-                        case 1: // Expand existing bookmark
-                            Bookmark bookmarkToExpand = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToExpand != null) {
-                                expandBookmarkToSelection(bookmarkToExpand, start, end);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 2: // Edit bookmark
-                            Bookmark bookmarkToEdit = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToEdit != null) {
-                                showEditBookmarkSheet(bookmarkToEdit);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 3: // Delete bookmark
-                            Bookmark bookmarkToDelete = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToDelete != null) {
-                                deleteBookmark(bookmarkToDelete);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case android.R.id.cut:
-                        case android.R.id.copy:
-                        case android.R.id.paste:
-                        case android.R.id.selectAll:
-                            // Let Android handle these
-                            return false;
-                    }
-
-                    return false;
                 }
 
                 @Override
                 public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    try {
+                        menu.removeItem(android.R.id.shareText);
+                    } catch (Exception e) {}
+                    return true;
+                }
+
+                @Override
+                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
+                    if (item.getItemId() == android.R.id.button1) {
+                        handleBookmarkSelection();
+                        mode.finish();
+                        return true;
+                    }
                     return false;
                 }
 
                 @Override
-                public void onDestroyActionMode(android.view.ActionMode mode) {
-                }
+                public void onDestroyActionMode(android.view.ActionMode mode) {}
             });
         }
 
-        private void showEditBookmarkSheet(Bookmark bookmark) {
-            BottomSheetDialog bottomSheet = new BottomSheetDialog(itemView.getContext());
-            View sheetView = LayoutInflater.from(itemView.getContext())
-                    .inflate(R.layout.bookmark_bottom_sheet_update, null);
-            bottomSheet.setContentView(sheetView);
-
-            // TODO: Setup color/style/note editing UI here
-            // (Copy from BookmarksActivity's showUpdateBottomSheet)
-
-            bottomSheet.show();
-        }
-
-        // ✅ Check if selection overlaps with existing bookmark
-        private Bookmark getBookmarkAtSelection(String blockId, int start, int end) {
-            for (Bookmark bookmark : allBookmarks) {
-                if (!blockId.equals(bookmark.getBlockId())) continue;
-
-                int bStart = bookmark.getStartIndex();
-                int bEnd = bookmark.getEndIndex();
-
-                // Check if selection is within or overlaps bookmark
-                if ((start >= bStart && start < bEnd) ||
-                        (end > bStart && end <= bEnd) ||
-                        (start <= bStart && end >= bEnd)) {
-                    return bookmark;
-                }
-            }
-            return null;
-        }
-
-        // ✅ Expand bookmark to new selection range
-        private void expandBookmarkToSelection(Bookmark bookmark, int newStart, int newEnd) {
+        private void handleBookmarkSelection() {
             int pos = getAdapterPosition();
             if (pos == RecyclerView.NO_POSITION) return;
 
-            String currentText = contentEdit.getText().toString();
+            NoteBlock block = blocks.get(pos);
+            int start = contentEdit.getSelectionStart();
+            int end = contentEdit.getSelectionEnd();
 
-            // ✅ Expand to cover BOTH old bookmark AND new selection
-            int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
-            int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
+            if (start >= 0 && end > start && end <= contentEdit.getText().length()) {
+                String selectedText = contentEdit.getText().toString().substring(start, end);
 
-            // Validate
-            if (expandedStart < 0 || expandedEnd > currentText.length() || expandedStart >= expandedEnd) {
-                Toast.makeText(itemView.getContext(),
-                        "Invalid expansion range", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Get expanded text
-            String expandedText = currentText.substring(expandedStart, expandedEnd);
-
-            // Trim whitespace from edges
-            int trimStart = 0;
-            int trimEnd = expandedText.length();
-
-            while (trimStart < trimEnd && Character.isWhitespace(expandedText.charAt(trimStart))) {
-                trimStart++;
-            }
-            while (trimEnd > trimStart && Character.isWhitespace(expandedText.charAt(trimEnd - 1))) {
-                trimEnd--;
-            }
-
-            final int finalStart = expandedStart + trimStart;
-            final int finalEnd = expandedStart + trimEnd;
-            final String finalText = expandedText.substring(trimStart, trimEnd);
-
-            // Update in Firestore
-            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-            if (user == null) return;
-
-            Map<String, Object> updates = new HashMap<>();
-            updates.put("startIndex", finalStart);
-            updates.put("endIndex", finalEnd);
-            updates.put("text", finalText);
-
-            FirebaseFirestore.getInstance()
-                    .collection("users").document(user.getUid())
-                    .collection("notes").document(noteId)
-                    .collection("bookmarks").document(bookmark.getId())
-                    .update(updates)
-                    .addOnSuccessListener(aVoid -> {
-                        bookmark.setStartIndex(finalStart);
-                        bookmark.setEndIndex(finalEnd);
-                        bookmark.setText(finalText);
-
-                        Toast.makeText(itemView.getContext(),
-                                "✅ Bookmark expanded", Toast.LENGTH_SHORT).show();
-
-                        // Refresh display
-                        notifyItemChanged(pos);
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(itemView.getContext(),
-                                "Error expanding bookmark", Toast.LENGTH_SHORT).show();
-                    });
-        }
-        private void showBookmarkBottomSheet(String selectedText, String blockId,
-                                             int startIndex, int endIndex) {
-            if (listener instanceof NoteActivity) {
-                ((NoteActivity) listener).showBookmarkBottomSheet(
-                        selectedText, blockId, startIndex, endIndex);
-            }
-        }
-
-        private void deleteBookmark(Bookmark bookmark) {
-            new android.app.AlertDialog.Builder(itemView.getContext())
-                    .setTitle("Delete Bookmark")
-                    .setMessage("Are you sure you want to delete this bookmark?")
-                    .setPositiveButton("Delete", (dialog, which) -> {
-                        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-                        if (user == null) return;
-
-                        FirebaseFirestore.getInstance()
-                                .collection("users").document(user.getUid())
-                                .collection("notes").document(noteId)
-                                .collection("bookmarks").document(bookmark.getId())
-                                .delete()
-                                .addOnSuccessListener(aVoid -> {
-                                    Toast.makeText(itemView.getContext(),
-                                            "Bookmark deleted", Toast.LENGTH_SHORT).show();
-                                    notifyDataSetChanged();
-                                });
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
-        }
-
-        // ✅ ADD THIS METHOD - to update bookmarks from activity
-        public void setAllBookmarks(List<Bookmark> bookmarks) {
-            this.allBookmarks = bookmarks;
-            notifyDataSetChanged();
-        }
-
-        // ✅ ADD THIS METHOD - apply bookmark highlights
-        private void applyBookmarkHighlights(EditText editText, NoteBlock block) {
-            String content = editText.getText().toString();
-            if (content.isEmpty()) return;
-
-            android.text.SpannableString spannable = new android.text.SpannableString(content);
-
-            // Get bookmarks for this block
-            for (Bookmark bookmark : allBookmarks) {
-                if (!block.getId().equals(bookmark.getBlockId())) continue;
-
-                int start = bookmark.getStartIndex();
-                int end = bookmark.getEndIndex();
-
-                // Validate indices
-                if (start < 0 || end > content.length() || start >= end) continue;
-
-                try {
-                    int color = Color.parseColor(bookmark.getColor());
-
-                    if ("highlight".equals(bookmark.getStyle())) {
-                        spannable.setSpan(
-                                new android.text.style.BackgroundColorSpan(color),
-                                start, end,
-                                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        );
-                    } else if ("underline".equals(bookmark.getStyle())) {
-                        spannable.setSpan(
-                                new android.text.style.ForegroundColorSpan(color),
-                                start, end,
-                                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        );
-                        spannable.setSpan(
-                                new android.text.style.UnderlineSpan(),
-                                start, end,
-                                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        );
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
+                if (listener instanceof NoteActivity) {
+                    ((NoteActivity) listener).showBookmarkBottomSheet(
+                            selectedText,
+                            block.getId(),
+                            start,
+                            end
+                    );
                 }
             }
-
-            editText.setText(spannable);
         }
 
         void bind(NoteBlock block) {
-            contentEdit.setText(block.getContent());
+            String content = block.getContent();
+            if (content == null) content = "";
 
-            int pos = getAdapterPosition();
-            if (pos == 0) {
-                contentEdit.setHint("Enter here");
-            } else if (pos > 0) {
-                NoteBlock previousBlock = blocks.get(pos - 1);
-                if (previousBlock.getType() == NoteBlock.BlockType.SUBPAGE) {
-                    contentEdit.setHint("Continue here");
-                } else {
-                    contentEdit.setHint("Type something...");
-                }
+            // ✅ REMOVE old TextWatcher
+            if (textWatcher != null) {
+                contentEdit.removeTextChangedListener(textWatcher);
             }
 
-            int marginLeft = dpToPx(block.getIndentLevel() * 24);
-            ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) contentEdit.getLayoutParams();
-            params.leftMargin = marginLeft;
-            contentEdit.setLayoutParams(params);
+            // ✅ Get bookmarks for this block
+            List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
-            applyFontStyle(contentEdit, block.getStyleData());
+            if (bookmarks != null && !bookmarks.isEmpty()) {
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
-            // ✅ Apply bookmark highlights
-            contentEdit.post(() -> applyBookmarkHighlights(contentEdit, block));
-        }
+                for (Bookmark bookmark : bookmarks) {
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
 
-        private int dpToPx(int dp) {
-            return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
-        }
-    }
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
 
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new ColoredUnderlineSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
+                }
 
+                contentEdit.setText(editable);
+            } else {
+                contentEdit.setText(content);
+            }
 
+            // ✅ SET INPUT TYPE - EXACTLY like Subpage
+            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            contentEdit.setHorizontallyScrolling(false);
+            contentEdit.setMaxLines(Integer.MAX_VALUE);
 
-    class HeadingViewHolder extends RecyclerView.ViewHolder {
-        EditText contentEdit;
+            // ✅ Direct selection (NO POST) - like Subpage
+            contentEdit.setSelection(contentEdit.getText().length());
 
-        HeadingViewHolder(View view) {
-            super(view);
-            contentEdit = view.findViewById(R.id.contentEdit);
-
-            contentEdit.addTextChangedListener(new TextWatcher() {
+            // ✅ ADD NEW TextWatcher
+            textWatcher = new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
@@ -695,44 +325,258 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
                 @Override
                 public void afterTextChanged(Editable s) {}
+            };
+            contentEdit.addTextChangedListener(textWatcher);
+
+            // ✅ SET KEY LISTENER
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
+
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+
+            // Apply indent
+            int marginLeft = dpToPx(block.getIndentLevel() * 24);
+            ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
+            params.leftMargin = marginLeft;
+            itemView.setLayoutParams(params);
+
+            // Apply font style
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
+        }
+
+        private int dpToPx(int dp) {
+            return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
+        }
+    }
+
+    class HeadingViewHolder extends RecyclerView.ViewHolder {
+        EditText contentEdit;
+
+        HeadingViewHolder(View view) {
+            super(view);
+            contentEdit = view.findViewById(R.id.contentEdit);
+
+            // ✅ Set custom action mode callback for text selection
+            contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
+                @Override
+                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
+                            .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                    return true;
+                }
+
+                @Override
+                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    try {
+                        menu.removeItem(android.R.id.shareText);
+                        menu.removeItem(android.R.id.selectAll);
+                    } catch (Exception e) {
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
+                    if (item.getItemId() == android.R.id.button1) {
+                        int pos = getAdapterPosition();
+                        if (pos == RecyclerView.NO_POSITION) return false;
+
+                        NoteBlock block = blocks.get(pos);
+                        int start = contentEdit.getSelectionStart();
+                        int end = contentEdit.getSelectionEnd();
+
+                        if (start >= 0 && end > start && end <= contentEdit.getText().length()) {
+                            String selectedText = contentEdit.getText().toString().substring(start, end);
+
+                            if (listener instanceof NoteActivity) {
+                                ((NoteActivity) listener).showBookmarkBottomSheet(
+                                        selectedText,
+                                        block.getId(),
+                                        start,
+                                        end
+                                );
+                            }
+                        }
+
+                        mode.finish();
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public void onDestroyActionMode(android.view.ActionMode mode) {
+                }
+            });
+
+            contentEdit.addTextChangedListener(new TextWatcher() {
+                private boolean isUpdatingText = false;
+
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int after) {
+                    if (isUpdatingText) return;
+
+                    int pos = getAdapterPosition();
+                    if (pos != RecyclerView.NO_POSITION) {
+                        NoteBlock block = blocks.get(pos);
+                        block.setContent(s.toString());
+                        listener.onBlockChanged(block);
+
+                        // ✅ Reapply bookmarks
+                        isUpdatingText = true;
+                        reapplyBookmarksToView(contentEdit, block);
+                        isUpdatingText = false;
+                    }
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {}
             });
         }
 
         void bind(NoteBlock block) {
-            contentEdit.setText(block.getContent());
+            String content = block.getContent();
+            if (content == null) content = "";
 
-            float textSize = 16f;
-            switch (block.getType()) {
-                case HEADING_1: textSize = 28f; break;
-                case HEADING_2: textSize = 24f; break;
-                case HEADING_3: textSize = 20f; break;
+            // ✅ Get bookmarks
+            List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
+
+            // ✅ ENABLE FIRST - before setting text
+            contentEdit.setEnabled(true);
+            contentEdit.setFocusable(true);
+            contentEdit.setFocusableInTouchMode(true);
+            contentEdit.setCursorVisible(true);
+            contentEdit.setLongClickable(true);
+
+            // ✅ Set input type - like Subpage
+            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            contentEdit.setHorizontallyScrolling(false);
+            contentEdit.setMaxLines(Integer.MAX_VALUE);
+
+            if (bookmarks != null && !bookmarks.isEmpty()) {
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
+
+                for (Bookmark bookmark : bookmarks) {
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new ColoredUnderlineSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
+                }
+
+                contentEdit.setText(editable);
+            } else {
+                contentEdit.setText(content);
             }
-            contentEdit.setTextSize(textSize);
 
-            // ✅ ADD THIS LINE:
-            applyFontStyle(contentEdit, block.getStyleData());
+            // ✅ NO POST - Direct selection like Subpage
+            contentEdit.setSelection(contentEdit.getText().length());
+
+            // ✅ ADD KEY LISTENER - Enable Enter/Backspace
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
+
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+
+            // ✅ NEW: Apply heading size and BOLD based on heading type
+            if (block.getType() == NoteBlock.BlockType.HEADING_1) {
+                contentEdit.setTextSize(28);
+                contentEdit.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else if (block.getType() == NoteBlock.BlockType.HEADING_2) {
+                contentEdit.setTextSize(24);
+                contentEdit.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else if (block.getType() == NoteBlock.BlockType.HEADING_3) {
+                contentEdit.setTextSize(20);
+                contentEdit.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else {
+                // Default text size for non-heading blocks
+                contentEdit.setTextSize(16);
+                contentEdit.setTypeface(null, android.graphics.Typeface.NORMAL);
+            }
+
+            // Apply indent
+            int marginLeft = dpToPx(block.getIndentLevel() * 24);
+            ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
+            params.leftMargin = marginLeft;
+            itemView.setLayoutParams(params);
+
+            // Apply font color (after setting typeface)
+            if (block.getFontColor() != null && !block.getFontColor().isEmpty()) {
+                try {
+                    contentEdit.setTextColor(Color.parseColor(block.getFontColor()));
+                } catch (Exception e) {
+                    contentEdit.setTextColor(Color.parseColor("#333333"));
+                }
+            } else {
+                contentEdit.setTextColor(Color.parseColor("#333333"));
+            }
+        }
+
+        private int dpToPx(int dp) {
+            return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
         }
     }
-
-// ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
-
-    // ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
-
-// ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
-
-// ====================================================
-// SA NoteBlockAdapter.java
-// Replace yung BulletViewHolder class with this:
-// ====================================================
 
     class BulletViewHolder extends RecyclerView.ViewHolder {
         TextView bulletIcon;
@@ -740,62 +584,94 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         private boolean isProcessingEnter = false;
         private boolean isProcessingBackspace = false;
 
-        private long lastTapTime = 0;
-        private static final long DOUBLE_TAP_DELAY = 300;
-
         BulletViewHolder(View view) {
             super(view);
             bulletIcon = view.findViewById(R.id.bulletIcon);
             contentEdit = view.findViewById(R.id.contentEdit);
 
-            setupCustomSelectionMenu();
+            // ✅ Set custom action mode callback for text selection
+            contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
+                @Override
+                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
+                            .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                    return true;
+                }
 
-            contentEdit.setOnClickListener(v -> {
-                long currentTime = System.currentTimeMillis();
-
-                if (currentTime - lastTapTime < DOUBLE_TAP_DELAY) {
-                    // Double tap detected!
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    // ✅ If no selection, auto-select word at cursor
-                    if (start == end) {
-                        String text = contentEdit.getText().toString();
-                        int wordStart = start;
-                        int wordEnd = end;
-
-                        // Find word boundaries
-                        while (wordStart > 0 && !Character.isWhitespace(text.charAt(wordStart - 1))) {
-                            wordStart--;
-                        }
-                        while (wordEnd < text.length() && !Character.isWhitespace(text.charAt(wordEnd))) {
-                            wordEnd++;
-                        }
-
-                        if (wordStart < wordEnd) {
-                            contentEdit.setSelection(wordStart, wordEnd);
-                            start = wordStart;
-                            end = wordEnd;
-                        }
+                @Override
+                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    try {
+                        menu.removeItem(android.R.id.shareText);
+                        menu.removeItem(android.R.id.selectAll);
+                    } catch (Exception e) {
                     }
+                    return true;
+                }
 
-                    if (start != end && start >= 0 && end <= contentEdit.getText().length()) {
-                        String selectedText = contentEdit.getText().toString().substring(start, end);
-                        showBookmarkBottomSheet(selectedText, block.getId(), start, end);
-                    } else {
-                        Toast.makeText(v.getContext(), "Select text first, then double tap",
-                                Toast.LENGTH_SHORT).show();
+                @Override
+                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
+                    if (item.getItemId() == android.R.id.button1) {
+                        int pos = getAdapterPosition();
+                        if (pos == RecyclerView.NO_POSITION) return false;
+
+                        NoteBlock block = blocks.get(pos);
+                        int start = contentEdit.getSelectionStart();
+                        int end = contentEdit.getSelectionEnd();
+
+                        if (start >= 0 && end > start && end <= contentEdit.getText().length()) {
+                            String selectedText = contentEdit.getText().toString().substring(start, end);
+
+                            if (listener instanceof NoteActivity) {
+                                ((NoteActivity) listener).showBookmarkBottomSheet(
+                                        selectedText,
+                                        block.getId(),
+                                        start,
+                                        end
+                                );
+                            }
+                        }
+
+                        mode.finish();
+                        return true;
                     }
+                    return false;
+                }
 
-                    lastTapTime = 0;
-                } else {
-                    lastTapTime = currentTime;
+                @Override
+                public void onDestroyActionMode(android.view.ActionMode mode) {
                 }
             });
+
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
+
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
+
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
+                            return true;
+                        }
+                        else if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+
             contentEdit.addTextChangedListener(new TextWatcher() {
                 private String textBeforeChange = "";
                 private int cursorBeforeChange = 0;
@@ -811,7 +687,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return;
 
-                    // ✅ DETECT ENTER KEY
                     if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
                         isProcessingEnter = true;
 
@@ -830,7 +705,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                         return;
                     }
 
-                    // Regular text change
                     NoteBlock block = blocks.get(pos);
                     block.setContent(s.toString());
                     listener.onBlockChanged(block);
@@ -840,17 +714,16 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 public void afterTextChanged(Editable s) {}
             });
 
-            // ✅ Optional: Click bullet icon to toggle indent
             bulletIcon.setOnClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
                     NoteBlock block = blocks.get(pos);
-                    int maxIndent = 2; // 0 = ●, 1 = ○, 2 = ■
+                    int maxIndent = 2;
 
                     if (block.getIndentLevel() < maxIndent) {
                         block.setIndentLevel(block.getIndentLevel() + 1);
                     } else {
-                        block.setIndentLevel(0); // Cycle back
+                        block.setIndentLevel(0);
                     }
 
                     notifyItemChanged(pos);
@@ -858,256 +731,78 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
             });
         }
-        private void setupCustomSelectionMenu() {
-            contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
-                @Override
-                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
 
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    if (start >= end) return false;
-
-                    // Check if selection is within an existing bookmark
-                    Bookmark existingBookmark = getBookmarkAtSelection(block.getId(), start, end);
-
-                    menu.clear(); // Remove default options
-
-                    if (existingBookmark != null) {
-                        // ✅ Selection is INSIDE a bookmark - show EXPAND option
-                        menu.add(0, 1, 0, "📌 Expand Bookmark");
-                        menu.add(0, 2, 0, "✏️ Edit Bookmark");
-                        menu.add(0, 3, 0, "🗑️ Delete Bookmark");
-                    } else {
-                        // ✅ New selection - show BOOKMARK option
-                        menu.add(0, 0, 0, "📌 Bookmark");
-                    }
-
-                    // Add default Cut/Copy/Paste
-                    menu.add(0, android.R.id.cut, 0, "Cut");
-                    menu.add(0, android.R.id.copy, 0, "Copy");
-                    menu.add(0, android.R.id.paste, 0, "Paste");
-                    menu.add(0, android.R.id.selectAll, 0, "Select all");
-
-                    return true;
-                }
-                @Override
-                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    switch (item.getItemId()) {
-                        case 0: // Create new bookmark
-                            String selectedText = contentEdit.getText().toString().substring(start, end);
-                            showBookmarkBottomSheet(selectedText, block.getId(), start, end);
-                            mode.finish();
-                            return true;
-
-                        case 1: // Expand existing bookmark
-                            Bookmark bookmarkToExpand = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToExpand != null) {
-                                expandBookmarkToSelection(bookmarkToExpand, start, end);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 2: // Edit bookmark
-                            Bookmark bookmarkToEdit = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToEdit != null) {
-                                showEditBookmarkSheet(bookmarkToEdit);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 3: // Delete bookmark
-                            Bookmark bookmarkToDelete = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToDelete != null) {
-                                deleteBookmark(bookmarkToDelete);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case android.R.id.cut:
-                        case android.R.id.copy:
-                        case android.R.id.paste:
-                        case android.R.id.selectAll:
-                            // Let Android handle these
-                            return false;
-                    }
-
-                    return false;
-                }
-
-                @Override
-                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    return false;
-                }
-
-                @Override
-                public void onDestroyActionMode(android.view.ActionMode mode) {
-                }
-            });
-        }
-
-        private void showEditBookmarkSheet(Bookmark bookmark) {
-            BottomSheetDialog bottomSheet = new BottomSheetDialog(itemView.getContext());
-            View sheetView = LayoutInflater.from(itemView.getContext())
-                    .inflate(R.layout.bookmark_bottom_sheet_update, null);
-            bottomSheet.setContentView(sheetView);
-
-            // TODO: Setup color/style/note editing UI here
-            // (Copy from BookmarksActivity's showUpdateBottomSheet)
-
-            bottomSheet.show();
-        }
-
-        // ✅ Check if selection overlaps with existing bookmark
-        private Bookmark getBookmarkAtSelection(String blockId, int start, int end) {
-            for (Bookmark bookmark : allBookmarks) {
-                if (!blockId.equals(bookmark.getBlockId())) continue;
-
-                int bStart = bookmark.getStartIndex();
-                int bEnd = bookmark.getEndIndex();
-
-                // Check if selection is within or overlaps bookmark
-                if ((start >= bStart && start < bEnd) ||
-                        (end > bStart && end <= bEnd) ||
-                        (start <= bStart && end >= bEnd)) {
-                    return bookmark;
-                }
-            }
-            return null;
-        }
-
-        // ✅ Expand bookmark to new selection range
-        private void expandBookmarkToSelection(Bookmark bookmark, int newStart, int newEnd) {
-            int pos = getAdapterPosition();
-            if (pos == RecyclerView.NO_POSITION) return;
-
-            String currentText = contentEdit.getText().toString();
-
-            // ✅ Expand to cover BOTH old bookmark AND new selection
-            int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
-            int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
-
-            // Validate
-            if (expandedStart < 0 || expandedEnd > currentText.length() || expandedStart >= expandedEnd) {
-                Toast.makeText(itemView.getContext(),
-                        "Invalid expansion range", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Get expanded text
-            String expandedText = currentText.substring(expandedStart, expandedEnd);
-
-            // Trim whitespace from edges
-            int trimStart = 0;
-            int trimEnd = expandedText.length();
-
-            while (trimStart < trimEnd && Character.isWhitespace(expandedText.charAt(trimStart))) {
-                trimStart++;
-            }
-            while (trimEnd > trimStart && Character.isWhitespace(expandedText.charAt(trimEnd - 1))) {
-                trimEnd--;
-            }
-
-            final int finalStart = expandedStart + trimStart;
-            final int finalEnd = expandedStart + trimEnd;
-            final String finalText = expandedText.substring(trimStart, trimEnd);
-
-            // Update in Firestore
-            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-            if (user == null) return;
-
-            Map<String, Object> updates = new HashMap<>();
-            updates.put("startIndex", finalStart);
-            updates.put("endIndex", finalEnd);
-            updates.put("text", finalText);
-
-            FirebaseFirestore.getInstance()
-                    .collection("users").document(user.getUid())
-                    .collection("notes").document(noteId)
-                    .collection("bookmarks").document(bookmark.getId())
-                    .update(updates)
-                    .addOnSuccessListener(aVoid -> {
-                        bookmark.setStartIndex(finalStart);
-                        bookmark.setEndIndex(finalEnd);
-                        bookmark.setText(finalText);
-
-                        Toast.makeText(itemView.getContext(),
-                                "✅ Bookmark expanded", Toast.LENGTH_SHORT).show();
-
-                        // Refresh display
-                        notifyItemChanged(pos);
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(itemView.getContext(),
-                                "Error expanding bookmark", Toast.LENGTH_SHORT).show();
-                    });
-        }
-        private void showBookmarkBottomSheet(String selectedText, String blockId,
-                                             int startIndex, int endIndex) {
-            if (listener instanceof NoteActivity) {
-                ((NoteActivity) listener).showBookmarkBottomSheet(
-                        selectedText, blockId, startIndex, endIndex);
-            }
-        }
-
-        private void deleteBookmark(Bookmark bookmark) {
-            new android.app.AlertDialog.Builder(itemView.getContext())
-                    .setTitle("Delete Bookmark")
-                    .setMessage("Are you sure you want to delete this bookmark?")
-                    .setPositiveButton("Delete", (dialog, which) -> {
-                        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-                        if (user == null) return;
-
-                        FirebaseFirestore.getInstance()
-                                .collection("users").document(user.getUid())
-                                .collection("notes").document(noteId)
-                                .collection("bookmarks").document(bookmark.getId())
-                                .delete()
-                                .addOnSuccessListener(aVoid -> {
-                                    Toast.makeText(itemView.getContext(),
-                                            "Bookmark deleted", Toast.LENGTH_SHORT).show();
-                                    notifyDataSetChanged();
-                                });
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
-        }
         void bind(NoteBlock block) {
-            contentEdit.setText(block.getContent());
-            contentEdit.setHint("List item");
+            String content = block.getContent();
+            if (content == null) content = "";
 
-            String bullet = "●";
-            if (block.getIndentLevel() == 1) bullet = "○";
-            else if (block.getIndentLevel() >= 2) bullet = "■";
-            bulletIcon.setText(bullet);
+            // ✅ Get bookmarks
+            List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
+            // ✅ ENABLE FIRST - before setting text
+            contentEdit.setEnabled(true);
+            contentEdit.setFocusable(true);
+            contentEdit.setFocusableInTouchMode(true);
+            contentEdit.setCursorVisible(true);
+            contentEdit.setLongClickable(true);
+
+            // ✅ Set input type - like Subpage
+            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            contentEdit.setHorizontallyScrolling(false);
+            contentEdit.setMaxLines(Integer.MAX_VALUE);
+
+            if (bookmarks != null && !bookmarks.isEmpty()) {
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
+
+                for (Bookmark bookmark : bookmarks) {
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new ColoredUnderlineSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
+                }
+
+                contentEdit.setText(editable);
+            } else {
+                contentEdit.setText(content);
+            }
+
+            // ✅ NO POST - Direct selection like Subpage
+            contentEdit.setSelection(contentEdit.getText().length());
+
+            // Apply indent
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // ✅ ADD THIS LINE:
-            applyFontStyle(contentEdit, block.getStyleData());
+            // Apply font style
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
+
 
         private int dpToPx(int dp) {
             return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
         }
     }
-
-// ====================================================
-// SAME FIX: Apply to NumberedViewHolder and CheckboxViewHolder
-// ====================================================
 
     class NumberedViewHolder extends RecyclerView.ViewHolder {
         TextView numberText;
@@ -1119,55 +814,102 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             numberText = view.findViewById(R.id.numberText);
             contentEdit = view.findViewById(R.id.contentEdit);
 
-            setupCustomSelectionMenu();
-            // ✅ ADD: KeyListener for numbered lists too
-            contentEdit.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
-                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+            // ✅ Set custom action mode callback for text selection
+            contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
+                @Override
+                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
+                            .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                    return true;
+                }
 
+                @Override
+                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    try {
+                        menu.removeItem(android.R.id.shareText);
+                        menu.removeItem(android.R.id.selectAll);
+                    } catch (Exception e) {
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
+                    if (item.getItemId() == android.R.id.button1) {
+                        int pos = getAdapterPosition();
+                        if (pos == RecyclerView.NO_POSITION) return false;
+
+                        NoteBlock block = blocks.get(pos);
+                        int start = contentEdit.getSelectionStart();
+                        int end = contentEdit.getSelectionEnd();
+
+                        if (start >= 0 && end > start && end <= contentEdit.getText().length()) {
+                            String selectedText = contentEdit.getText().toString().substring(start, end);
+
+                            if (listener instanceof NoteActivity) {
+                                ((NoteActivity) listener).showBookmarkBottomSheet(
+                                        selectedText,
+                                        block.getId(),
+                                        start,
+                                        end
+                                );
+                            }
+                        }
+
+                        mode.finish();
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public void onDestroyActionMode(android.view.ActionMode mode) {
+                }
+            });
+
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return false;
 
-                    String currentText = contentEdit.getText().toString();
-                    int cursorPosition = contentEdit.getSelectionStart();
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
 
-                    // ✅ Empty numbered item + backspace
-                    if (currentText.isEmpty()) {
-                        NoteBlock block = blocks.get(pos);
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
 
-                        // ✅ If indented, OUTDENT first
-                        if (block.getIndentLevel() > 0) {
-                            block.setIndentLevel(block.getIndentLevel() - 1);
-                            notifyItemChanged(pos);
-                            listener.onBlockChanged(block);
-                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
-                            return true;
-                        } else {
-                            // ✅ Already at indent 0, convert to TEXT
-                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
-                    }
-
-                    // ✅ Cursor at start + backspace
-                    if (cursorPosition == 0 && !currentText.isEmpty()) {
-                        listener.onBackspaceAtStart(pos, currentText);
-                        return true;
+                        else if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
                     }
                 }
                 return false;
             });
 
             contentEdit.addTextChangedListener(new TextWatcher() {
+                private boolean isUpdatingText = false;
+
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int after) {
+                    if (isUpdatingText) return;
+
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return;
 
-                    // Detect Enter key
                     if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
                         isProcessingEnter = true;
 
@@ -1189,265 +931,84 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     NoteBlock block = blocks.get(pos);
                     block.setContent(s.toString());
                     listener.onBlockChanged(block);
+
+                    // ✅ Reapply bookmarks
+                    isUpdatingText = true;
+                    reapplyBookmarksToView(contentEdit, block);
+                    isUpdatingText = false;
                 }
 
                 @Override
                 public void afterTextChanged(Editable s) {}
             });
         }
-        private void setupCustomSelectionMenu() {
-            contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
-                @Override
-                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    if (start >= end) return false;
-
-                    // Check if selection is within an existing bookmark
-                    Bookmark existingBookmark = getBookmarkAtSelection(block.getId(), start, end);
-
-                    menu.clear(); // Remove default options
-
-                    if (existingBookmark != null) {
-                        // ✅ Selection is INSIDE a bookmark - show EXPAND option
-                        menu.add(0, 1, 0, "📌 Expand Bookmark");
-                        menu.add(0, 2, 0, "✏️ Edit Bookmark");
-                        menu.add(0, 3, 0, "🗑️ Delete Bookmark");
-                    } else {
-                        // ✅ New selection - show BOOKMARK option
-                        menu.add(0, 0, 0, "📌 Bookmark");
-                    }
-
-                    // Add default Cut/Copy/Paste
-                    menu.add(0, android.R.id.cut, 0, "Cut");
-                    menu.add(0, android.R.id.copy, 0, "Copy");
-                    menu.add(0, android.R.id.paste, 0, "Paste");
-                    menu.add(0, android.R.id.selectAll, 0, "Select all");
-
-                    return true;
-                }
-                @Override
-                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    switch (item.getItemId()) {
-                        case 0: // Create new bookmark
-                            String selectedText = contentEdit.getText().toString().substring(start, end);
-                            showBookmarkBottomSheet(selectedText, block.getId(), start, end);
-                            mode.finish();
-                            return true;
-
-                        case 1: // Expand existing bookmark
-                            Bookmark bookmarkToExpand = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToExpand != null) {
-                                expandBookmarkToSelection(bookmarkToExpand, start, end);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 2: // Edit bookmark
-                            Bookmark bookmarkToEdit = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToEdit != null) {
-                                showEditBookmarkSheet(bookmarkToEdit);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 3: // Delete bookmark
-                            Bookmark bookmarkToDelete = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToDelete != null) {
-                                deleteBookmark(bookmarkToDelete);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case android.R.id.cut:
-                        case android.R.id.copy:
-                        case android.R.id.paste:
-                        case android.R.id.selectAll:
-                            // Let Android handle these
-                            return false;
-                    }
-
-                    return false;
-                }
-
-                @Override
-                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    return false;
-                }
-
-                @Override
-                public void onDestroyActionMode(android.view.ActionMode mode) {
-                }
-            });
-        }
-
-        private void showEditBookmarkSheet(Bookmark bookmark) {
-            BottomSheetDialog bottomSheet = new BottomSheetDialog(itemView.getContext());
-            View sheetView = LayoutInflater.from(itemView.getContext())
-                    .inflate(R.layout.bookmark_bottom_sheet_update, null);
-            bottomSheet.setContentView(sheetView);
-
-            // TODO: Setup color/style/note editing UI here
-            // (Copy from BookmarksActivity's showUpdateBottomSheet)
-
-            bottomSheet.show();
-        }
-
-        // ✅ Check if selection overlaps with existing bookmark
-        private Bookmark getBookmarkAtSelection(String blockId, int start, int end) {
-            for (Bookmark bookmark : allBookmarks) {
-                if (!blockId.equals(bookmark.getBlockId())) continue;
-
-                int bStart = bookmark.getStartIndex();
-                int bEnd = bookmark.getEndIndex();
-
-                // Check if selection is within or overlaps bookmark
-                if ((start >= bStart && start < bEnd) ||
-                        (end > bStart && end <= bEnd) ||
-                        (start <= bStart && end >= bEnd)) {
-                    return bookmark;
-                }
-            }
-            return null;
-        }
-
-        // ✅ Expand bookmark to new selection range
-        private void expandBookmarkToSelection(Bookmark bookmark, int newStart, int newEnd) {
-            int pos = getAdapterPosition();
-            if (pos == RecyclerView.NO_POSITION) return;
-
-            String currentText = contentEdit.getText().toString();
-
-            // ✅ Expand to cover BOTH old bookmark AND new selection
-            int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
-            int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
-
-            // Validate
-            if (expandedStart < 0 || expandedEnd > currentText.length() || expandedStart >= expandedEnd) {
-                Toast.makeText(itemView.getContext(),
-                        "Invalid expansion range", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Get expanded text
-            String expandedText = currentText.substring(expandedStart, expandedEnd);
-
-            // Trim whitespace from edges
-            int trimStart = 0;
-            int trimEnd = expandedText.length();
-
-            while (trimStart < trimEnd && Character.isWhitespace(expandedText.charAt(trimStart))) {
-                trimStart++;
-            }
-            while (trimEnd > trimStart && Character.isWhitespace(expandedText.charAt(trimEnd - 1))) {
-                trimEnd--;
-            }
-
-            final int finalStart = expandedStart + trimStart;
-            final int finalEnd = expandedStart + trimEnd;
-            final String finalText = expandedText.substring(trimStart, trimEnd);
-
-            // Update in Firestore
-            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-            if (user == null) return;
-
-            Map<String, Object> updates = new HashMap<>();
-            updates.put("startIndex", finalStart);
-            updates.put("endIndex", finalEnd);
-            updates.put("text", finalText);
-
-            FirebaseFirestore.getInstance()
-                    .collection("users").document(user.getUid())
-                    .collection("notes").document(noteId)
-                    .collection("bookmarks").document(bookmark.getId())
-                    .update(updates)
-                    .addOnSuccessListener(aVoid -> {
-                        bookmark.setStartIndex(finalStart);
-                        bookmark.setEndIndex(finalEnd);
-                        bookmark.setText(finalText);
-
-                        Toast.makeText(itemView.getContext(),
-                                "✅ Bookmark expanded", Toast.LENGTH_SHORT).show();
-
-                        // Refresh display
-                        notifyItemChanged(pos);
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(itemView.getContext(),
-                                "Error expanding bookmark", Toast.LENGTH_SHORT).show();
-                    });
-        }
-        private void showBookmarkBottomSheet(String selectedText, String blockId,
-                                             int startIndex, int endIndex) {
-            if (listener instanceof NoteActivity) {
-                ((NoteActivity) listener).showBookmarkBottomSheet(
-                        selectedText, blockId, startIndex, endIndex);
-            }
-        }
-
-        private void deleteBookmark(Bookmark bookmark) {
-            new android.app.AlertDialog.Builder(itemView.getContext())
-                    .setTitle("Delete Bookmark")
-                    .setMessage("Are you sure you want to delete this bookmark?")
-                    .setPositiveButton("Delete", (dialog, which) -> {
-                        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-                        if (user == null) return;
-
-                        FirebaseFirestore.getInstance()
-                                .collection("users").document(user.getUid())
-                                .collection("notes").document(noteId)
-                                .collection("bookmarks").document(bookmark.getId())
-                                .delete()
-                                .addOnSuccessListener(aVoid -> {
-                                    Toast.makeText(itemView.getContext(),
-                                            "Bookmark deleted", Toast.LENGTH_SHORT).show();
-                                    notifyDataSetChanged();
-                                });
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
-        }
 
         void bind(NoteBlock block) {
-            contentEdit.setText(block.getContent());
+            String content = block.getContent();
+            if (content == null) content = "";
 
-            String numberFormat;
-            switch (block.getIndentLevel()) {
-                case 0:
-                    numberFormat = block.getListNumber() + ".";
-                    break;
-                case 1:
-                    numberFormat = ((char)('a' + block.getListNumber() - 1)) + ".";
-                    break;
-                case 2:
-                    numberFormat = toRoman(block.getListNumber()) + ".";
-                    break;
-                default:
-                    numberFormat = block.getListNumber() + ".";
-                    break;
+            // ✅ Get bookmarks
+            List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
+
+            // ✅ ENABLE FIRST - before setting text
+            contentEdit.setEnabled(true);
+            contentEdit.setFocusable(true);
+            contentEdit.setFocusableInTouchMode(true);
+            contentEdit.setCursorVisible(true);
+            contentEdit.setLongClickable(true);
+
+            // ✅ Set input type - like Subpage
+            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            contentEdit.setHorizontallyScrolling(false);
+            contentEdit.setMaxLines(Integer.MAX_VALUE);
+
+            if (bookmarks != null && !bookmarks.isEmpty()) {
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
+
+                for (Bookmark bookmark : bookmarks) {
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new ColoredUnderlineSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
+                }
+
+                contentEdit.setText(editable);
+            } else {
+                contentEdit.setText(content);
             }
-            numberText.setText(numberFormat);
 
+            // ✅ NO POST - Direct selection like Subpage
+            contentEdit.setSelection(contentEdit.getText().length());
+
+            // Apply indent
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // ✅ ADD THIS LINE:
-            applyFontStyle(contentEdit, block.getStyleData());
+            // Apply font style
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
+
 
 
         private String toRoman(int number) {
@@ -1473,41 +1034,84 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             checkbox = view.findViewById(R.id.checkbox);
             contentEdit = view.findViewById(R.id.contentEdit);
 
-            setupCustomSelectionMenu();
+            // ✅ Set custom action mode callback for text selection
+            contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
+                @Override
+                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
+                            .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                    return true;
+                }
 
-            // ✅ ADD: KeyListener for checkboxes too
+                @Override
+                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
+                    try {
+                        menu.removeItem(android.R.id.shareText);
+                        menu.removeItem(android.R.id.selectAll);
+                    } catch (Exception e) {
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
+                    if (item.getItemId() == android.R.id.button1) {
+                        int pos = getAdapterPosition();
+                        if (pos == RecyclerView.NO_POSITION) return false;
+
+                        NoteBlock block = blocks.get(pos);
+                        int start = contentEdit.getSelectionStart();
+                        int end = contentEdit.getSelectionEnd();
+
+                        if (start >= 0 && end > start && end <= contentEdit.getText().length()) {
+                            String selectedText = contentEdit.getText().toString().substring(start, end);
+
+                            if (listener instanceof NoteActivity) {
+                                ((NoteActivity) listener).showBookmarkBottomSheet(
+                                        selectedText,
+                                        block.getId(),
+                                        start,
+                                        end
+                                );
+                            }
+                        }
+
+                        mode.finish();
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public void onDestroyActionMode(android.view.ActionMode mode) {
+                }
+            });
+
             contentEdit.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN &&
-                        keyCode == android.view.KeyEvent.KEYCODE_DEL) {
-
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return false;
 
-                    String currentText = contentEdit.getText().toString();
-                    int cursorPosition = contentEdit.getSelectionStart();
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
 
-                    // ✅ Empty checkbox + backspace
-                    if (currentText.isEmpty()) {
-                        NoteBlock block = blocks.get(pos);
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
 
-                        // ✅ If indented, OUTDENT first
-                        if (block.getIndentLevel() > 0) {
-                            block.setIndentLevel(block.getIndentLevel() - 1);
-                            notifyItemChanged(pos);
-                            listener.onBlockChanged(block);
-                            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
-                            return true;
-                        } else {
-                            // ✅ Already at indent 0, convert to TEXT
-                            listener.onBlockTypeChanged(pos, NoteBlock.BlockType.TEXT);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
-                    }
-
-                    // ✅ Cursor at start + backspace
-                    if (cursorPosition == 0 && !currentText.isEmpty()) {
-                        listener.onBackspaceAtStart(pos, currentText);
-                        return true;
+                        else if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -1523,15 +1127,18 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             });
 
             contentEdit.addTextChangedListener(new TextWatcher() {
+                private boolean isUpdatingText = false;
+
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int after) {
+                    if (isUpdatingText) return;
+
                     int pos = getAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return;
 
-                    // Detect Enter key
                     if (after == 1 && before == 0 && s.length() > start && s.charAt(start) == '\n' && !isProcessingEnter) {
                         isProcessingEnter = true;
 
@@ -1553,254 +1160,91 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     NoteBlock block = blocks.get(pos);
                     block.setContent(s.toString());
                     listener.onBlockChanged(block);
+
+                    // ✅ Reapply bookmarks
+                    isUpdatingText = true;
+                    reapplyBookmarksToView(contentEdit, block);
+                    isUpdatingText = false;
                 }
 
                 @Override
                 public void afterTextChanged(Editable s) {}
             });
         }
-        private void setupCustomSelectionMenu() {
-            contentEdit.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
-                @Override
-                public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    if (start >= end) return false;
-
-                    // Check if selection is within an existing bookmark
-                    Bookmark existingBookmark = getBookmarkAtSelection(block.getId(), start, end);
-
-                    menu.clear(); // Remove default options
-
-                    if (existingBookmark != null) {
-                        // ✅ Selection is INSIDE a bookmark - show EXPAND option
-                        menu.add(0, 1, 0, "📌 Expand Bookmark");
-                        menu.add(0, 2, 0, "✏️ Edit Bookmark");
-                        menu.add(0, 3, 0, "🗑️ Delete Bookmark");
-                    } else {
-                        // ✅ New selection - show BOOKMARK option
-                        menu.add(0, 0, 0, "📌 Bookmark");
-                    }
-
-                    // Add default Cut/Copy/Paste
-                    menu.add(0, android.R.id.cut, 0, "Cut");
-                    menu.add(0, android.R.id.copy, 0, "Copy");
-                    menu.add(0, android.R.id.paste, 0, "Paste");
-                    menu.add(0, android.R.id.selectAll, 0, "Select all");
-
-                    return true;
-                }
-                @Override
-                public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    NoteBlock block = blocks.get(pos);
-                    int start = contentEdit.getSelectionStart();
-                    int end = contentEdit.getSelectionEnd();
-
-                    switch (item.getItemId()) {
-                        case 0: // Create new bookmark
-                            String selectedText = contentEdit.getText().toString().substring(start, end);
-                            showBookmarkBottomSheet(selectedText, block.getId(), start, end);
-                            mode.finish();
-                            return true;
-
-                        case 1: // Expand existing bookmark
-                            Bookmark bookmarkToExpand = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToExpand != null) {
-                                expandBookmarkToSelection(bookmarkToExpand, start, end);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 2: // Edit bookmark
-                            Bookmark bookmarkToEdit = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToEdit != null) {
-                                showEditBookmarkSheet(bookmarkToEdit);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case 3: // Delete bookmark
-                            Bookmark bookmarkToDelete = getBookmarkAtSelection(block.getId(), start, end);
-                            if (bookmarkToDelete != null) {
-                                deleteBookmark(bookmarkToDelete);
-                            }
-                            mode.finish();
-                            return true;
-
-                        case android.R.id.cut:
-                        case android.R.id.copy:
-                        case android.R.id.paste:
-                        case android.R.id.selectAll:
-                            // Let Android handle these
-                            return false;
-                    }
-
-                    return false;
-                }
-
-                @Override
-                public boolean onPrepareActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    return false;
-                }
-
-                @Override
-                public void onDestroyActionMode(android.view.ActionMode mode) {
-                }
-            });
-        }
-
-        private void showEditBookmarkSheet(Bookmark bookmark) {
-            BottomSheetDialog bottomSheet = new BottomSheetDialog(itemView.getContext());
-            View sheetView = LayoutInflater.from(itemView.getContext())
-                    .inflate(R.layout.bookmark_bottom_sheet_update, null);
-            bottomSheet.setContentView(sheetView);
-
-            // TODO: Setup color/style/note editing UI here
-            // (Copy from BookmarksActivity's showUpdateBottomSheet)
-
-            bottomSheet.show();
-        }
-
-        // ✅ Check if selection overlaps with existing bookmark
-        private Bookmark getBookmarkAtSelection(String blockId, int start, int end) {
-            for (Bookmark bookmark : allBookmarks) {
-                if (!blockId.equals(bookmark.getBlockId())) continue;
-
-                int bStart = bookmark.getStartIndex();
-                int bEnd = bookmark.getEndIndex();
-
-                // Check if selection is within or overlaps bookmark
-                if ((start >= bStart && start < bEnd) ||
-                        (end > bStart && end <= bEnd) ||
-                        (start <= bStart && end >= bEnd)) {
-                    return bookmark;
-                }
-            }
-            return null;
-        }
-
-        // ✅ Expand bookmark to new selection range
-        private void expandBookmarkToSelection(Bookmark bookmark, int newStart, int newEnd) {
-            int pos = getAdapterPosition();
-            if (pos == RecyclerView.NO_POSITION) return;
-
-            String currentText = contentEdit.getText().toString();
-
-            // ✅ Expand to cover BOTH old bookmark AND new selection
-            int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
-            int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
-
-            // Validate
-            if (expandedStart < 0 || expandedEnd > currentText.length() || expandedStart >= expandedEnd) {
-                Toast.makeText(itemView.getContext(),
-                        "Invalid expansion range", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Get expanded text
-            String expandedText = currentText.substring(expandedStart, expandedEnd);
-
-            // Trim whitespace from edges
-            int trimStart = 0;
-            int trimEnd = expandedText.length();
-
-            while (trimStart < trimEnd && Character.isWhitespace(expandedText.charAt(trimStart))) {
-                trimStart++;
-            }
-            while (trimEnd > trimStart && Character.isWhitespace(expandedText.charAt(trimEnd - 1))) {
-                trimEnd--;
-            }
-
-            final int finalStart = expandedStart + trimStart;
-            final int finalEnd = expandedStart + trimEnd;
-            final String finalText = expandedText.substring(trimStart, trimEnd);
-
-            // Update in Firestore
-            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-            if (user == null) return;
-
-            Map<String, Object> updates = new HashMap<>();
-            updates.put("startIndex", finalStart);
-            updates.put("endIndex", finalEnd);
-            updates.put("text", finalText);
-
-            FirebaseFirestore.getInstance()
-                    .collection("users").document(user.getUid())
-                    .collection("notes").document(noteId)
-                    .collection("bookmarks").document(bookmark.getId())
-                    .update(updates)
-                    .addOnSuccessListener(aVoid -> {
-                        bookmark.setStartIndex(finalStart);
-                        bookmark.setEndIndex(finalEnd);
-                        bookmark.setText(finalText);
-
-                        Toast.makeText(itemView.getContext(),
-                                "✅ Bookmark expanded", Toast.LENGTH_SHORT).show();
-
-                        // Refresh display
-                        notifyItemChanged(pos);
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(itemView.getContext(),
-                                "Error expanding bookmark", Toast.LENGTH_SHORT).show();
-                    });
-        }
-        private void showBookmarkBottomSheet(String selectedText, String blockId,
-                                             int startIndex, int endIndex) {
-            if (listener instanceof NoteActivity) {
-                ((NoteActivity) listener).showBookmarkBottomSheet(
-                        selectedText, blockId, startIndex, endIndex);
-            }
-        }
-
-        private void deleteBookmark(Bookmark bookmark) {
-            new android.app.AlertDialog.Builder(itemView.getContext())
-                    .setTitle("Delete Bookmark")
-                    .setMessage("Are you sure you want to delete this bookmark?")
-                    .setPositiveButton("Delete", (dialog, which) -> {
-                        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-                        if (user == null) return;
-
-                        FirebaseFirestore.getInstance()
-                                .collection("users").document(user.getUid())
-                                .collection("notes").document(noteId)
-                                .collection("bookmarks").document(bookmark.getId())
-                                .delete()
-                                .addOnSuccessListener(aVoid -> {
-                                    Toast.makeText(itemView.getContext(),
-                                            "Bookmark deleted", Toast.LENGTH_SHORT).show();
-                                    notifyDataSetChanged();
-                                });
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
-        }
 
         void bind(NoteBlock block) {
-            checkbox.setChecked(block.isChecked());
-            contentEdit.setText(block.getContent());
+            String content = block.getContent();
+            if (content == null) content = "";
 
+            // ✅ Get bookmarks
+            List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
+
+            // ✅ ENABLE FIRST - before setting text
+            contentEdit.setEnabled(true);
+            contentEdit.setFocusable(true);
+            contentEdit.setFocusableInTouchMode(true);
+            contentEdit.setCursorVisible(true);
+            contentEdit.setLongClickable(true);
+
+            // ✅ Set input type - like Subpage
+            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            contentEdit.setHorizontallyScrolling(false);
+            contentEdit.setMaxLines(Integer.MAX_VALUE);
+
+            if (bookmarks != null && !bookmarks.isEmpty()) {
+                android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
+
+                for (Bookmark bookmark : bookmarks) {
+                    int start = bookmark.getStartIndex();
+                    int end = bookmark.getEndIndex();
+
+                    if (start >= 0 && end <= content.length() && start < end) {
+                        int color = Color.parseColor(bookmark.getColor());
+
+                        if ("highlight".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new BackgroundColorSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        } else if ("underline".equals(bookmark.getStyle())) {
+                            editable.setSpan(
+                                    new ColoredUnderlineSpan(color),
+                                    start,
+                                    end,
+                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                            );
+                        }
+                    }
+                }
+
+                contentEdit.setText(editable);
+            } else {
+                contentEdit.setText(content);
+            }
+
+            // ✅ NO POST - Direct selection like Subpage
+            contentEdit.setSelection(contentEdit.getText().length());
+
+            // Apply indent
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // ✅ ADD THIS LINE:
-            applyFontStyle(contentEdit, block.getStyleData());
+            // Apply font style
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
+
+
 
         private int dpToPx(int dp) {
             return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
         }
     }
+
     class ImageViewHolder extends RecyclerView.ViewHolder {
         ImageView imageView;
         ProgressBar progressBar;
@@ -1820,13 +1264,40 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 }
             });
 
+            // ✅ ADD: Long press to bookmark image
             imageView.setOnLongClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION) {
-                    showDeleteImageDialog(v, pos);
+                    showImageBookmarkOptions(v, pos);
                 }
                 return true;
             });
+        }
+
+        private void showImageBookmarkOptions(View view, int position) {
+            android.widget.PopupMenu popup = new android.widget.PopupMenu(view.getContext(), view);
+            popup.getMenu().add("📌 Bookmark this image");
+            popup.getMenu().add("🗑️ Delete image");
+
+            popup.setOnMenuItemClickListener(item -> {
+                if (item.getTitle().toString().contains("Bookmark")) {
+                    NoteBlock block = blocks.get(position);
+                    // Bookmark the entire image (use imageId as text)
+                    if (listener instanceof NoteActivity) {
+                        ((NoteActivity) listener).showBookmarkBottomSheet(
+                                "[Image]",
+                                block.getId(),
+                                0,
+                                0
+                        );
+                    }
+                } else if (item.getTitle().toString().contains("Delete")) {
+                    listener.onBlockDeleted(position);
+                }
+                return true;
+            });
+
+            popup.show();
         }
 
         private void showDeleteImageDialog(View view, int position) {
@@ -1990,45 +1461,45 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             // Apply divider style
             switch (style) {
                 case "solid":
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "dashed":
-                    dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
+                    dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "dotted":
-                    dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
+                    dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "double":
-                    dividerView.setText("═══════════════════");
+                    dividerView.setText("═══════════════════════════════");
                     dividerView.setTextColor(0xFF333333);
                     break;
                 case "arrows":
-                    dividerView.setText("→→→→→→→ ✱ ←←←←←←←");
+                    dividerView.setText("→→→→→→→→→→→ ✱ ←←←←←←←←←←←");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 case "stars":
-                    dividerView.setText("✦✦✦✦✦ ⋄ ✦✦✦✦✦");
+                    dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ❋ ✦✦✦✦✦✦✦✦✦✦✦✦");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 case "wave":
-                    dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
+                    dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 case "diamond":
-                    dividerView.setText("◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈");
+                    dividerView.setText("◈◈◈◈◈◈◈◈◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈◈◈◈◈◈◈◈◈");
                     dividerView.setTextColor(0xFF666666);
                     break;
                 default:
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     dividerView.setTextColor(0xFF333333);
                     break;
             }
 
             dividerView.setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER);
-            dividerView.setTextSize(16);
+            dividerView.setTextSize(14);
         }
 
         private void showDividerStyleSheet(View view, int position) {
@@ -2509,17 +1980,12 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             bottomSheet.show();
         }
     }
-    private void applyFontStyle(EditText editText, String styleData) {
-        if (styleData == null || styleData.isEmpty()) {
-            // Default: normal
+
+    private void applyFontStyle(EditText editText, String fontStyle, String fontColor) {
+        // Apply font style (bold, italic, etc.)
+        if (fontStyle == null || fontStyle.isEmpty()) {
             editText.setTypeface(null, android.graphics.Typeface.NORMAL);
-            return;
-        }
-
-        try {
-            org.json.JSONObject styleJson = new org.json.JSONObject(styleData);
-            String fontStyle = styleJson.optString("fontStyle", "normal");
-
+        } else {
             switch (fontStyle) {
                 case "bold":
                     editText.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -2530,13 +1996,21 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 case "boldItalic":
                     editText.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
                     break;
-                case "normal":
                 default:
                     editText.setTypeface(null, android.graphics.Typeface.NORMAL);
                     break;
             }
-        } catch (org.json.JSONException e) {
-            editText.setTypeface(null, android.graphics.Typeface.NORMAL);
+        }
+
+        // Apply font color
+        if (fontColor != null && !fontColor.isEmpty()) {
+            try {
+                editText.setTextColor(android.graphics.Color.parseColor(fontColor));
+            } catch (Exception e) {
+                editText.setTextColor(android.graphics.Color.parseColor("#333333"));
+            }
+        } else {
+            editText.setTextColor(android.graphics.Color.parseColor("#333333"));
         }
     }
     // Add this method sa NoteBlockAdapter class (before the ViewHolder classes)
@@ -2555,6 +2029,126 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         popup.show();
     }
 
+    public void updateBookmarks(Map<String, List<Bookmark>> bookmarksMap) {
+        this.blockBookmarksMap = bookmarksMap;
+    }
+    private void applyBookmarkSpan(android.text.SpannableStringBuilder spannable,
+                                   Bookmark bookmark, int maxLength) {
+        int start = bookmark.getStartIndex();
+        int end = bookmark.getEndIndex();
 
+        if (start >= 0 && end <= maxLength && start < end) {
+            int color = Color.parseColor(bookmark.getColor());
 
+            if ("highlight".equals(bookmark.getStyle())) {
+                spannable.setSpan(
+                        new BackgroundColorSpan(color),
+                        start,
+                        end,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            } else if ("underline".equals(bookmark.getStyle())) {
+                // ✅ FIXED: Use ColoredUnderlineSpan
+                spannable.setSpan(
+                        new ColoredUnderlineSpan(color),
+                        start,
+                        end,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+        }
+    }
+    private void reapplyBookmarksToView(EditText editText, NoteBlock block) {
+        String content = block.getContent();
+        if (content == null) content = "";
+
+        List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
+
+        if (bookmarks != null && !bookmarks.isEmpty()) {
+            // ✅ Save cursor position
+            int cursorPos = editText.getSelectionStart();
+
+            android.text.SpannableStringBuilder spannableBuilder =
+                    new android.text.SpannableStringBuilder(content);
+
+            for (Bookmark bookmark : bookmarks) {
+                applyBookmarkSpan(spannableBuilder, bookmark, content.length());
+            }
+
+            editText.setText(spannableBuilder);
+
+            // ✅ Restore cursor position
+            if (cursorPos >= 0 && cursorPos <= spannableBuilder.length()) {
+                editText.setSelection(cursorPos);
+            } else {
+                editText.setSelection(editText.getText().length());
+            }
+        }
+    }
+
+    // ✅ Custom Action Mode for text selection
+    // Replace the BookmarkActionModeCallback class at the bottom of NoteBlockAdapter.java
+
+    // Optional: Keep as helper if you want
+    private void applyBookmarkToEditable(android.text.Editable editable,
+                                         Bookmark bookmark, int maxLength) {
+        int start = bookmark.getStartIndex();
+        int end = bookmark.getEndIndex();
+
+        if (start >= 0 && end <= maxLength && start < end) {
+            int color = Color.parseColor(bookmark.getColor());
+
+            if ("highlight".equals(bookmark.getStyle())) {
+                editable.setSpan(
+                        new BackgroundColorSpan(color),
+                        start,
+                        end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            } else if ("underline".equals(bookmark.getStyle())) {
+                // ✅ FIXED: Use ColoredUnderlineSpan
+                editable.setSpan(
+                        new ColoredUnderlineSpan(color),
+                        start,
+                        end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+        }
+    }
+    class ColoredUnderlineSpan extends android.text.style.ReplacementSpan {
+        private int underlineColor;
+        private float strokeWidth = 4f; // Thickness of underline
+
+        public ColoredUnderlineSpan(int color) {
+            this.underlineColor = color;
+        }
+
+        @Override
+        public int getSize(android.graphics.Paint paint, CharSequence text,
+                           int start, int end, android.graphics.Paint.FontMetricsInt fm) {
+            return (int) paint.measureText(text, start, end);
+        }
+
+        @Override
+        public void draw(android.graphics.Canvas canvas, CharSequence text,
+                         int start, int end, float x, int top, int y,
+                         int bottom, android.graphics.Paint paint) {
+            // Draw the text with original color
+            canvas.drawText(text, start, end, x, y, paint);
+
+            // Draw colored underline below text
+            android.graphics.Paint underlinePaint = new android.graphics.Paint();
+            underlinePaint.setColor(underlineColor);
+            underlinePaint.setStrokeWidth(strokeWidth);
+            underlinePaint.setStyle(android.graphics.Paint.Style.STROKE);
+
+            // Calculate underline position
+            float textWidth = paint.measureText(text, start, end);
+            float underlineY = y + paint.descent() + 2; // Slight offset below text
+
+            canvas.drawLine(x, underlineY, x + textWidth, underlineY, underlinePaint);
+        }
+    }
+//go lia
 }

@@ -95,4 +95,5 @@ public class BookmarkAdapter extends RecyclerView.Adapter<BookmarkAdapter.Bookma
             leftBorder = itemView.findViewById(R.id.leftBorder);
         }
     }
+    //go lia
 }

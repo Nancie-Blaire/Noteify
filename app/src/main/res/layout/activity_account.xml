@@ -2,6 +2,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:background="@drawable/lightmode_bg"
     android:id="@+id/main"
     android:fitsSystemWindows="true">
@@ -18,7 +19,8 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="32dp"
+            android:layout_marginBottom="30dp"
+            android:layout_marginTop="5dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -28,7 +30,7 @@
                 android:layout_height="24dp"
                 android:contentDescription="Back button"
                 android:src="@drawable/ic_revert_back_btn"
-                android:tint="#000000" />
+                app:tint="#000000" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -107,7 +109,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="3dp"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="@font/inter_regular"
@@ -122,7 +124,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="10dp"
             android:fontFamily="@font/inter_regular"
             android:text="Password"
             android:textColor="#000000"
@@ -155,7 +157,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="3dp"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="@font/inter_regular"

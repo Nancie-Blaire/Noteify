@@ -36,9 +36,9 @@
             android:layout_weight="1"
             android:text="Subpage"
             android:textSize="18sp"
-            android:textStyle="bold"
             android:textColor="#FFFFFF"
-            android:layout_marginStart="8dp" />
+            android:textStyle="bold"
+            android:layout_marginStart="8dp"/>/>
 
     </LinearLayout>
 
@@ -56,13 +56,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Subpage Title"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             android:inputType="textCapSentences"
             android:background="@android:color/transparent"
             android:padding="8dp"
             android:textColor="#666666"
-            android:layout_marginBottom="15dp" />
+            android:layout_marginBottom="12dp" />
 
         <!-- Subpage Content -->
         <EditText

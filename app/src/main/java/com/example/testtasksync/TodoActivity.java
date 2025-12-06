@@ -3,6 +3,7 @@ package com.example.testtasksync;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.app.TimePickerDialog;
+import android.content.Intent;
 import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.Handler;
@@ -16,6 +17,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
@@ -40,7 +42,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;import android.Manifest;
+import java.util.Map;
+import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import androidx.core.app.ActivityCompat;
@@ -59,6 +62,22 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
+
+// FEATURES
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.provider.MediaStore;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.FileProvider;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import android.graphics.Color;
 
 
 
@@ -96,6 +115,30 @@ public class TodoActivity extends AppCompatActivity {
     private float initialY = 0;
     private float lastY = 0;
 
+    private ImageButton headingsAndFont;
+    private ImageButton addDividerBtn;
+    private ImageButton insertImageBtn;
+    private ImageButton addThemeBtn;
+    private ImageButton addSubpageBtn;
+    private View keyboardToolbar;
+    private View colorPickerPanel;
+    private LinearLayout mainLayout;
+    private String currentBgColor = "#FAFAFA";
+
+    // Image handling
+    private ActivityResultLauncher<Intent> galleryLauncher;
+    private ActivityResultLauncher<Intent> cameraLauncher;
+    private ActivityResultLauncher<String> permissionLauncher;
+    private Uri currentPhotoUri;
+
+    private static final int MAX_IMAGE_WIDTH = 1024;
+    private static final int MAX_IMAGE_HEIGHT = 1024;
+    private static final int COMPRESSION_QUALITY = 80;
+
+    private String titleFontStyle = "normal";
+    private int titleFontSize = 16;
+    private String titleFontColor = "#000000";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -105,22 +148,38 @@ public class TodoActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
 
-        // Get list ID from intent
+        // ✅ FIX 1: Get listId FIRST before any loading
         listId = getIntent().getStringExtra("listId");
         isNewList = (listId == null || listId.isEmpty());
+
+        Log.d(TAG, "🎯 TodoActivity opened:");
+        Log.d(TAG, "   listId: " + listId);
+        Log.d(TAG, "   isNewList: " + isNewList);
 
         // Initialize views
         todoTitle = findViewById(R.id.todoTitle);
         saveButton = findViewById(R.id.saveButton);
         backButton = findViewById(R.id.backButton);
         dueDateButton = findViewById(R.id.dueDateButton);
-        tasksRecyclerView = findViewById(R.id.tasksContainer); // ✅ Now RecyclerView
+        tasksRecyclerView = findViewById(R.id.tasksContainer);
         addTaskButton = findViewById(R.id.addTaskButton);
         dueDateDisplay = findViewById(R.id.dueDateDisplay);
         dueDateText = findViewById(R.id.dueDateText);
         clearDateButton = findViewById(R.id.clearDateButton);
 
-        // ✅ NEW: Setup RecyclerView with drag & drop
+        mainLayout = findViewById(R.id.mainLayout);
+
+        // ✅ FIX 2: Set default FIRST, then load saved if exists
+        currentBgColor = "#FAFAFA";
+        mainLayout.setBackgroundColor(Color.parseColor(currentBgColor));
+
+        // ✅ FIX 3: Load saved settings ONLY if not new list
+        if (!isNewList) {
+            loadBackgroundColor();
+            loadTitleFormatting();
+        }
+
+        // Setup RecyclerView
         setupRecyclerView();
 
         // Set up buttons
@@ -129,6 +188,50 @@ public class TodoActivity extends AppCompatActivity {
         addTaskButton.setOnClickListener(v -> addTask());
         dueDateButton.setOnClickListener(v -> showDueDateDialog());
         clearDateButton.setOnClickListener(v -> clearDueDate());
+
+        // ✅ REMOVED: Image and divider toolbar setup
+        keyboardToolbar = findViewById(R.id.keyboardToolbar);
+        headingsAndFont = findViewById(R.id.headingsandfont);
+        addThemeBtn = findViewById(R.id.addThemeOption);
+        addSubpageBtn = findViewById(R.id.addSubpageOption);
+        colorPickerPanel = findViewById(R.id.colorPickerPanel);
+
+        setupKeyboardToolbar();
+        setupColorPicker();
+        keyboardToolbar.setVisibility(View.VISIBLE);
+
+        // Load list or create new
+        if (isNewList) {
+            addTask();
+            addTask();
+        } else {
+            loadTodoList();
+        }
+
+        NotificationHelper.createNotificationChannel(this);
+        requestNotificationPermission();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // ✅ Reload subpages when returning from subpage activity
+        if (!isNewList && listId != null) {
+            loadSubpages();
+        }
+    }
+
+    // KEYBOARD TOOLBAR SETUP
+    private void setupKeyboardToolbar() {
+        // Headings & Font
+        headingsAndFont.setOnClickListener(v -> showHeadingOptions());
+
+        // Theme
+        addThemeBtn.setOnClickListener(v -> toggleColorPicker());
+
+        // Subpage (create new todo list)
+        addSubpageBtn.setOnClickListener(v -> createSubTodoList());
 
         // Load existing list or add default tasks
         if (isNewList) {
@@ -150,7 +253,7 @@ public class TodoActivity extends AppCompatActivity {
                 }
                 autoSaveRunnable = () -> {
                     if (!isNewList && !task.getId().isEmpty()) {
-                        saveTodoList();
+                        saveTodoListWithoutFinish(); // ✅ CHANGED: Use new method
                     }
                 };
                 autoSaveHandler.postDelayed(autoSaveRunnable, 1000);
@@ -180,7 +283,7 @@ public class TodoActivity extends AppCompatActivity {
                 task.setHasNotification(false);
                 taskAdapter.notifyDataSetChanged();
                 if (!isNewList) {
-                    saveTodoList();
+                    saveTodoListWithoutFinish(); // ✅ CHANGED: Use new method
                 }
             }
 
@@ -190,6 +293,9 @@ public class TodoActivity extends AppCompatActivity {
                     taskList.remove(position);
                     taskAdapter.notifyItemRemoved(position);
                     updateTaskPositions();
+                    if (!isNewList) {
+                        saveTodoListWithoutFinish(); // ✅ CHANGED: Use new method
+                    }
                 } else {
                     Toast.makeText(TodoActivity.this, "Keep at least one task",
                             Toast.LENGTH_SHORT).show();
@@ -199,7 +305,7 @@ public class TodoActivity extends AppCompatActivity {
             @Override
             public void onTaskMoved(int fromPosition, int toPosition) {
                 if (!isNewList) {
-                    saveTodoList();
+                    saveTodoListWithoutFinish(); // ✅ CHANGED: Use new method instead of saveTodoList()
                 }
             }
         });
@@ -207,7 +313,7 @@ public class TodoActivity extends AppCompatActivity {
         tasksRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         tasksRecyclerView.setAdapter(taskAdapter);
 
-        // ✅ Setup drag and drop
+        // Setup drag and drop
         ItemTouchHelper.Callback callback = new ItemTouchHelper.SimpleCallback(
                 ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
 
@@ -228,7 +334,7 @@ public class TodoActivity extends AppCompatActivity {
 
             @Override
             public boolean isLongPressDragEnabled() {
-                return true; // ✅ Enable long press to drag
+                return true;
             }
         };
 
@@ -394,10 +500,7 @@ public class TodoActivity extends AppCompatActivity {
 // ========================================
     private void saveTodoListWithoutFinish() {
         FirebaseUser user = auth.getCurrentUser();
-        if (user == null) {
-            Toast.makeText(this, "Please log in first", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (user == null) return;
 
         String title = todoTitle.getText().toString().trim();
         if (title.isEmpty()) {
@@ -419,24 +522,6 @@ public class TodoActivity extends AppCompatActivity {
         final int finalTotalTasks = totalTasks;
         final int finalCompletedTasks = completedTasks;
 
-        final Map<String, Object> scheduleData = new HashMap<>();
-        scheduleData.put("title", finalTitle);
-        scheduleData.put("description", finalTotalTasks + " tasks (" + finalCompletedTasks + " completed)");
-        scheduleData.put("category", "todo");
-        scheduleData.put("isCompleted", finalCompletedTasks == finalTotalTasks && finalTotalTasks > 0);
-        scheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
-
-        if (dueDate != null) {
-            scheduleData.put("date", new Timestamp(dueDate.getTime()));
-            scheduleData.put("hasReminder", hasReminder);
-            scheduleData.put("reminderMinutes", reminderMinutes);
-        } else {
-            scheduleData.put("date", null);
-            scheduleData.put("hasReminder", false);
-        }
-
-        scheduleData.put("time", dueTime != null ? dueTime : "");
-
         Map<String, Object> listData = new HashMap<>();
         listData.put("title", finalTitle);
         listData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
@@ -448,7 +533,6 @@ public class TodoActivity extends AppCompatActivity {
         } else {
             listData.put("dueDate", null);
         }
-
         listData.put("dueTime", dueTime);
 
         db.collection("users")
@@ -457,14 +541,32 @@ public class TodoActivity extends AppCompatActivity {
                 .document(listId)
                 .set(listData)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Todo list saved successfully");
-                    saveTasksWithoutFinish(user.getUid(), listId, finalTitle, finalTotalTasks,
-                            finalCompletedTasks, scheduleData);
+                    Log.d(TAG, "Todo list saved (drag reorder)");
+                    saveTasksPositionsOnly(user.getUid(), listId);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to save todo list", e);
-                    Toast.makeText(this, "Failed to save list", Toast.LENGTH_SHORT).show();
                 });
+    }
+
+    private void saveTasksPositionsOnly(String userId, String listId) {
+        for (TodoTask task : taskList) {
+            if (!task.getId().isEmpty() && !task.getTaskText().trim().isEmpty()) {
+                db.collection("users")
+                        .document(userId)
+                        .collection("todoLists")
+                        .document(listId)
+                        .collection("tasks")
+                        .document(task.getId())
+                        .update("position", task.getPosition())
+                        .addOnSuccessListener(aVoid -> {
+                            Log.d(TAG, "✅ Position updated for: " + task.getTaskText());
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to update position", e);
+                        });
+            }
+        }
     }
 
     // ========================================
@@ -613,12 +715,11 @@ public class TodoActivity extends AppCompatActivity {
     private void clearDueDate() {
         dueDate = null;
         dueTime = null;
-        hasReminder = false; // ✅ Also reset reminder
+        hasReminder = false;
         updateDueDateDisplay();
 
-        // ✅ CHANGED: Use the new method that doesn't finish
         if (!isNewList) {
-            saveTodoListWithoutFinish(); // ✅ Save but stay in activity
+            saveTodoListWithoutFinish(); // ✅ CHANGED: Use new method
         }
     }
 
@@ -673,6 +774,7 @@ public class TodoActivity extends AppCompatActivity {
                     Log.e(TAG, "Failed to load schedule", e);
                     // Still try to load list details even if schedule fails
                     loadTodoListDetails(userId);
+                    loadSubpages();
                 });
     }
     private void loadTodoListDetails(String userId) {
@@ -1646,6 +1748,503 @@ public class TodoActivity extends AppCompatActivity {
                             }
                         }
                     }
+                });
+    }
+
+    // HEADINGS & FONTS
+    private void showHeadingOptions() {
+        Toast.makeText(this, "⚠️ Font styles only apply to the list title, not tasks",
+                Toast.LENGTH_LONG).show();
+
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all option views
+        LinearLayout heading1Option = sheetView.findViewById(R.id.heading1Option);
+        LinearLayout heading2Option = sheetView.findViewById(R.id.heading2Option);
+        LinearLayout heading3Option = sheetView.findViewById(R.id.heading3Option);
+        LinearLayout boldOption = sheetView.findViewById(R.id.boldOption);
+        LinearLayout italicOption = sheetView.findViewById(R.id.italicOption);
+        LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
+        LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
+
+        // Font color options
+        LinearLayout fontColorDefault = sheetView.findViewById(R.id.fontColorDefault);
+        LinearLayout fontColorRed = sheetView.findViewById(R.id.fontColorRed);
+        LinearLayout fontColorOrange = sheetView.findViewById(R.id.fontColorOrange);
+        LinearLayout fontColorYellow = sheetView.findViewById(R.id.fontColorYellow);
+        LinearLayout fontColorGreen = sheetView.findViewById(R.id.fontColorGreen);
+        LinearLayout fontColorBlue = sheetView.findViewById(R.id.fontColorBlue);
+        LinearLayout fontColorPurple = sheetView.findViewById(R.id.fontColorPurple);
+        LinearLayout fontColorPink = sheetView.findViewById(R.id.fontColorPink);
+        LinearLayout fontColorBrown = sheetView.findViewById(R.id.fontColorBrown);
+        LinearLayout fontColorGray = sheetView.findViewById(R.id.fontColorGray);
+
+        // Heading listeners
+        if (heading1Option != null) {
+            heading1Option.setOnClickListener(v -> {
+                applyTextStyle("heading1");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading2Option != null) {
+            heading2Option.setOnClickListener(v -> {
+                applyTextStyle("heading2");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (heading3Option != null) {
+            heading3Option.setOnClickListener(v -> {
+                applyTextStyle("heading3");
+                bottomSheet.dismiss();
+            });
+        }
+
+        // Font style listeners
+        if (boldOption != null) {
+            boldOption.setOnClickListener(v -> {
+                applyTextStyle("bold");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (italicOption != null) {
+            italicOption.setOnClickListener(v -> {
+                applyTextStyle("italic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (boldItalicOption != null) {
+            boldItalicOption.setOnClickListener(v -> {
+                applyTextStyle("boldItalic");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (normalOption != null) {
+            normalOption.setOnClickListener(v -> {
+                applyTextStyle("normal");
+                bottomSheet.dismiss();
+            });
+        }
+
+        // Font color listeners
+        if (fontColorDefault != null) {
+            fontColorDefault.setOnClickListener(v -> {
+                applyFontColor("#333333");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorRed != null) {
+            fontColorRed.setOnClickListener(v -> {
+                applyFontColor("#E53935");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorOrange != null) {
+            fontColorOrange.setOnClickListener(v -> {
+                applyFontColor("#FB8C00");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorYellow != null) {
+            fontColorYellow.setOnClickListener(v -> {
+                applyFontColor("#FDD835");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGreen != null) {
+            fontColorGreen.setOnClickListener(v -> {
+                applyFontColor("#43A047");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBlue != null) {
+            fontColorBlue.setOnClickListener(v -> {
+                applyFontColor("#1E88E5");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPurple != null) {
+            fontColorPurple.setOnClickListener(v -> {
+                applyFontColor("#8E24AA");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPink != null) {
+            fontColorPink.setOnClickListener(v -> {
+                applyFontColor("#D81B60");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBrown != null) {
+            fontColorBrown.setOnClickListener(v -> {
+                applyFontColor("#6D4C41");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGray != null) {
+            fontColorGray.setOnClickListener(v -> {
+                applyFontColor("#757575");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    private void loadTitleFormatting() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || listId == null || listId.isEmpty()) {
+            Log.d(TAG, "⚠️ Cannot load formatting - no user or listId");
+            return;
+        }
+
+        db.collection("users").document(user.getUid())
+                .collection("todoLists").document(listId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        // Load font style
+                        String savedFontStyle = doc.getString("titleFontStyle");
+                        titleFontStyle = (savedFontStyle != null) ? savedFontStyle : "normal";
+
+                        // Load font size
+                        Long fontSize = doc.getLong("titleFontSize");
+                        titleFontSize = (fontSize != null) ? fontSize.intValue() : 16;
+
+                        // Load font color
+                        String savedFontColor = doc.getString("titleFontColor");
+                        titleFontColor = (savedFontColor != null) ? savedFontColor : "#000000";
+
+                        // Apply formatting
+                        applyTitleFormattingFromData();
+                        Log.d(TAG, "✅ Title formatting loaded");
+                    } else {
+                        Log.d(TAG, "📄 Document doesn't exist yet");
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to load title formatting", e);
+                });
+    }
+
+    // 4. ADD NEW METHOD - Apply formatting to title:
+    private void applyTitleFormattingFromData() {
+        todoTitle.setTextSize(titleFontSize);
+        todoTitle.setTextColor(Color.parseColor(titleFontColor));
+
+        switch (titleFontStyle) {
+            case "bold":
+                todoTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "italic":
+                todoTitle.setTypeface(null, android.graphics.Typeface.ITALIC);
+                break;
+            case "boldItalic":
+                todoTitle.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                break;
+            default:
+                todoTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
+                break;
+        }
+    }
+
+    // 5. REPLACE applyTextStyle() - Save to Firebase AND apply:
+    private void applyTextStyle(String style) {
+        titleFontStyle = style;
+
+        switch (style) {
+            case "heading1":
+                titleFontSize = 32;
+                todoTitle.setTextSize(32);
+                todoTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "heading2":
+                titleFontSize = 24;
+                todoTitle.setTextSize(24);
+                todoTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "heading3":
+                titleFontSize = 20;
+                todoTitle.setTextSize(20);
+                todoTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "bold":
+                todoTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                break;
+            case "italic":
+                todoTitle.setTypeface(null, android.graphics.Typeface.ITALIC);
+                break;
+            case "boldItalic":
+                todoTitle.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                break;
+            case "normal":
+                titleFontSize = 16;
+                todoTitle.setTextSize(16);
+                todoTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
+                break;
+        }
+
+        // ✅ Save immediately
+        saveTitleFormatting();
+        Toast.makeText(this, "Title style applied", Toast.LENGTH_SHORT).show();
+    }
+
+    // ✅ FIX: Update applyFontColor()
+    private void applyFontColor(String color) {
+        titleFontColor = color;
+        todoTitle.setTextColor(Color.parseColor(color));
+
+        // ✅ Save immediately
+        saveTitleFormatting();
+        Toast.makeText(this, "Title color applied", Toast.LENGTH_SHORT).show();
+    }
+
+    // ✅ FIX: Update saveTitleFormatting() to handle new lists
+    private void saveTitleFormatting() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        // Generate listId if needed
+        if (isNewList || listId == null || listId.isEmpty()) {
+            listId = db.collection("users")
+                    .document(user.getUid())
+                    .collection("todoLists")
+                    .document().getId();
+            isNewList = false;
+            Log.d(TAG, "✅ Generated new listId for formatting: " + listId);
+        }
+
+        Map<String, Object> formatting = new HashMap<>();
+        formatting.put("titleFontStyle", titleFontStyle);
+        formatting.put("titleFontSize", titleFontSize);
+        formatting.put("titleFontColor", titleFontColor);
+        formatting.put("title", todoTitle.getText().toString().trim());
+        formatting.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+        db.collection("users").document(user.getUid())
+                .collection("todoLists").document(listId)
+                .set(formatting, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Title formatting saved");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to save title formatting", e);
+                });
+    }
+
+    // COLOR PICKER / THEMES
+    private void setupColorPicker() {
+        findViewById(R.id.colorDefault).setOnClickListener(v -> changeBackgroundColor("#FAFAFA"));
+        findViewById(R.id.colorRed).setOnClickListener(v -> changeBackgroundColor("#FFCDD2"));
+        findViewById(R.id.colorPink).setOnClickListener(v -> changeBackgroundColor("#F8BBD0"));
+        findViewById(R.id.colorPurple).setOnClickListener(v -> changeBackgroundColor("#E1BEE7"));
+        findViewById(R.id.colorBlue).setOnClickListener(v -> changeBackgroundColor("#BBDEFB"));
+        findViewById(R.id.colorCyan).setOnClickListener(v -> changeBackgroundColor("#B2EBF2"));
+        findViewById(R.id.colorGreen).setOnClickListener(v -> changeBackgroundColor("#C8E6C9"));
+        findViewById(R.id.colorYellow).setOnClickListener(v -> changeBackgroundColor("#FFF9C4"));
+        findViewById(R.id.colorOrange).setOnClickListener(v -> changeBackgroundColor("#FFE0B2"));
+        findViewById(R.id.colorBrown).setOnClickListener(v -> changeBackgroundColor("#D7CCC8"));
+        findViewById(R.id.colorGrey).setOnClickListener(v -> changeBackgroundColor("#CFD8DC"));
+    }
+
+    private void toggleColorPicker() {
+        if (colorPickerPanel.getVisibility() == View.VISIBLE) {
+            colorPickerPanel.setVisibility(View.GONE);
+        } else {
+            colorPickerPanel.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void changeBackgroundColor(String color) {
+        mainLayout.setBackgroundColor(Color.parseColor(color));
+        currentBgColor = color;
+        colorPickerPanel.setVisibility(View.GONE);
+
+        // ✅ Save immediately
+        saveBackgroundColor(color);
+    }
+
+    private void saveBackgroundColor(String color) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        // ✅ Generate listId if new list
+        if (isNewList || listId == null || listId.isEmpty()) {
+            listId = db.collection("users")
+                    .document(user.getUid())
+                    .collection("todoLists")
+                    .document().getId();
+            isNewList = false;
+            Log.d(TAG, "✅ Generated new listId for background: " + listId);
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("backgroundColor", color);
+        updates.put("title", todoTitle.getText().toString().trim());
+        updates.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+        db.collection("users").document(user.getUid())
+                .collection("todoLists").document(listId)
+                .set(updates, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Background color saved: " + color);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to save background color", e);
+                });
+    }
+
+
+    private void loadBackgroundColor() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || listId == null || listId.isEmpty()) {
+            Log.d(TAG, "⚠️ Cannot load background - no user or listId");
+            return;
+        }
+
+        db.collection("users").document(user.getUid())
+                .collection("todoLists").document(listId)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists() && doc.contains("backgroundColor")) {
+                        String color = doc.getString("backgroundColor");
+                        if (color != null && !color.isEmpty()) {
+                            currentBgColor = color;
+                            mainLayout.setBackgroundColor(Color.parseColor(color));
+                            Log.d(TAG, "✅ Background color loaded: " + color);
+                        }
+                    } else {
+                        Log.d(TAG, "📄 Document exists but no backgroundColor field");
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to load background color", e);
+                });
+    }
+    // SUBPAGE (Create new linked todo list)
+    private void createSubTodoList() {
+        if (isNewList) {
+            Toast.makeText(this, "Please save this list first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        String newListId = db.collection("users")
+                .document(user.getUid())
+                .collection("todoLists")
+                .document().getId();
+
+        Map<String, Object> subpageData = new HashMap<>();
+        subpageData.put("title", "Subpage");
+        subpageData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        subpageData.put("parentListId", listId);
+        subpageData.put("taskCount", 0);
+        subpageData.put("completedCount", 0);
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("todoLists")
+                .document(newListId)
+                .set(subpageData)
+                .addOnSuccessListener(aVoid -> {
+                    Map<String, Object> subpageRef = new HashMap<>();
+                    subpageRef.put("subpageId", newListId);
+                    subpageRef.put("title", "Subpage");
+                    subpageRef.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+                    db.collection("users")
+                            .document(user.getUid())
+                            .collection("todoLists")
+                            .document(listId)
+                            .collection("subpages")
+                            .add(subpageRef)
+                            .addOnSuccessListener(docRef -> {
+                                Toast.makeText(this, "Subpage created", Toast.LENGTH_SHORT).show();
+
+                                // ✅ FIX: Reload subpages to show immediately
+                                loadSubpages();
+
+                                Intent intent = new Intent(this, TodoActivity.class);
+                                intent.putExtra("listId", newListId);
+                                startActivity(intent);
+                            });
+                });
+    }
+
+    // 10. ADD NEW METHOD - Load and display subpages:
+    private void loadSubpages() {
+        if (isNewList || listId == null || listId.isEmpty()) {
+            Log.d(TAG, "⚠️ Skipping subpages - new list or no listId");
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        LinearLayout mainContainer = findViewById(R.id.mainLayout);
+
+        // ✅ FIX: Remove old subpage views first
+        List<View> subpageViews = new ArrayList<>();
+        for (int i = 0; i < mainContainer.getChildCount(); i++) {
+            View child = mainContainer.getChildAt(i);
+            if (child.findViewById(R.id.subpageTitle) != null) {
+                subpageViews.add(child);
+            }
+        }
+        for (View view : subpageViews) {
+            mainContainer.removeView(view);
+        }
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("todoLists")
+                .document(listId)
+                .collection("subpages")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    Log.d(TAG, "📄 Found " + queryDocumentSnapshots.size() + " subpages");
+
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        String subpageId = doc.getString("subpageId");
+                        String subpageTitle = doc.getString("title");
+
+                        View subpageView = LayoutInflater.from(this)
+                                .inflate(R.layout.item_subpage, null, false);
+
+                        TextView titleText = subpageView.findViewById(R.id.subpageTitle);
+                        titleText.setText(subpageTitle != null ? subpageTitle : "Subpage");
+
+                        subpageView.setOnClickListener(v -> {
+                            Intent intent = new Intent(this, TodoActivity.class);
+                            intent.putExtra("listId", subpageId);
+                            startActivity(intent);
+                        });
+
+                        int insertIndex = mainContainer.getChildCount() - 2; // Before toolbar
+                        mainContainer.addView(subpageView, insertIndex);
+
+                        Log.d(TAG, "✅ Added subpage view: " + subpageTitle);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to load subpages", e);
                 });
     }
 }

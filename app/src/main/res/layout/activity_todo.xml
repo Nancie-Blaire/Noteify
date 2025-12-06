@@ -11,8 +11,8 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="120dp"
-        android:layout_marginTop="30dp"
-        android:background="#8DAAA6">
+        android:layout_marginTop="20dp"
+        android:background="#8daaa6">
 
         <!-- Back Button -->
         <ImageView
@@ -21,7 +21,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_revert_back_btn"
             android:contentDescription="Back"
-            app:tint="#FFFFFF"
+            app:tint="#000000"
             android:padding="8dp"
             android:layout_alignParentStart="true"
             android:layout_marginStart="8dp"
@@ -36,7 +36,7 @@
             android:text="To-Do List"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:textColor="#FFFFFF"
+            android:textColor="#000000"
             android:layout_toEndOf="@id/backButton"
             android:layout_alignTop="@id/backButton"
             android:layout_alignBottom="@id/backButton"
@@ -58,7 +58,7 @@
             android:inputType="textCapWords"
             android:maxLines="1"
             android:text="Title of Todo List"
-            android:textColor="#FFFFFF"
+            android:textColor="#000000"
             android:textSize="16sp"
             android:textAlignment="viewEnd"
             android:gravity="end"/>
@@ -84,7 +84,6 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Set Due Date"
                 android:padding="8dp"
-                app:tint="#FFFFFF"
                 android:src="@drawable/ic_calendar" />
 
             <ImageView
@@ -95,7 +94,6 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Save"
                 android:padding="8dp"
-                app:tint="#FFFFFF"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_check" />
 

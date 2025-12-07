@@ -47,6 +47,13 @@ import java.util.Locale;
 import androidx.activity.OnBackPressedCallback;
 import android.graphics.Color;
 
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
+import java.util.HashMap;
+import java.util.Map;
+
 //COLOR PICKER
 import android.graphics.Color;
 import org.json.JSONObject;
@@ -101,10 +108,14 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private View colorPickerPanel;
     private RelativeLayout noteLayout;
     private String currentNoteColor = "#FAFAFA";
-    // Add these fields at the top
-    private String scrollToBlockId = null;
-    private int scrollToPosition = -1;
-    private Bookmark[] allBookmarks;
+    private boolean isSelectingForBookmark = false;
+    private int bookmarkStartIndex = -1;
+    private int bookmarkEndIndex = -1;
+    private String selectedBlockIdForBookmark = null;
+    private String selectedTextForBookmark = null;
+
+    private Map<String, List<Bookmark>> blockBookmarksMap = new HashMap<>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,6 +152,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         View emptySpace = findViewById(R.id.emptySpace);
         setupEmptySpaceClick(emptySpace);
 
+
+
         // Initialize keyboard toolbar buttons
         headingsAndFont = findViewById(R.id.headingsandfont);
         addDividerBtn = findViewById(R.id.addDividerOption);
@@ -162,10 +175,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         blocksRecycler.setLayoutManager(new LinearLayoutManager(this));
         blocksRecycler.setAdapter(adapter);
 
-        // ✅ Get scroll intent extras
-        scrollToBlockId = getIntent().getStringExtra("scrollToBlockId");
-        scrollToPosition = getIntent().getIntExtra("scrollToPosition", -1);
-
         // Setup image pickers
         setupImagePickers();
 
@@ -174,7 +183,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         setupColorPicker();
         if (noteId != null) {
             loadNote();
-            loadNoteColor(); // ✅ Load saved color
+            loadNoteColor();
+            loadBookmarksForNote();// ✅ Load saved color
         } else {
             createNewNote();
         }
@@ -213,7 +223,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         headingsAndFont.setOnClickListener(v -> showHeadingOptions());
 
         // Divider
-        addDividerBtn.setOnClickListener(v -> addDividerBlock());
+        addDividerBtn.setOnClickListener(v -> showDividerSelectionSheet());
 
         // Bullet List
         addBulletBtn.setOnClickListener(v -> addBulletBlock());
@@ -245,105 +255,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     @Override
     protected void onResume() {
         super.onResume();
-
         if (noteId != null) {
             loadBlocks();
-
-            // ✅ Scroll to bookmark after blocks are loaded
-            if (scrollToBlockId != null) {
-                blocksRecycler.postDelayed(() -> {
-                    scrollToBookmark(scrollToBlockId, scrollToPosition);
-                    scrollToBlockId = null;
-                    scrollToPosition = -1;
-                }, 300);
-            }
         }
-    }
-
-    // ✅ NEW: Scroll to specific block and highlight bookmark
-    private void scrollToBookmark(String blockId, int charPosition) {
-        // Find block position in list
-        int blockPosition = -1;
-        for (int i = 0; i < blocks.size(); i++) {
-            if (blocks.get(i).getId().equals(blockId)) {
-                blockPosition = i;
-                break;
-            }
-        }
-
-        if (blockPosition == -1) return;
-
-        final int finalPosition = blockPosition;
-
-        // Scroll to block
-        blocksRecycler.smoothScrollToPosition(finalPosition);
-
-        // Highlight and focus after scroll
-        blocksRecycler.postDelayed(() -> {
-            RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(finalPosition);
-            if (holder != null) {
-                View view = holder.itemView;
-                EditText editText = view.findViewById(R.id.contentEdit);
-
-                if (editText != null) {
-                    // Focus the EditText
-                    editText.requestFocus();
-
-                    // Set cursor position
-                    if (charPosition >= 0 && charPosition <= editText.getText().length()) {
-                        editText.setSelection(charPosition);
-                    }
-
-                    // Flash highlight animation
-                    flashBookmarkHighlight(editText, blockId);
-                }
-            }
-        }, 500);
-    }
-
-    // ✅ NEW: Flash animation to show user where the bookmark is
-    private void flashBookmarkHighlight(EditText editText, String blockId) {
-        String content = editText.getText().toString();
-        android.text.SpannableString spannable = new android.text.SpannableString(content);
-
-        // Find bookmarks in this block
-        List<Bookmark> blockBookmarks = new ArrayList<>();
-        for (Bookmark b : allBookmarks) {
-            if (blockId.equals(b.getBlockId())) {
-                blockBookmarks.add(b);
-            }
-        }
-
-        // Apply flash highlight
-        for (Bookmark bookmark : blockBookmarks) {
-            int start = bookmark.getStartIndex();
-            int end = bookmark.getEndIndex();
-
-            if (start >= 0 && end <= content.length() && start < end) {
-                // Yellow flash background
-                spannable.setSpan(
-                        new android.text.style.BackgroundColorSpan(Color.parseColor("#FFFF00")),
-                        start, end,
-                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-            }
-        }
-
-        editText.setText(spannable);
-
-        // Remove flash after 1 second and restore original highlight
-        editText.postDelayed(() -> {
-            adapter.notifyItemChanged(blocks.indexOf(findBlockById(blockId)));
-        }, 1000);
-    }
-
-    private NoteBlock findBlockById(String blockId) {
-        for (NoteBlock block : blocks) {
-            if (block.getId().equals(blockId)) {
-                return block;
-            }
-        }
-        return null;
     }
 
     private void loadBlocks() {
@@ -575,11 +489,24 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private void addTextBlock() {
         NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
         block.setPosition(blocks.size());
+
+        // ✅ Set default style - no special formatting
+        block.setFontStyle(null);
+        block.setFontColor("#333333");
+
         blocks.add(block);
         adapter.notifyItemInserted(blocks.size() - 1);
         saveBlock(block);
 
-        focusBlock(blocks.size() - 1, 0);
+        blocksRecycler.post(() -> {
+            blocksRecycler.postDelayed(() -> {
+                int position = blocks.size() - 1;
+                if (position >= 0 && position < blocks.size()) {
+                    adapter.notifyItemChanged(position);
+                    focusBlock(position, 0);
+                }
+            }, 100);
+        });
     }
 
     // ✅ UPDATED: addHeadingBlock - Replace empty text
@@ -642,13 +569,89 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         }
     }
 
-    private void addDividerBlock() {
+    private void showDividerSelectionSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.divider_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Get all style options
+        LinearLayout dividerSolid = sheetView.findViewById(R.id.dividerSolid);
+        LinearLayout dividerDashed = sheetView.findViewById(R.id.dividerDashed);
+        LinearLayout dividerDotted = sheetView.findViewById(R.id.dividerDotted);
+        LinearLayout dividerDouble = sheetView.findViewById(R.id.dividerDouble);
+        LinearLayout dividerArrows = sheetView.findViewById(R.id.dividerArrows);
+        LinearLayout dividerStars = sheetView.findViewById(R.id.dividerStars);
+        LinearLayout dividerWave = sheetView.findViewById(R.id.dividerWave);
+        LinearLayout dividerDiamond = sheetView.findViewById(R.id.dividerDiamond);
+
+        // Set click listeners for each style
+        if (dividerSolid != null) {
+            dividerSolid.setOnClickListener(v -> {
+                addDividerBlockWithStyle("solid");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDashed != null) {
+            dividerDashed.setOnClickListener(v -> {
+                addDividerBlockWithStyle("dashed");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDotted != null) {
+            dividerDotted.setOnClickListener(v -> {
+                addDividerBlockWithStyle("dotted");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDouble != null) {
+            dividerDouble.setOnClickListener(v -> {
+                addDividerBlockWithStyle("double");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerArrows != null) {
+            dividerArrows.setOnClickListener(v -> {
+                addDividerBlockWithStyle("arrows");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerStars != null) {
+            dividerStars.setOnClickListener(v -> {
+                addDividerBlockWithStyle("stars");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerWave != null) {
+            dividerWave.setOnClickListener(v -> {
+                addDividerBlockWithStyle("wave");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (dividerDiamond != null) {
+            dividerDiamond.setOnClickListener(v -> {
+                addDividerBlockWithStyle("diamond");
+                bottomSheet.dismiss();
+            });
+        }
+
+        bottomSheet.show();
+    }
+
+    // Update yung existing addDividerBlock() method to accept style parameter:
+    private void addDividerBlockWithStyle(String style) {
         boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.DIVIDER);
 
         if (!replacedEmptyBlock) {
             NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.DIVIDER);
             block.setPosition(blocks.size());
-            block.setDividerStyle("solid");
+            block.setDividerStyle(style); // ✅ Use selected style
             blocks.add(block);
             adapter.notifyItemInserted(blocks.size() - 1);
             saveBlock(block);
@@ -656,6 +659,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             blocksRecycler.post(() -> {
                 blocksRecycler.smoothScrollToPosition(blocks.size() - 1);
             });
+        } else {
+            // If replaced empty block, update its style
+            NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+            lastBlock.setDividerStyle(style);
+            adapter.notifyItemChanged(blocks.size() - 1);
+            saveBlock(lastBlock);
         }
     }
 
@@ -770,7 +779,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 return 0;
         }
     }
+
+
     //COLOR PICKER
+
+
     private void setupColorPicker() {
         findViewById(R.id.colorDefault).setOnClickListener(v -> changeNoteColor("#FAFAFA"));
         findViewById(R.id.colorRed).setOnClickListener(v -> changeNoteColor("#FFCDD2"));
@@ -895,13 +908,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         bottomSheet.show();
     }
-
     private void openGallery() {
         Intent intent = new Intent(Intent.ACTION_PICK);
         intent.setType("image/*");
         galleryLauncher.launch(intent);
     }
-
     private void checkCameraPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -914,7 +925,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             openCamera();
         }
     }
-
     private void openCamera() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -935,7 +945,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             }
         }
     }
-
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
                 .format(new Date());
@@ -1467,42 +1476,53 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (position < 0 || position >= blocks.size()) return;
 
         NoteBlock currentBlock = blocks.get(position);
+        NoteBlock.BlockType currentType = currentBlock.getType();
 
-        // ✅ Update current block with text before cursor
-        currentBlock.setContent(textBeforeCursor);
-        saveBlock(currentBlock);
+        // ✅ CHECK: Is the text BEFORE cursor empty?
+        boolean isTextBeforeEmpty = textBeforeCursor.trim().isEmpty();
 
-        NoteBlock newBlock;
-        int insertPosition = position + 1;
-
-        switch (currentBlock.getType()) {
+        switch (currentType) {
             case BULLET:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
-                newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                focusBlock(insertPosition, 0);
-                break;
-
             case NUMBERED:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
-                newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                renumberLists();
-                focusBlock(insertPosition, 0);
-                break;
-
             case CHECKBOX:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
-                newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setChecked(false);
-                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                focusBlock(insertPosition, 0);
+                if (isTextBeforeEmpty) {
+                    // ✅ EMPTY + ENTER = Convert to TEXT (no new block)
+                    currentBlock.setContent("");
+                    saveBlock(currentBlock);
+                    convertBlockToText(position);
+                    focusBlock(position, 0);
+                } else {
+                    // ✅ HAS CONTENT = Create new same-type block
+                    currentBlock.setContent(textBeforeCursor);
+                    saveBlock(currentBlock);
+
+                    NoteBlock newBlock;
+                    int insertPosition = position + 1;
+
+                    if (currentType == NoteBlock.BlockType.NUMBERED) {
+                        newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.NUMBERED);
+                        newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                        newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                        newBlock.setPosition(insertPosition);
+                        insertBlockAt(newBlock, insertPosition);
+                        renumberLists();
+                    } else if (currentType == NoteBlock.BlockType.CHECKBOX) {
+                        newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.CHECKBOX);
+                        newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                        newBlock.setChecked(false);
+                        newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                        newBlock.setPosition(insertPosition);
+                        insertBlockAt(newBlock, insertPosition);
+                    } else { // BULLET
+                        newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.BULLET);
+                        newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                        newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                        newBlock.setPosition(insertPosition);
+                        insertBlockAt(newBlock, insertPosition);
+                    }
+
+                    focusBlock(insertPosition, 0);
+                }
                 break;
 
             case TEXT:
@@ -1510,81 +1530,100 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             case HEADING_2:
             case HEADING_3:
             default:
-                newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+                // TEXT/HEADING: Always create new text block
+                currentBlock.setContent(textBeforeCursor);
+                saveBlock(currentBlock);
+
+                NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
                 newBlock.setIndentLevel(currentBlock.getIndentLevel());
                 newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(insertPosition);
-                insertBlockAt(newBlock, insertPosition);
-                focusBlock(insertPosition, 0);
+                newBlock.setPosition(position + 1);
+                insertBlockAt(newBlock, position + 1);
+                focusBlock(position + 1, 0);
                 break;
         }
     }
+
     // ===============================================
 // HELPER: Focus a specific block
 // ===============================================
     private void focusBlock(int position, int cursorPosition) {
         blocksRecycler.post(() -> {
-            blocksRecycler.postDelayed(() -> {
-                RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(position);
-                if (holder != null) {
-                    View view = holder.itemView;
-                    EditText editText = view.findViewById(R.id.contentEdit);
-                    if (editText != null) {
-                        editText.requestFocus();
+            RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(position);
+            if (holder != null && holder.itemView != null) {
+                EditText editText = holder.itemView.findViewById(R.id.contentEdit);
+                if (editText != null) {
+                    // ✅ CRITICAL: Ensure EditText is enabled and focusable
+                    editText.setEnabled(true);
+                    editText.setFocusable(true);
+                    editText.setFocusableInTouchMode(true);
+                    editText.setCursorVisible(true);
 
-                        // Set cursor position
-                        if (cursorPosition >= 0 && cursorPosition <= editText.getText().length()) {
-                            editText.setSelection(cursorPosition);
-                        } else {
-                            editText.setSelection(editText.getText().length());
-                        }
+                    editText.requestFocus();
 
-                        // Show keyboard
-                        android.view.inputmethod.InputMethodManager imm =
-                                (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-                        if (imm != null) {
-                            imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-                        }
+                    // Set cursor position
+                    if (cursorPosition >= 0 && cursorPosition <= editText.getText().length()) {
+                        editText.setSelection(cursorPosition);
+                    } else {
+                        editText.setSelection(editText.getText().length());
+                    }
+
+                    // Show keyboard
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
                     }
                 }
-            }, 100);
+            }
         });
     }
-
     @Override
     public void onBackspaceOnEmptyBlock(int position) {
         if (position < 0 || position >= blocks.size()) return;
 
         NoteBlock block = blocks.get(position);
+        NoteBlock.BlockType type = block.getType();
 
-        // Don't delete the first block - convert it instead
-        if (position == 0) {
-            if (block.getType() != NoteBlock.BlockType.TEXT) {
+        // ✅ For bullet/numbered/checkbox at cursor position 0:
+        // If has indent -> reduce indent
+        // If no indent -> convert to text
+        if (type == NoteBlock.BlockType.BULLET ||
+                type == NoteBlock.BlockType.NUMBERED ||
+                type == NoteBlock.BlockType.CHECKBOX) {
+
+            int currentIndent = block.getIndentLevel();
+
+            if (currentIndent > 0) {
+                // ✅ Reduce indent level
+                block.setIndentLevel(currentIndent - 1);
+                adapter.notifyItemChanged(position);
+                saveBlock(block);
+
+                if (type == NoteBlock.BlockType.NUMBERED) {
+                    renumberLists();
+                }
+
+                // Haptic feedback
+                View view = getCurrentFocus();
+                if (view != null) {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                }
+
+                focusBlock(position, 0);
+            } else {
+                // ✅ No indent - convert to text (stay on same line)
                 convertBlockToText(position);
+                focusBlock(position, 0);
             }
-            return;
-        }
-
-        // For list blocks - DELETE them when empty + backspace
-        switch (block.getType()) {
-            case BULLET:
-            case NUMBERED:
-            case CHECKBOX:
-                // Delete empty list item
+        } else if (type == NoteBlock.BlockType.TEXT) {
+            // For text blocks at position 0, just ignore or merge with previous
+            if (position > 0) {
                 deleteBlockAndFocusPrevious(position);
-                break;
-
-            case TEXT:
-                // Delete empty text block
-                deleteBlockAndFocusPrevious(position);
-                break;
-
-            default:
-                // For other types, convert to TEXT
-                convertBlockToText(position);
-                break;
+            }
         }
     }
+
     private void deleteBlockAndFocusPrevious(int position) {
         if (position <= 0 || position >= blocks.size()) return;
 
@@ -1668,17 +1707,16 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Remove old block from list
         blocks.remove(position);
-        adapter.notifyItemRemoved(position);
 
         // Create NEW text block with same content
         NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
-        newBlock.setContent(oldContent);
+        newBlock.setContent(oldContent != null ? oldContent : "");
         newBlock.setIndentLevel(oldIndent);
         newBlock.setPosition(position);
 
         // Insert new text block
         blocks.add(position, newBlock);
-        adapter.notifyItemInserted(position);
+        adapter.notifyItemChanged(position);
         saveBlock(newBlock);
 
         // Update positions
@@ -1688,9 +1726,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (oldType == NoteBlock.BlockType.NUMBERED) {
             renumberLists();
         }
-
-        // Focus the new text block
-        focusBlock(position, oldContent.length());
 
         Toast.makeText(this, "Converted to text", Toast.LENGTH_SHORT).show();
     }
@@ -1865,6 +1900,18 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         LinearLayout boldItalicOption = sheetView.findViewById(R.id.boldItalicOption);
         LinearLayout normalOption = sheetView.findViewById(R.id.normalOption);
 
+        // ✅ Font color options
+        LinearLayout fontColorDefault = sheetView.findViewById(R.id.fontColorDefault);
+        LinearLayout fontColorRed = sheetView.findViewById(R.id.fontColorRed);
+        LinearLayout fontColorOrange = sheetView.findViewById(R.id.fontColorOrange);
+        LinearLayout fontColorYellow = sheetView.findViewById(R.id.fontColorYellow);
+        LinearLayout fontColorGreen = sheetView.findViewById(R.id.fontColorGreen);
+        LinearLayout fontColorBlue = sheetView.findViewById(R.id.fontColorBlue);
+        LinearLayout fontColorPurple = sheetView.findViewById(R.id.fontColorPurple);
+        LinearLayout fontColorPink = sheetView.findViewById(R.id.fontColorPink);
+        LinearLayout fontColorBrown = sheetView.findViewById(R.id.fontColorBrown);
+        LinearLayout fontColorGray = sheetView.findViewById(R.id.fontColorGray);
+
         // ✅ HEADING OPTIONS
         if (heading1Option != null) {
             heading1Option.setOnClickListener(v -> {
@@ -1916,10 +1963,131 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             });
         }
 
+        // ✅ FONT COLOR OPTIONS
+        if (fontColorDefault != null) {
+            fontColorDefault.setOnClickListener(v -> {
+                applyFontColor("#333333");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorRed != null) {
+            fontColorRed.setOnClickListener(v -> {
+                applyFontColor("#E53935");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorOrange != null) {
+            fontColorOrange.setOnClickListener(v -> {
+                applyFontColor("#FB8C00");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorYellow != null) {
+            fontColorYellow.setOnClickListener(v -> {
+                applyFontColor("#FDD835");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGreen != null) {
+            fontColorGreen.setOnClickListener(v -> {
+                applyFontColor("#43A047");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBlue != null) {
+            fontColorBlue.setOnClickListener(v -> {
+                applyFontColor("#1E88E5");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPurple != null) {
+            fontColorPurple.setOnClickListener(v -> {
+                applyFontColor("#8E24AA");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorPink != null) {
+            fontColorPink.setOnClickListener(v -> {
+                applyFontColor("#D81B60");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorBrown != null) {
+            fontColorBrown.setOnClickListener(v -> {
+                applyFontColor("#6D4C41");
+                bottomSheet.dismiss();
+            });
+        }
+
+        if (fontColorGray != null) {
+            fontColorGray.setOnClickListener(v -> {
+                applyFontColor("#757575");
+                bottomSheet.dismiss();
+            });
+        }
+
         bottomSheet.show();
     }
 
+    // ✅ NEW METHOD: Apply font color to current block
+    private void applyFontColor(String color) {
+        View focusedView = getCurrentFocus();
+        if (focusedView == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
+        RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
+        if (holder == null) {
+            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int position = holder.getAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= blocks.size()) {
+            return;
+        }
+
+        NoteBlock block = blocks.get(position);
+
+        // Set the font color
+        block.setFontColor(color);
+
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
+
+        // Show color name
+        String colorName = getColorName(color);
+        Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
+
+        // Refocus the block
+        focusBlock(position, block.getContent().length());
+    }
+
+    // ✅ NEW METHOD: Get human-readable color name
+    private String getColorName(String hexColor) {
+        switch (hexColor) {
+            case "#333333": return "Default";
+            case "#E53935": return "Red";
+            case "#FB8C00": return "Orange";
+            case "#FDD835": return "Yellow";
+            case "#43A047": return "Green";
+            case "#1E88E5": return "Blue";
+            case "#8E24AA": return "Purple";
+            case "#D81B60": return "Pink";
+            case "#6D4C41": return "Brown";
+            case "#757575": return "Gray";
+            default: return "Custom";
+        }
+    }
     private void applyFontStyle(String style) {
         View focusedView = getCurrentFocus();
         if (focusedView == null) {
@@ -1940,32 +2108,29 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock block = blocks.get(position);
 
-        // Store the style in styleData as JSON
-        try {
-            org.json.JSONObject styleJson = new org.json.JSONObject();
-            styleJson.put("fontStyle", style);
-            block.setStyleData(styleJson.toString());
+        // ✅ SIMPLE: Just set the style directly
+        block.setFontStyle(style);
 
-            adapter.notifyItemChanged(position);
-            saveBlock(block);
+        adapter.notifyItemChanged(position);
+        saveBlock(block);
 
-            Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
-        } catch (org.json.JSONException e) {
-            Toast.makeText(this, "Error applying style", Toast.LENGTH_SHORT).show();
-        }
+        Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+
+        // Refocus the block
+        focusBlock(position, block.getContent().length());
     }
 
-    // ✅ NEW METHOD: Convert current block to normal TEXT
+    // ✅ UPDATE convertToNormalText to use fontStyle field:
     private void convertToNormalText() {
         View focusedView = getCurrentFocus();
         if (focusedView == null) {
-            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            CustomToast.show(this, "No block selected", R.drawable.logo_noteify);
             return;
         }
 
         RecyclerView.ViewHolder holder = blocksRecycler.findContainingViewHolder(focusedView);
         if (holder == null) {
-            Toast.makeText(this, "No block selected", Toast.LENGTH_SHORT).show();
+            CustomToast.show(this, "No block selected", R.drawable.logo_noteify);
             return;
         }
 
@@ -1976,25 +2141,24 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         NoteBlock block = blocks.get(position);
 
-        // Check if it's a heading - need to convert to TEXT type
+        // Convert heading to text if needed
         if (block.getType() == NoteBlock.BlockType.HEADING_1 ||
                 block.getType() == NoteBlock.BlockType.HEADING_2 ||
                 block.getType() == NoteBlock.BlockType.HEADING_3) {
-
-            // Convert heading to normal text
             block.setType(NoteBlock.BlockType.TEXT);
         }
 
-        // Clear any font styling
-        block.setStyleData(null);
+        // Clear font style and reset color
+        block.setFontStyle(null);
+        block.setFontColor("#333333");
 
         adapter.notifyItemChanged(position);
         saveBlock(block);
 
-        // Refocus the block
-        focusBlock(position, block.getContent().length());
+        CustomToast.show(this, "Converted to normal text", R.drawable.logo_noteify);
 
-        Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
+        // ✅ USE focusBlock with content length
+        focusBlock(position, block.getContent() != null ? block.getContent().length() : 0);
     }
 
     // ====================================================
@@ -2148,11 +2312,90 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("bookmarks").document(bookmarkId)
                 .set(bookmarkData)
                 .addOnSuccessListener(aVoid -> {
+                    // ✅ IMMEDIATELY update local map
+                    if (!blockBookmarksMap.containsKey(blockId)) {
+                        blockBookmarksMap.put(blockId, new ArrayList<>());
+                    }
+                    blockBookmarksMap.get(blockId).add(bookmark);
+
+                    // ✅ Update adapter with new bookmarks
+                    adapter.updateBookmarks(blockBookmarksMap);
+
+                    // ✅ Find and refresh only the affected block
+                    for (int i = 0; i < blocks.size(); i++) {
+                        if (blocks.get(i).getId().equals(blockId)) {
+                            adapter.notifyItemChanged(i);
+                            break;
+                        }
+                    }
+
                     Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
-                    adapter.notifyDataSetChanged(); // Refresh to show highlights
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Error saving bookmark", Toast.LENGTH_SHORT).show();
                 });
     }
+
+    private void loadBookmarksForNote() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || noteId == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        return;
+                    }
+
+                    if (value != null) {
+                        // Clear existing bookmarks
+                        blockBookmarksMap.clear();
+
+                        // Group bookmarks by blockId
+                        for (QueryDocumentSnapshot doc : value) {
+                            Bookmark bookmark = doc.toObject(Bookmark.class);
+                            bookmark.setId(doc.getId());
+
+                            String blockId = bookmark.getBlockId();
+                            if (blockId != null) {
+                                if (!blockBookmarksMap.containsKey(blockId)) {
+                                    blockBookmarksMap.put(blockId, new ArrayList<>());
+                                }
+                                blockBookmarksMap.get(blockId).add(bookmark);
+                            }
+                        }
+
+                        // Refresh adapter to show bookmarks
+                        adapter.updateBookmarks(blockBookmarksMap);
+                        adapter.notifyDataSetChanged();
+                    }
+                });
+    }
+
+    private void forceEnableTextSelection() {
+        blocksRecycler.post(() -> {
+            // Loop through all visible ViewHolders
+            for (int i = 0; i < blocksRecycler.getChildCount(); i++) {
+                View child = blocksRecycler.getChildAt(i);
+                RecyclerView.ViewHolder holder = blocksRecycler.getChildViewHolder(child);
+
+                // Find the EditText in the ViewHolder
+                EditText editText = child.findViewById(R.id.contentEdit);
+                if (editText != null) {
+                    // Force enable selection
+                    editText.setEnabled(true);
+                    editText.setFocusable(true);
+                    editText.setFocusableInTouchMode(true);
+                    editText.setLongClickable(true);
+                    editText.setClickable(true);
+                    editText.setCursorVisible(true);
+
+                    // ✅ CRITICAL: Request layout to refresh state
+                    editText.requestLayout();
+                }
+            }
+        });
+    }
+
 }

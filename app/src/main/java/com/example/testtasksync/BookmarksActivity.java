@@ -98,14 +98,13 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
     }
     @Override
     public void onBookmarkClick(Bookmark bookmark) {
-        // Return to NoteActivity and scroll to the bookmarked block
-        Intent intent = new Intent(this, NoteActivity.class);
+        // Create intent to go back to NoteActivity with scroll position
+        Intent intent = new Intent(BookmarksActivity.this, NoteActivity.class);
         intent.putExtra("noteId", noteId);
-        intent.putExtra("scrollToBlockId", bookmark.getBlockId());
         intent.putExtra("scrollToPosition", bookmark.getStartIndex());
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
-        finish();
+        finish(); // Close BookmarksActivity
     }
 
     @Override

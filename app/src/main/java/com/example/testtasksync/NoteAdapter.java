@@ -11,10 +11,17 @@ import android.view.ViewGroup;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.Toast;
 import android.widget.EditText;
-
+import android.view.MenuItem;
 import androidx.core.content.ContextCompat;
+
+import android.view.ContextThemeWrapper;
+import android.view.Gravity;
+import android.graphics.PorterDuff;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
@@ -570,74 +577,12 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             String itemId = note.getId();
 
             if (itemType.equals("todo")) {
-                moveTodoToBin(userId, itemId, db, view, noteList, adapter);
+                deleteTodo(userId, itemId, db, view, noteList, adapter);
             } else if (itemType.equals("weekly")) {
-                moveWeeklyToBin(userId, itemId, db, view, noteList, adapter);
+                deleteWeekly(userId, itemId, db, view, noteList, adapter);
             } else {
-                moveNoteToBin(userId, itemId, db, view, noteList, adapter);
+                deleteNote(userId, itemId, db, view, noteList, adapter);
             }
-        }
-        private void moveTodoToBin(String userId, String todoId, FirebaseFirestore db, View view,
-                                   List<Note> noteList, NoteAdapter adapter) {
-            // Mark as deleted by setting deletedAt timestamp
-            db.collection("users")
-                    .document(userId)
-                    .collection("schedules")
-                    .document(todoId)
-                    .update("deletedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
-                    .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ To-Do moved to bin",
-                                Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Todo moved to bin");
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to move to bin",
-                                Toast.LENGTH_SHORT).show();
-                        Log.e("NoteAdapter", "Failed to move todo to bin", e);
-                    });
-        }
-
-        private void moveWeeklyToBin(String userId, String weeklyId, FirebaseFirestore db, View view,
-                                     List<Note> noteList, NoteAdapter adapter) {
-            // Mark as deleted by setting deletedAt timestamp
-            db.collection("users")
-                    .document(userId)
-                    .collection("schedules")
-                    .document(weeklyId)
-                    .update("deletedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
-                    .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ Weekly plan moved to bin",
-                                Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Weekly moved to bin");
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to move to bin",
-                                Toast.LENGTH_SHORT).show();
-                        Log.e("NoteAdapter", "Failed to move weekly to bin", e);
-                    });
-        }
-
-        private void moveNoteToBin(String userId, String noteId, FirebaseFirestore db, View view,
-                                   List<Note> noteList, NoteAdapter adapter) {
-            // Mark as deleted by setting deletedAt timestamp
-            db.collection("users")
-                    .document(userId)
-                    .collection("notes")
-                    .document(noteId)
-                    .update("deletedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
-                    .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ Note moved to bin",
-                                Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Note moved to bin");
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to move to bin",
-                                Toast.LENGTH_SHORT).show();
-                        Log.e("NoteAdapter", "Failed to move note to bin", e);
-                    });
         }
 
         private void deleteTodo(String userId, String todoId, FirebaseFirestore db, View view,

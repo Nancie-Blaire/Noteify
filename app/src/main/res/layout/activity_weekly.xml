@@ -11,9 +11,8 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="120dp"
-        android:layout_marginTop="30dp"
-        android:background="#8DAAA6"
-        android:layout_marginBottom="10dp">
+        android:layout_marginTop="20dp"
+        android:background="#8daaa6">
 
         <!-- Back Button -->
         <ImageView
@@ -22,7 +21,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_revert_back_btn"
             android:contentDescription="Back"
-            app:tint="#FFFFFF"
+            app:tint="#000000"
             android:padding="8dp"
             android:layout_alignParentStart="true"
             android:layout_marginStart="8dp"
@@ -37,7 +36,7 @@
             android:text="Weekly Planner"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:textColor="#FFFFFF"
+            android:textColor="#000000"
             android:layout_toEndOf="@id/backButton"
             android:layout_alignTop="@id/backButton"
             android:layout_alignBottom="@id/backButton"
@@ -59,7 +58,7 @@
             android:inputType="textCapWords"
             android:maxLines="1"
             android:text="Title of Weekly Planner"
-            android:textColor="#FFFFFF"
+            android:textColor="#000000"
             android:textSize="16sp"
             android:textAlignment="viewEnd"
             android:gravity="end"/>
@@ -85,7 +84,6 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Set Due Date"
                 android:padding="8dp"
-                app:tint="#FFFFFF"
                 android:src="@drawable/ic_calendar" />
 
             <ImageView
@@ -96,7 +94,6 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Save"
                 android:padding="8dp"
-                app:tint="#FFFFFF"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_check" />
 
@@ -112,413 +109,378 @@
         android:layout_weight="1"
         android:fillViewport="true">
 
-            <!-- Days Container -->
+        <!-- Days Container -->
+        <LinearLayout
+            android:id="@+id/daysContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Monday -->
             <LinearLayout
-                android:id="@+id/daysContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
 
-                <!-- Monday -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
+                    <TextView
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:layout_marginTop="10dp"
-                            android:layout_marginBottom="10dp"
-                            android:text="MONDAY"
-                            android:letterSpacing=".2"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
-                        <ImageView
-                            android:id="@+id/mondayScheduleButton"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_calendar"
-                            android:contentDescription="Set schedule"
-                            android:padding="4dp"
-                            android:layout_marginEnd="4dp"
-                            app:tint="#000000"
-                            android:background="?attr/selectableItemBackgroundBorderless" />
-                                                <ImageView
-                            android:id="@+id/addMonTask"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_fab_add"
-                            android:contentDescription="Add task"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp" />
-                    </LinearLayout>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/monTasksContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:orientation="vertical"
-                        android:layout_marginStart="10dp"
-                        android:layout_marginEnd="10dp"
-                        android:layout_marginTop="8dp" />
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="MONDAY"
+                        android:letterSpacing=".2"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                    <ImageView
+                        android:id="@+id/mondayScheduleButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_calendar"
+                        android:contentDescription="Set schedule"
+                        android:padding="4dp"
+                        android:layout_marginEnd="4dp"
+                        app:tint="#000000"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                    <ImageView
+                        android:id="@+id/addMonTask"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:contentDescription="Add task"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp" />
                 </LinearLayout>
 
-                <!-- Tuesday -->
-                <LinearLayout
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/monTasksContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
                     android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:layout_marginTop="10dp"
-                            android:layout_marginBottom="10dp"
-                            android:text="TUESDAY"
-                            android:letterSpacing=".2"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
-                        <ImageView
-                            android:id="@+id/tuesdayScheduleButton"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_calendar"
-                            android:contentDescription="Set schedule"
-                            android:padding="4dp"
-                            android:layout_marginEnd="4dp"
-                            app:tint="#000000"
-                            android:background="?attr/selectableItemBackgroundBorderless" />
-                        <ImageView
-                            android:id="@+id/addTuesTask"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_fab_add"
-                            android:contentDescription="Add task"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp" />
-                    </LinearLayout>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/tuesTasksContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:orientation="vertical"
-                        android:layout_marginStart="10dp"
-                        android:layout_marginEnd="10dp"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- Wednesday -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:layout_marginTop="10dp"
-                            android:layout_marginBottom="10dp"
-                            android:text="WEDNESDAY"
-                            android:letterSpacing=".2"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
-                        <ImageView
-                            android:id="@+id/wednesdayScheduleButton"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_calendar"
-                            android:contentDescription="Set schedule"
-                            android:padding="4dp"
-                            android:layout_marginEnd="4dp"
-                            app:tint="#000000"
-                            android:background="?attr/selectableItemBackgroundBorderless" />
-                        <ImageView
-                            android:id="@+id/addWedTask"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_fab_add"
-                            android:contentDescription="Add task"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp" />
-                    </LinearLayout>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/wedTasksContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:orientation="vertical"
-                        android:layout_marginStart="10dp"
-                        android:layout_marginEnd="10dp"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- Thursday -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:layout_marginTop="10dp"
-                            android:layout_marginBottom="10dp"
-                            android:text="THURSDAY"
-                            android:letterSpacing=".2"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
-                        <ImageView
-                            android:id="@+id/thursdayScheduleButton"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_calendar"
-                            android:contentDescription="Set schedule"
-                            android:padding="4dp"
-                            android:layout_marginEnd="4dp"
-                            app:tint="#000000"
-                            android:background="?attr/selectableItemBackgroundBorderless" />
-                        <ImageView
-                            android:id="@+id/addThurTask"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_fab_add"
-                            android:contentDescription="Add task"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp" />
-                    </LinearLayout>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/thurTasksContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:orientation="vertical"
-                        android:layout_marginStart="10dp"
-                        android:layout_marginEnd="10dp"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- Friday -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:layout_marginTop="10dp"
-                            android:layout_marginBottom="10dp"
-                            android:text="FRIDAY"
-                            android:letterSpacing=".2"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
-                        <ImageView
-                            android:id="@+id/fridayScheduleButton"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_calendar"
-                            android:contentDescription="Set schedule"
-                            android:padding="4dp"
-                            android:layout_marginEnd="4dp"
-                            app:tint="#000000"
-                            android:background="?attr/selectableItemBackgroundBorderless" />
-                        <ImageView
-                            android:id="@+id/addFriTask"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_fab_add"
-                            android:contentDescription="Add task"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp" />
-                    </LinearLayout>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/friTasksContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:orientation="vertical"
-                        android:layout_marginStart="10dp"
-                        android:layout_marginEnd="10dp"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- Saturday -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:layout_marginTop="10dp"
-                            android:layout_marginBottom="10dp"
-                            android:text="SATURDAY"
-                            android:letterSpacing=".2"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
-                        <ImageView
-                            android:id="@+id/saturdayScheduleButton"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_calendar"
-                            android:contentDescription="Set schedule"
-                            android:padding="4dp"
-                            android:layout_marginEnd="4dp"
-                            app:tint="#000000"
-                            android:background="?attr/selectableItemBackgroundBorderless" />
-                        <ImageView
-                            android:id="@+id/addSatTask"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_fab_add"
-                            android:contentDescription="Add task"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp" />
-                    </LinearLayout>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/satTasksContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:orientation="vertical"
-                        android:layout_marginStart="10dp"
-                        android:layout_marginEnd="10dp"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- Sunday -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:layout_marginTop="10dp"
-                            android:layout_marginBottom="10dp"
-                            android:text="SUNDAY"
-                            android:letterSpacing=".2"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
-                        <ImageView
-                            android:id="@+id/sundayScheduleButton"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_calendar"
-                            android:contentDescription="Set schedule"
-                            android:padding="4dp"
-                            android:layout_marginEnd="4dp"
-                            app:tint="#000000"
-                            android:background="?attr/selectableItemBackgroundBorderless" />
-                        <ImageView
-                            android:id="@+id/addSunTask"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:src="@drawable/ic_fab_add"
-                            android:contentDescription="Add task"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp" />
-                    </LinearLayout>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/sunTasksContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:orientation="vertical"
-                        android:layout_marginStart="10dp"
-                        android:layout_marginEnd="10dp"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
+                    android:layout_marginTop="8dp" />
             </LinearLayout>
+
+            <!-- Tuesday -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="TUESDAY"
+                        android:letterSpacing=".2"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                    <ImageView
+                        android:id="@+id/tuesdayScheduleButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_calendar"
+                        android:contentDescription="Set schedule"
+                        android:padding="4dp"
+                        android:layout_marginEnd="4dp"
+                        app:tint="#000000"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                    <ImageView
+                        android:id="@+id/addTuesTask"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:contentDescription="Add task"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/tuesTasksContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- Wednesday -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="WEDNESDAY"
+                        android:letterSpacing=".2"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                    <ImageView
+                        android:id="@+id/wednesdayScheduleButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_calendar"
+                        android:contentDescription="Set schedule"
+                        android:padding="4dp"
+                        android:layout_marginEnd="4dp"
+                        app:tint="#000000"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                    <ImageView
+                        android:id="@+id/addWedTask"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:contentDescription="Add task"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/wedTasksContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- Thursday -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="THURSDAY"
+                        android:letterSpacing=".2"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                    <ImageView
+                        android:id="@+id/thursdayScheduleButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_calendar"
+                        android:contentDescription="Set schedule"
+                        android:padding="4dp"
+                        android:layout_marginEnd="4dp"
+                        app:tint="#000000"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                    <ImageView
+                        android:id="@+id/addThurTask"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:contentDescription="Add task"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/thurTasksContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- Friday -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="FRIDAY"
+                        android:letterSpacing=".2"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                    <ImageView
+                        android:id="@+id/fridayScheduleButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_calendar"
+                        android:contentDescription="Set schedule"
+                        android:padding="4dp"
+                        android:layout_marginEnd="4dp"
+                        app:tint="#000000"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                    <ImageView
+                        android:id="@+id/addFriTask"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:contentDescription="Add task"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/friTasksContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- Saturday -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="SATURDAY"
+                        android:letterSpacing=".2"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                    <ImageView
+                        android:id="@+id/saturdayScheduleButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_calendar"
+                        android:contentDescription="Set schedule"
+                        android:padding="4dp"
+                        android:layout_marginEnd="4dp"
+                        app:tint="#000000"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                    <ImageView
+                        android:id="@+id/addSatTask"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:contentDescription="Add task"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/satTasksContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- Sunday -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="SUNDAY"
+                        android:letterSpacing=".2"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" /><!-- Calendar Icon Button (NEW) -->
+                    <ImageView
+                        android:id="@+id/sundayScheduleButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_calendar"
+                        android:contentDescription="Set schedule"
+                        android:padding="4dp"
+                        android:layout_marginEnd="4dp"
+                        app:tint="#000000"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                    <ImageView
+                        android:id="@+id/addSunTask"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_fab_add"
+                        android:contentDescription="Add task"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/sunTasksContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+        </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>
 

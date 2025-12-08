@@ -10,8 +10,8 @@ public class Bookmark {
     private long timestamp;
     private int startIndex;
     private int endIndex;
-    public String getBlockId() { return blockId; }
-    public void setBlockId(String blockId) { this.blockId = blockId; }
+
+    // ✅ Required empty constructor for Firestore
     public Bookmark() {
         // Required empty constructor for Firestore
     }
@@ -26,13 +26,21 @@ public class Bookmark {
         this.endIndex = endIndex;
     }
 
-    // Getters and Setters
+    // ✅ Getters and Setters (organized in same order as fields)
     public String getId() {
         return id;
     }
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public String getBlockId() {
+        return blockId;
+    }
+
+    public void setBlockId(String blockId) {
+        this.blockId = blockId;
     }
 
     public String getText() {

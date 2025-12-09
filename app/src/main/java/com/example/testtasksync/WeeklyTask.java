@@ -1,22 +1,30 @@
 package com.example.testtasksync;
 
+import java.util.Date;
+
 public class WeeklyTask {
     private String id;
-    private String day; // "Mon", "Tues", "Wed", etc.
+    private String day;
     private String taskText;
     private boolean isCompleted;
     private int position;
 
-    public WeeklyTask() {
-        // Required empty constructor for Firebase
-    }
+    // ✅ NEW: Task-level schedule fields
+    private Date scheduleDate;
+    private String scheduleTime;
+    private boolean hasNotification;
+    private int notificationMinutes;
 
-    public WeeklyTask(String id, String day, String taskText, boolean isCompleted, int position) {
-        this.id = id;
-        this.day = day;
-        this.taskText = taskText;
-        this.isCompleted = isCompleted;
-        this.position = position;
+    public WeeklyTask() {
+        this.id = "";
+        this.day = "";
+        this.taskText = "";
+        this.isCompleted = false;
+        this.position = 0;
+        this.scheduleDate = null;
+        this.scheduleTime = "";
+        this.hasNotification = false;
+        this.notificationMinutes = 60;
     }
 
     // Getters and Setters
@@ -58,5 +66,38 @@ public class WeeklyTask {
 
     public void setPosition(int position) {
         this.position = position;
+    }
+
+    // ✅ NEW: Schedule getters and setters
+    public Date getScheduleDate() {
+        return scheduleDate;
+    }
+
+    public void setScheduleDate(Date scheduleDate) {
+        this.scheduleDate = scheduleDate;
+    }
+
+    public String getScheduleTime() {
+        return scheduleTime;
+    }
+
+    public void setScheduleTime(String scheduleTime) {
+        this.scheduleTime = scheduleTime;
+    }
+
+    public boolean hasNotification() {
+        return hasNotification;
+    }
+
+    public void setHasNotification(boolean hasNotification) {
+        this.hasNotification = hasNotification;
+    }
+
+    public int getNotificationMinutes() {
+        return notificationMinutes;
+    }
+
+    public void setNotificationMinutes(int notificationMinutes) {
+        this.notificationMinutes = notificationMinutes;
     }
 }

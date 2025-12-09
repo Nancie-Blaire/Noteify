@@ -142,15 +142,17 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Date Selection -->
+        <!-- Date Selection (Only for To-Do) -->
         <TextView
+            android:id="@+id/dateLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Date"
             android:textSize="18sp"
             android:textColor="#000000"
             android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="8dp"
+            android:visibility="visible" />
 
         <LinearLayout
             android:id="@+id/datePickerButton"
@@ -162,7 +164,8 @@
             android:background="@drawable/input_background"
             android:clickable="true"
             android:focusable="true"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="16dp"
+            android:visibility="visible">
 
             <ImageView
                 android:layout_width="20dp"
@@ -180,15 +183,17 @@
                 android:textColor="#000000" />
         </LinearLayout>
 
-        <!-- Time Selection -->
+        <!-- Time Selection (Only for To-Do) -->
         <TextView
+            android:id="@+id/timeLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Time (Optional)"
             android:textSize="18sp"
             android:textColor="#000000"
             android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="8dp"
+            android:visibility="visible" />
 
         <LinearLayout
             android:id="@+id/timePickerButton"
@@ -200,7 +205,8 @@
             android:background="@drawable/input_background"
             android:clickable="true"
             android:focusable="true"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="16dp"
+            android:visibility="visible">
 
             <ImageView
                 android:layout_width="20dp"
@@ -229,13 +235,14 @@
                 android:background="?attr/selectableItemBackgroundBorderless" />
         </LinearLayout>
 
-        <!-- Notification Checkbox -->
+        <!-- Notification Checkbox (Only for To-Do) -->
         <CheckBox
             android:id="@+id/notificationCheckbox"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Set notification"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="8dp"
+            android:visibility="visible" />
 
         <Spinner
             android:id="@+id/reminderTimeSpinner"

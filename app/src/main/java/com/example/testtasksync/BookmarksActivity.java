@@ -36,6 +36,9 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
     private ImageView backBtn;
     private LinearLayout emptyView;
 
+    // ✅ FIX: Store blocks to find bookmark positions
+    private List<NoteBlock> allBlocks = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,6 +56,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         backBtn.setOnClickListener(v -> finish());
 
         setupRecyclerView();
+        loadBlocks(); // ✅ NEW: Load blocks first
         loadBookmarks();
     }
 
@@ -60,6 +64,29 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         bookmarkAdapter = new BookmarkAdapter(this, this);
         bookmarksRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         bookmarksRecyclerView.setAdapter(bookmarkAdapter);
+    }
+
+    // ✅ NEW METHOD: Load all blocks to find bookmark positions
+    private void loadBlocks() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("blocks")
+                .orderBy("position")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    allBlocks.clear();
+                    for (QueryDocumentSnapshot doc : querySnapshot) {
+                        NoteBlock block = NoteBlock.fromMap(doc.getData());
+                        allBlocks.add(block);
+                    }
+                    android.util.Log.d("BOOKMARK_SCROLL", "Loaded " + allBlocks.size() + " blocks");
+                })
+                .addOnFailureListener(e -> {
+                    android.util.Log.e("BOOKMARK_SCROLL", "Error loading blocks", e);
+                });
     }
 
     private void loadBookmarks() {
@@ -96,15 +123,44 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
                     }
                 });
     }
+
     @Override
     public void onBookmarkClick(Bookmark bookmark) {
-        // Create intent to go back to NoteActivity with scroll position
+        // ✅ FIX: Find which block contains this bookmark
+        int blockPosition = findBlockPositionForBookmark(bookmark);
+
+        android.util.Log.d("BOOKMARK_SCROLL", "Bookmark clicked - blockId: " + bookmark.getBlockId() +
+                ", startIndex: " + bookmark.getStartIndex() + ", blockPosition: " + blockPosition);
+
         Intent intent = new Intent(BookmarksActivity.this, NoteActivity.class);
         intent.putExtra("noteId", noteId);
-        intent.putExtra("scrollToPosition", bookmark.getStartIndex());
+        intent.putExtra("scrollToBlockPosition", blockPosition);
+        intent.putExtra("scrollToTextPosition", bookmark.getStartIndex());
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
-        finish(); // Close BookmarksActivity
+        finish();
+    }
+
+    // ✅ NEW METHOD: Find block position from bookmark
+    private int findBlockPositionForBookmark(Bookmark bookmark) {
+        String bookmarkBlockId = bookmark.getBlockId();
+
+        if (bookmarkBlockId == null || allBlocks.isEmpty()) {
+            android.util.Log.w("BOOKMARK_SCROLL", "No blockId or blocks not loaded yet");
+            return 0;
+        }
+
+        // Find the block with matching ID
+        for (int i = 0; i < allBlocks.size(); i++) {
+            NoteBlock block = allBlocks.get(i);
+            if (block.getId().equals(bookmarkBlockId)) {
+                android.util.Log.d("BOOKMARK_SCROLL", "Found block at position: " + i);
+                return i;
+            }
+        }
+
+        android.util.Log.w("BOOKMARK_SCROLL", "Block not found, returning 0");
+        return 0;
     }
 
     @Override

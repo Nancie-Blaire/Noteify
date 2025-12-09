@@ -115,6 +115,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private String selectedTextForBookmark = null;
 
     private Map<String, List<Bookmark>> blockBookmarksMap = new HashMap<>();
+    private int scrollToBlockPosition = -1;
+    private int scrollToTextPosition = -1;
 
 
     @Override
@@ -181,7 +183,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         // Setup drag and drop
         setupDragAndDrop();
         setupColorPicker();
+
         if (noteId != null) {
+            // Get scroll position from intent
+            scrollToBlockPosition = getIntent().getIntExtra("scrollToBlockPosition", -1);
+            scrollToTextPosition = getIntent().getIntExtra("scrollToTextPosition", -1);
             loadNote();
             loadNoteColor();
             loadBookmarksForNote();// ✅ Load saved color
@@ -256,8 +262,63 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     protected void onResume() {
         super.onResume();
         if (noteId != null) {
-            loadBlocks();
+            // ✅ Check if we need to scroll
+            boolean needsScroll = (scrollToBlockPosition >= 0 && scrollToTextPosition >= 0);
+
+            if (needsScroll) {
+                // ✅ Load blocks first, THEN scroll
+                loadBlocksAndScroll();
+            } else {
+                // ✅ Normal load
+                loadBlocks();
+            }
         }
+    }
+
+    private void loadBlocksAndScroll() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        android.util.Log.d("NoteActivity", "Loading blocks for scroll...");
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("blocks")
+                .orderBy("position")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    blocks.clear();
+
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                        NoteBlock block = NoteBlock.fromMap(doc.getData());
+                        blocks.add(block);
+                    }
+
+                    refreshSubpageTitlesAfterLoad();
+                    adapter.notifyDataSetChanged();
+                    renumberLists();
+
+                    android.util.Log.d("NoteActivity", "Blocks loaded: " + blocks.size());
+
+                    // ✅ NOW scroll after blocks are loaded
+                    if (scrollToBlockPosition >= 0 && scrollToTextPosition >= 0) {
+                        final int blockPos = scrollToBlockPosition;
+                        final int textPos = scrollToTextPosition;
+
+                        // ✅ Wait for RecyclerView to layout
+                        blocksRecycler.postDelayed(() -> {
+                            android.util.Log.d("NoteActivity", "Attempting scroll to block " + blockPos);
+                            scrollToBookmark(blockPos, textPos);
+
+                            // ✅ Reset scroll flags
+                            scrollToBlockPosition = -1;
+                            scrollToTextPosition = -1;
+                        }, 500); // Give RecyclerView time to layout
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    android.util.Log.e("NoteActivity", "Error loading blocks", e);
+                });
     }
 
     private void loadBlocks() {
@@ -2261,14 +2322,14 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         View selectedView = null;
         switch (currentColor) {
-            case "#E1BEE7": selectedView = violet; break;
-            case "#FFF9C4": selectedView = yellow; break;
-            case "#F8BBD0": selectedView = pink; break;
-            case "#C8E6C9": selectedView = green; break;
-            case "#BBDEFB": selectedView = blue; break;
-            case "#FFE0B2": selectedView = orange; break;
             case "#FFCDD2": selectedView = red; break;
+            case "#F8BBD0": selectedView = pink; break;
+            case "#E1BEE7": selectedView = violet; break;
+            case "#BBDEFB": selectedView = blue; break;
             case "#B2EBF2": selectedView = cyan; break;
+            case "#C8E6C9": selectedView = green; break;
+            case "#FFF9C4": selectedView = yellow; break;
+            case "#FFE0B2": selectedView = orange; break;
         }
 
         if (selectedView != null) {
@@ -2396,6 +2457,352 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 }
             }
         });
+    }
+
+    private void scrollToBookmark(int blockPosition, int textPosition) {
+        if (blockPosition < 0 || blockPosition >= blocks.size()) {
+            android.util.Log.e("NoteActivity", "Invalid block position: " + blockPosition);
+            return;
+        }
+
+        android.util.Log.d("NoteActivity", "Scrolling to block " + blockPosition + ", text pos " + textPosition);
+
+        // ✅ Step 1: Scroll RecyclerView to position
+        blocksRecycler.post(() -> {
+            try {
+                blocksRecycler.smoothScrollToPosition(blockPosition);
+
+                // ✅ Step 2: Wait for scroll, then focus and set selection
+                blocksRecycler.postDelayed(() -> {
+                    RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(blockPosition);
+
+                    if (holder != null) {
+                        View itemView = holder.itemView;
+                        EditText editText = itemView.findViewById(R.id.contentEdit);
+
+                        if (editText != null) {
+                            android.util.Log.d("NoteActivity", "Found EditText, requesting focus");
+
+                            // Request focus
+                            editText.requestFocus();
+
+                            // Set selection (cursor position)
+                            int safePosition = Math.min(textPosition, editText.getText().length());
+                            safePosition = Math.max(0, safePosition);
+                            editText.setSelection(safePosition);
+
+                            // Show keyboard
+                            android.view.inputmethod.InputMethodManager imm =
+                                    (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                            if (imm != null) {
+                                imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                            }
+
+                            // Highlight the bookmark briefly
+                            editText.postDelayed(() -> {
+                                adapter.notifyItemChanged(blockPosition);
+                            }, 200);
+
+                            android.util.Log.d("NoteActivity", "Focus and selection applied");
+                        } else {
+                            android.util.Log.e("NoteActivity", "EditText not found in holder");
+                        }
+                    } else {
+                        android.util.Log.e("NoteActivity", "ViewHolder not found, retrying...");
+
+                        // Retry once if holder not found
+                        blocksRecycler.postDelayed(() -> {
+                            RecyclerView.ViewHolder retryHolder = blocksRecycler.findViewHolderForAdapterPosition(blockPosition);
+                            if (retryHolder != null) {
+                                View itemView = retryHolder.itemView;
+                                EditText editText = itemView.findViewById(R.id.contentEdit);
+                                if (editText != null) {
+                                    editText.requestFocus();
+                                    int safePosition = Math.min(textPosition, editText.getText().length());
+                                    editText.setSelection(Math.max(0, safePosition));
+                                }
+                            }
+                        }, 500);
+                    }
+                }, 400); // Delay to ensure scroll completes
+
+            } catch (Exception e) {
+                android.util.Log.e("NoteActivity", "Error scrolling to bookmark", e);
+                e.printStackTrace();
+            }
+        });
+    }
+    public Bookmark getBookmarkAtSelection(String blockId, int start, int end) {
+        List<Bookmark> bookmarks = blockBookmarksMap.get(blockId);
+        if (bookmarks == null) return null;
+
+        for (Bookmark bookmark : bookmarks) {
+            int bStart = bookmark.getStartIndex();
+            int bEnd = bookmark.getEndIndex();
+
+            // Check if selection overlaps with bookmark
+            if ((start >= bStart && start < bEnd) ||
+                    (end > bStart && end <= bEnd) ||
+                    (start <= bStart && end >= bEnd)) {
+                return bookmark;
+            }
+        }
+        return null;
+    }
+
+    // ✅ ADD: Helper method to restore focus and cursor
+    private void restoreFocusToBlock(int position, int cursorPosition) {
+        blocksRecycler.postDelayed(() -> {
+            RecyclerView.ViewHolder holder = blocksRecycler.findViewHolderForAdapterPosition(position);
+            if (holder != null && holder.itemView != null) {
+                EditText editText = holder.itemView.findViewById(R.id.contentEdit);
+                if (editText != null) {
+                    editText.requestFocus();
+
+                    // Set cursor position safely
+                    int safePosition = Math.min(cursorPosition, editText.getText().length());
+                    safePosition = Math.max(0, safePosition);
+                    editText.setSelection(safePosition);
+
+                    // Show keyboard
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    }
+                }
+            }
+        }, 150); // Increased delay to ensure adapter refresh is complete
+    }
+
+    // ✅ UPDATE: expandBookmark method
+    public void expandBookmark(Bookmark bookmark, String blockId, int newStart, int newEnd) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        // Get the block
+        NoteBlock block = null;
+        int blockPosition = -1;
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getId().equals(blockId)) {
+                block = blocks.get(i);
+                blockPosition = i;
+                break;
+            }
+        }
+
+        if (block == null) return;
+
+        String content = block.getContent();
+        if (content == null) return;
+
+        int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
+        int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
+
+        if (expandedStart < 0 || expandedEnd > content.length() || expandedStart >= expandedEnd) {
+            Toast.makeText(this, "Invalid selection range", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Trim whitespace
+        while (expandedStart < expandedEnd && expandedStart < content.length()
+                && Character.isWhitespace(content.charAt(expandedStart))) {
+            expandedStart++;
+        }
+        while (expandedEnd > expandedStart && expandedEnd > 0
+                && Character.isWhitespace(content.charAt(expandedEnd - 1))) {
+            expandedEnd--;
+        }
+
+        String expandedText = content.substring(expandedStart, expandedEnd);
+
+        if (expandedText.trim().isEmpty()) {
+            Toast.makeText(this, "Cannot bookmark empty text", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final int finalStart = expandedStart;
+        final int finalEnd = expandedEnd;
+        final String finalText = expandedText;
+        final int finalBlockPosition = blockPosition;
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("startIndex", finalStart);
+        updates.put("endIndex", finalEnd);
+        updates.put("text", finalText);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks").document(bookmark.getId())
+                .update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    bookmark.setStartIndex(finalStart);
+                    bookmark.setEndIndex(finalEnd);
+                    bookmark.setText(finalText);
+
+                    adapter.notifyItemChanged(finalBlockPosition);
+
+                    // ✅ FIX: Restore focus to the expanded text
+                    restoreFocusToBlock(finalBlockPosition, finalEnd);
+
+                    Toast.makeText(this, "Bookmark expanded", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error expanding bookmark", Toast.LENGTH_SHORT).show();
+                });
+    }
+    public void showUpdateBookmarkBottomSheet(Bookmark bookmark, int blockPosition) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet_update, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Color options
+        View colorViolet = sheetView.findViewById(R.id.colorViolet);
+        View colorYellow = sheetView.findViewById(R.id.colorYellow);
+        View colorPink = sheetView.findViewById(R.id.colorPink);
+        View colorGreen = sheetView.findViewById(R.id.colorGreen);
+        View colorBlue = sheetView.findViewById(R.id.colorBlue);
+        View colorOrange = sheetView.findViewById(R.id.colorOrange);
+        View colorRed = sheetView.findViewById(R.id.colorRed);
+        View colorCyan = sheetView.findViewById(R.id.colorCyan);
+
+        colorViolet.setTag("#E1BEE7");
+        colorYellow.setTag("#FFF9C4");
+        colorPink.setTag("#F8BBD0");
+        colorGreen.setTag("#C8E6C9");
+        colorBlue.setTag("#BBDEFB");
+        colorOrange.setTag("#FFE0B2");
+        colorRed.setTag("#FFCDD2");
+        colorCyan.setTag("#B2EBF2");
+
+        TextView styleHighlight = sheetView.findViewById(R.id.styleHighlight);
+        TextView styleUnderline = sheetView.findViewById(R.id.styleUnderline);
+        com.google.android.material.textfield.TextInputEditText noteInput = sheetView.findViewById(R.id.bookmarkNoteInput);
+        TextView updateBtn = sheetView.findViewById(R.id.updateBtn);
+        TextView deleteBtn = sheetView.findViewById(R.id.deleteBtn);
+
+        final String[] selectedColor = {bookmark.getColor()};
+        final String[] selectedStyle = {bookmark.getStyle()};
+
+        // Pre-fill note
+        noteInput.setText(bookmark.getNote());
+
+        // Set initial selections
+        setColorScale(colorViolet, colorYellow, colorPink, colorGreen, colorBlue, colorOrange, colorRed, colorCyan, selectedColor[0]);
+
+        if ("highlight".equals(selectedStyle[0])) {
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        } else {
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        }
+
+        // Color selection listeners
+        View.OnClickListener colorListener = v -> {
+            resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen, colorBlue, colorOrange, colorRed, colorCyan);
+            v.setScaleX(1.2f);
+            v.setScaleY(1.2f);
+            selectedColor[0] = (String) v.getTag();
+        };
+
+        colorViolet.setOnClickListener(colorListener);
+        colorYellow.setOnClickListener(colorListener);
+        colorPink.setOnClickListener(colorListener);
+        colorGreen.setOnClickListener(colorListener);
+        colorBlue.setOnClickListener(colorListener);
+        colorOrange.setOnClickListener(colorListener);
+        colorRed.setOnClickListener(colorListener);
+        colorCyan.setOnClickListener(colorListener);
+
+        // Style selection
+        styleHighlight.setOnClickListener(v -> {
+            selectedStyle[0] = "highlight";
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        styleUnderline.setOnClickListener(v -> {
+            selectedStyle[0] = "underline";
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        updateBtn.setOnClickListener(v -> {
+            String newNote = noteInput.getText().toString().trim();
+
+            // Update color, style, and note in Firestore
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("color", selectedColor[0]);
+            updates.put("style", selectedStyle[0]);
+            updates.put("note", newNote);
+
+            FirebaseUser user = auth.getCurrentUser();
+            if (user != null) {
+                db.collection("users").document(user.getUid())
+                        .collection("notes").document(noteId)
+                        .collection("bookmarks").document(bookmark.getId())
+                        .update(updates)
+                        .addOnSuccessListener(aVoid -> {
+                            // ✅ Update the local bookmark object immediately
+                            bookmark.setColor(selectedColor[0]);
+                            bookmark.setStyle(selectedStyle[0]);
+                            bookmark.setNote(newNote);
+
+                            adapter.notifyItemChanged(blockPosition);
+
+                            // ✅ FIX: Restore focus after update
+                            restoreFocusToBlock(blockPosition, bookmark.getEndIndex());
+
+                            Toast.makeText(this, "Bookmark updated", Toast.LENGTH_SHORT).show();
+                        })
+                        .addOnFailureListener(e -> {
+                            Toast.makeText(this, "Error updating bookmark", Toast.LENGTH_SHORT).show();
+                        });
+            }
+
+            bottomSheet.dismiss();
+        });
+
+        deleteBtn.setOnClickListener(v -> {
+            showDeleteBookmarkConfirmation(bookmark, blockPosition);
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+    // ✅ UPDATE: showDeleteBookmarkConfirmation method
+    public void showDeleteBookmarkConfirmation(Bookmark bookmark, int blockPosition) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Delete Bookmark")
+                .setMessage("Are you sure you want to delete this bookmark?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    FirebaseUser user = auth.getCurrentUser();
+                    if (user != null) {
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("bookmarks").document(bookmark.getId())
+                                .delete()
+                                .addOnSuccessListener(aVoid -> {
+                                    adapter.notifyItemChanged(blockPosition);
+
+                                    // ✅ FIX: Restore focus after delete
+                                    restoreFocusToBlock(blockPosition, bookmark.getStartIndex());
+
+                                    Toast.makeText(this, "Bookmark deleted", Toast.LENGTH_SHORT).show();
+                                });
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
 }

@@ -1539,14 +1539,31 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         NoteBlock currentBlock = blocks.get(position);
         NoteBlock.BlockType currentType = currentBlock.getType();
 
-        // ✅ CHECK: Is the text BEFORE cursor empty?
+        // ✅ CHECK: Is cursor at position 0 (beginning of block)?
+        boolean isCursorAtStart = textBeforeCursor.isEmpty();
+        // ✅ CHECK: Is the text BEFORE cursor empty (whitespace only)?
         boolean isTextBeforeEmpty = textBeforeCursor.trim().isEmpty();
 
         switch (currentType) {
             case BULLET:
             case NUMBERED:
             case CHECKBOX:
-                if (isTextBeforeEmpty) {
+                if (isCursorAtStart) {
+                    // ✅ CURSOR AT START: Insert NEW empty block BEFORE current block
+                    NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+                    newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                    newBlock.setContent("");
+                    newBlock.setPosition(position);
+
+                    insertBlockAt(newBlock, position);
+
+                    // Current block moves down, keep its content intact
+                    currentBlock.setPosition(position + 1);
+                    saveBlock(currentBlock);
+
+                    // Focus the new empty block above
+                    focusBlock(position, 0);
+                } else if (isTextBeforeEmpty && !isCursorAtStart) {
                     // ✅ EMPTY + ENTER = Convert to TEXT (no new block)
                     currentBlock.setContent("");
                     saveBlock(currentBlock);
@@ -1591,20 +1608,36 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             case HEADING_2:
             case HEADING_3:
             default:
-                // TEXT/HEADING: Always create new text block
-                currentBlock.setContent(textBeforeCursor);
-                saveBlock(currentBlock);
+                if (isCursorAtStart) {
+                    // ✅ CURSOR AT START: Insert NEW empty block BEFORE current block
+                    NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+                    newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                    newBlock.setContent("");
+                    newBlock.setPosition(position);
 
-                NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
-                newBlock.setIndentLevel(currentBlock.getIndentLevel());
-                newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
-                newBlock.setPosition(position + 1);
-                insertBlockAt(newBlock, position + 1);
-                focusBlock(position + 1, 0);
+                    insertBlockAt(newBlock, position);
+
+                    // Current block moves down, keep its content intact
+                    currentBlock.setPosition(position + 1);
+                    saveBlock(currentBlock);
+
+                    // Focus the new empty block above
+                    focusBlock(position, 0);
+                } else {
+                    // ✅ NORMAL CASE: Split at cursor position
+                    currentBlock.setContent(textBeforeCursor);
+                    saveBlock(currentBlock);
+
+                    NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+                    newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                    newBlock.setContent(textAfterCursor != null ? textAfterCursor : "");
+                    newBlock.setPosition(position + 1);
+                    insertBlockAt(newBlock, position + 1);
+                    focusBlock(position + 1, 0);
+                }
                 break;
         }
     }
-
     // ===============================================
 // HELPER: Focus a specific block
 // ===============================================

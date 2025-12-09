@@ -15,7 +15,7 @@
         android:textColor="@android:color/black"
         android:padding="16dp"
         android:background="#F4E8DF"
-        android:layout_marginTop="33dp"/>
+        android:layout_marginTop="5dp"/>
 
     <!-- RecyclerView for accounts -->
     <androidx.recyclerview.widget.RecyclerView
@@ -33,26 +33,6 @@
         android:layout_height="1dp"
         android:background="#E0E0E0"/>
 
-    <Button
-        android:id="@+id/btnGoogleSignIn"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="8dp"
-        android:backgroundTint="#FFFFFF"
-        android:drawableLeft="@drawable/ic_google"
-        android:drawablePadding="8dp"
-        android:fontFamily="@font/inter_regular"
-        android:gravity="center"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
-        android:text="Continue with Google"
-        android:textColor="#757575"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        />
     <TextView
         android:id="@+id/tvAddAccount"
         android:layout_width="match_parent"

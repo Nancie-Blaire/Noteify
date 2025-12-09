@@ -78,30 +78,11 @@
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- Note Title -->
-    <EditText
-        android:id="@+id/noteTitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/colorPickerPanel"
-        android:hint="Title"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:inputType="textCapSentences"
-        android:background="@android:color/transparent"
-        android:padding="20dp"
-        android:textColor="#000"
-        android:maxLines="2"
-        android:layout_marginStart="10dp"
-        android:layout_marginEnd="10dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginBottom="10dp"/>
-
-    <!-- ✅ NEW: NestedScrollView wrapper for RecyclerView + Empty Space -->
+    <!-- ✅ NestedScrollView - Contains Title + Blocks -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/noteTitle"
+        android:layout_below="@id/colorPickerPanel"
         android:layout_above="@id/keyboardToolbar"
         android:fillViewport="true"
         android:overScrollMode="never">
@@ -110,6 +91,24 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
+            <!-- ✅ Note Title - NOW SCROLLS! -->
+            <EditText
+                android:id="@+id/noteTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Title"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:inputType="textCapSentences"
+                android:background="@android:color/transparent"
+                android:padding="20dp"
+                android:textColor="#000"
+                android:maxLines="2"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="10dp"/>
 
             <!-- Blocks RecyclerView -->
             <androidx.recyclerview.widget.RecyclerView
@@ -123,7 +122,7 @@
                 android:layout_marginStart="10dp"
                 android:layout_marginEnd="10dp"/>
 
-            <!-- ✅ NEW: Clickable Empty Space -->
+            <!-- ✅ Clickable Empty Space -->
             <View
                 android:id="@+id/emptySpace"
                 android:layout_width="match_parent"

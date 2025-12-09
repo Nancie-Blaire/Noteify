@@ -257,43 +257,28 @@ public class Account extends AppCompatActivity {
     private void showAccountSwitchDialog() {
         List<AccountManager.SavedAccount> allAccounts = accountManager.getSavedAccounts();
 
-        // ✅ FILTER: Email accounts only
-        List<AccountManager.SavedAccount> emailAccounts = new ArrayList<>();
-        for (AccountManager.SavedAccount account : allAccounts) {
-            if ("email".equals(account.getAuthProvider())) {
-                emailAccounts.add(account);
-            }
-        }
-
         // Create dialog
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_account_switch, null);
 
         RecyclerView recyclerView = dialogView.findViewById(R.id.rvAccounts);
         TextView tvAddAccount = dialogView.findViewById(R.id.tvAddAccount);
-        Button btnGoogleSignIn = dialogView.findViewById(R.id.btnGoogleSignIn);  // ✅ CHANGED to Button
         TextView btnCancel = dialogView.findViewById(R.id.btnCancel);
 
-        // Setup RecyclerView with FILTERED list
+        // Setup RecyclerView with ALL accounts (Email + Google)
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         AccountSwitchAdapter adapter = new AccountSwitchAdapter(
                 this,
-                emailAccounts,  // ✅ Email accounts only
+                allAccounts,  // ✅ All accounts including Google
                 accountManager.getCurrentAccountEmail(),
-                account -> switchToAccount(account)
+                account -> showSwitchConfirmationDialog(account)  // ✅ Show confirmation first
         );
         recyclerView.setAdapter(adapter);
 
         builder.setView(dialogView);
         AlertDialog dialog = builder.create();
 
-        // ✅ Google Sign-In Button
-        btnGoogleSignIn.setOnClickListener(v -> {
-            dialog.dismiss();
-            showGoogleAccountPicker();
-        });
-
-        // Add Account button
+        // Add Account button - shows bottom sheet with both Email and Google options
         tvAddAccount.setOnClickListener(v -> {
             dialog.dismiss();
             showAddAccountBottomSheet();
@@ -312,13 +297,39 @@ public class Account extends AppCompatActivity {
             @Override
             public void onSwiped(RecyclerView.ViewHolder viewHolder, int direction) {
                 int position = viewHolder.getAdapterPosition();
-                AccountManager.SavedAccount accountToDelete = emailAccounts.get(position);
-                showDeleteAccountConfirmationDialog(accountToDelete, position, adapter, emailAccounts);
+                AccountManager.SavedAccount accountToDelete = allAccounts.get(position);
+                showDeleteAccountConfirmationDialog(accountToDelete, position, adapter, allAccounts);
             }
         });
         itemTouchHelper.attachToRecyclerView(recyclerView);
 
         dialog.show();
+    }
+
+    private void showSwitchConfirmationDialog(AccountManager.SavedAccount account) {
+        FirebaseUser currentUser = auth.getCurrentUser();
+
+        // Check if already on this account
+        if (currentUser != null && currentUser.getEmail().equals(account.getEmail())) {
+            Toast.makeText(this, "Already using this account", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Get display name for dialog
+        String displayName = account.getDisplayName() != null && !account.getDisplayName().isEmpty()
+                ? account.getDisplayName()
+                : account.getEmail().split("@")[0];
+
+        // Show confirmation dialog
+        new AlertDialog.Builder(this)
+                .setTitle("Switch Account")
+                .setMessage("Switch to " + displayName + "?")
+                .setPositiveButton("Yes", (dialog, which) -> {
+                    // Proceed with switching based on auth provider
+                    switchToAccount(account);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
     private void showGoogleAccountPicker() {
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -588,37 +599,64 @@ public class Account extends AppCompatActivity {
         }
     }
     private void switchToGoogleAccount(AccountManager.SavedAccount account) {
+        Toast.makeText(this, "Switching to " + account.getEmail() + "...", Toast.LENGTH_SHORT).show();
+
+        // ✅ Try silent sign-in first (no account picker)
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
+                .setAccountName(account.getEmail())  // ✅ Specify which account to use
                 .build();
 
         GoogleSignInClient googleSignInClient = GoogleSignIn.getClient(this, gso);
 
-        // ✅ CHECK if already signed in to this Google account
-        GoogleSignInAccount googleAccount = GoogleSignIn.getLastSignedInAccount(this);
+        // ✅ Silent sign-in - no UI shown
+        googleSignInClient.silentSignIn()
+                .addOnSuccessListener(googleAccount -> {
+                    // Successfully got Google credentials silently
+                    if (googleAccount.getEmail().equals(account.getEmail())) {
+                        // Sign out from Firebase first
+                        auth.signOut();
 
-        if (googleAccount != null && googleAccount.getEmail().equals(account.getEmail())) {
-            // ✅ Direct sign-in - NO PICKER!
-            Toast.makeText(this, "Switching to " + account.getEmail() + "...", Toast.LENGTH_SHORT).show();
+                        // Authenticate with Firebase
+                        AuthCredential credential = GoogleAuthProvider.getCredential(googleAccount.getIdToken(), null);
+                        auth.signInWithCredential(credential)
+                                .addOnSuccessListener(authResult -> {
+                                    FirebaseUser newUser = authResult.getUser();
+                                    if (newUser != null) {
+                                        accountManager.setCurrentAccount(newUser.getEmail());
 
-            // Sign out from Firebase first
-            auth.signOut();
+                                        Toast.makeText(Account.this,
+                                                "Switched to " + account.getEmail(),
+                                                Toast.LENGTH_SHORT).show();
 
-            // Authenticate with Firebase using existing Google account
-            firebaseAuthWithGoogle(googleAccount);
-            return;
-        }
+                                        // Reload the activity
+                                        Intent intent = new Intent(Account.this, MainActivity.class);
+                                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                        startActivity(intent);
+                                        finish();
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    Toast.makeText(Account.this,
+                                            "Failed to authenticate: " + e.getMessage(),
+                                            Toast.LENGTH_LONG).show();
+                                });
+                    } else {
+                        Toast.makeText(this, "Wrong account returned. Please try again.", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    // ✅ Silent sign-in failed - account credentials not available
+                    // User needs to sign in again with account picker
+                    Toast.makeText(this, "Please sign in with " + account.getEmail() + " again", Toast.LENGTH_LONG).show();
 
-        // Different account - show picker
-        Toast.makeText(this, "Please select " + account.getEmail(), Toast.LENGTH_SHORT).show();
-
-        auth.signOut();
-
-        googleSignInClient.signOut().addOnCompleteListener(task -> {
-            Intent signInIntent = googleSignInClient.getSignInIntent();
-            startActivityForResult(signInIntent, RC_GOOGLE_SIGN_IN_ADD_ACCOUNT);
-        });
+                    auth.signOut();
+                    googleSignInClient.signOut().addOnCompleteListener(task -> {
+                        Intent signInIntent = googleSignInClient.getSignInIntent();
+                        startActivityForResult(signInIntent, RC_GOOGLE_SIGN_IN_ADD_ACCOUNT);
+                    });
+                });
     }
     /**
      * Show password confirmation dialog for account switching

@@ -196,7 +196,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             super(view);
             contentEdit = view.findViewById(R.id.contentEdit);
 
-            // ✅ Setup custom selection menu
+            // ✅ SIMPLE: Setup custom selection menu only
             setupCustomSelectionMenu();
         }
 
@@ -284,6 +284,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
                                     new ColoredUnderlineSpan(color),
                                     start,
@@ -299,13 +300,13 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 contentEdit.setText(content);
             }
 
-            // ✅ SET INPUT TYPE - EXACTLY like Subpage
+            // ✅ SET INPUT TYPE (same as Subpage)
             contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
                     android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
             contentEdit.setHorizontallyScrolling(false);
             contentEdit.setMaxLines(Integer.MAX_VALUE);
 
-            // ✅ Direct selection (NO POST) - like Subpage
+            // ✅ Direct selection (NO POST)
             contentEdit.setSelection(contentEdit.getText().length());
 
             // ✅ ADD NEW TextWatcher
@@ -461,21 +462,19 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             String content = block.getContent();
             if (content == null) content = "";
 
-            // ✅ Get bookmarks
+            // ✅ Get bookmarks for this block
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
 
-            // ✅ ENABLE FIRST - before setting text
+            // ✅ CRITICAL: Ensure EditText is enabled and focusable FIRST
             contentEdit.setEnabled(true);
             contentEdit.setFocusable(true);
             contentEdit.setFocusableInTouchMode(true);
             contentEdit.setCursorVisible(true);
             contentEdit.setLongClickable(true);
 
-            // ✅ Set input type - like Subpage
+            // ✅ Set input type (same as Subpage)
             contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
                     android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-            contentEdit.setHorizontallyScrolling(false);
-            contentEdit.setMaxLines(Integer.MAX_VALUE);
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
@@ -495,6 +494,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
                                     new ColoredUnderlineSpan(color),
                                     start,
@@ -510,50 +510,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 contentEdit.setText(content);
             }
 
-            // ✅ NO POST - Direct selection like Subpage
+
+            // ✅ NO POST - Direct selection like SubpageAdapter
             contentEdit.setSelection(contentEdit.getText().length());
-
-            // ✅ ADD KEY LISTENER - Enable Enter/Backspace
-            contentEdit.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    int pos = getAdapterPosition();
-                    if (pos == RecyclerView.NO_POSITION) return false;
-
-                    EditText editText = (EditText) v;
-                    int cursorPosition = editText.getSelectionStart();
-                    String currentText = editText.getText().toString();
-
-                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
-                        String textBeforeCursor = currentText.substring(0, cursorPosition);
-                        String textAfterCursor = currentText.substring(cursorPosition);
-                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
-                        return true;
-                    }
-                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (cursorPosition == 0 && !currentText.isEmpty()) {
-                            listener.onBackspaceAtStart(pos, currentText);
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            });
-
-            // ✅ NEW: Apply heading size and BOLD based on heading type
-            if (block.getType() == NoteBlock.BlockType.HEADING_1) {
-                contentEdit.setTextSize(28);
-                contentEdit.setTypeface(null, android.graphics.Typeface.BOLD);
-            } else if (block.getType() == NoteBlock.BlockType.HEADING_2) {
-                contentEdit.setTextSize(24);
-                contentEdit.setTypeface(null, android.graphics.Typeface.BOLD);
-            } else if (block.getType() == NoteBlock.BlockType.HEADING_3) {
-                contentEdit.setTextSize(20);
-                contentEdit.setTypeface(null, android.graphics.Typeface.BOLD);
-            } else {
-                // Default text size for non-heading blocks
-                contentEdit.setTextSize(16);
-                contentEdit.setTypeface(null, android.graphics.Typeface.NORMAL);
-            }
 
             // Apply indent
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
@@ -561,16 +520,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // Apply font color (after setting typeface)
-            if (block.getFontColor() != null && !block.getFontColor().isEmpty()) {
-                try {
-                    contentEdit.setTextColor(Color.parseColor(block.getFontColor()));
-                } catch (Exception e) {
-                    contentEdit.setTextColor(Color.parseColor("#333333"));
-                }
-            } else {
-                contentEdit.setTextColor(Color.parseColor("#333333"));
-            }
+            // Apply font style
+            applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
 
         private int dpToPx(int dp) {
@@ -736,21 +687,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             String content = block.getContent();
             if (content == null) content = "";
 
-            // ✅ Get bookmarks
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
-
-            // ✅ ENABLE FIRST - before setting text
-            contentEdit.setEnabled(true);
-            contentEdit.setFocusable(true);
-            contentEdit.setFocusableInTouchMode(true);
-            contentEdit.setCursorVisible(true);
-            contentEdit.setLongClickable(true);
-
-            // ✅ Set input type - like Subpage
-            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
-                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-            contentEdit.setHorizontallyScrolling(false);
-            contentEdit.setMaxLines(Integer.MAX_VALUE);
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
@@ -770,6 +707,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
                                     new ColoredUnderlineSpan(color),
                                     start,
@@ -785,19 +723,27 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 contentEdit.setText(content);
             }
 
-            // ✅ NO POST - Direct selection like Subpage
-            contentEdit.setSelection(contentEdit.getText().length());
 
-            // Apply indent
+            // ✅ Set cursor to end
+            contentEdit.post(() -> {
+                contentEdit.setSelection(contentEdit.getText().length());
+            });
+
+
+            contentEdit.setHint("List item");
+
+            String bullet = "●";
+            if (block.getIndentLevel() == 1) bullet = "○";
+            else if (block.getIndentLevel() >= 2) bullet = "■";
+            bulletIcon.setText(bullet);
+
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // Apply font style
             applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
-
 
         private int dpToPx(int dp) {
             return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
@@ -947,21 +893,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             String content = block.getContent();
             if (content == null) content = "";
 
-            // ✅ Get bookmarks
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
-
-            // ✅ ENABLE FIRST - before setting text
-            contentEdit.setEnabled(true);
-            contentEdit.setFocusable(true);
-            contentEdit.setFocusableInTouchMode(true);
-            contentEdit.setCursorVisible(true);
-            contentEdit.setLongClickable(true);
-
-            // ✅ Set input type - like Subpage
-            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
-                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-            contentEdit.setHorizontallyScrolling(false);
-            contentEdit.setMaxLines(Integer.MAX_VALUE);
 
             if (bookmarks != null && !bookmarks.isEmpty()) {
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
@@ -981,6 +913,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
                                     new ColoredUnderlineSpan(color),
                                     start,
@@ -996,20 +929,37 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 contentEdit.setText(content);
             }
 
-            // ✅ NO POST - Direct selection like Subpage
-            contentEdit.setSelection(contentEdit.getText().length());
 
-            // Apply indent
+            // ✅ Set cursor to end
+            contentEdit.post(() -> {
+                contentEdit.setSelection(contentEdit.getText().length());
+            });
+
+
+            String numberFormat;
+            switch (block.getIndentLevel()) {
+                case 0:
+                    numberFormat = block.getListNumber() + ".";
+                    break;
+                case 1:
+                    numberFormat = ((char)('a' + block.getListNumber() - 1)) + ".";
+                    break;
+                case 2:
+                    numberFormat = toRoman(block.getListNumber()) + ".";
+                    break;
+                default:
+                    numberFormat = block.getListNumber() + ".";
+                    break;
+            }
+            numberText.setText(numberFormat);
+
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // Apply font style
             applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
-
-
 
         private String toRoman(int number) {
             String[] romans = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"};
@@ -1176,22 +1126,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             String content = block.getContent();
             if (content == null) content = "";
 
-            // ✅ Get bookmarks
             List<Bookmark> bookmarks = blockBookmarksMap.get(block.getId());
-
-            // ✅ ENABLE FIRST - before setting text
-            contentEdit.setEnabled(true);
-            contentEdit.setFocusable(true);
-            contentEdit.setFocusableInTouchMode(true);
-            contentEdit.setCursorVisible(true);
-            contentEdit.setLongClickable(true);
-
-            // ✅ Set input type - like Subpage
-            contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
-                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-            contentEdit.setHorizontallyScrolling(false);
-            contentEdit.setMaxLines(Integer.MAX_VALUE);
-
             if (bookmarks != null && !bookmarks.isEmpty()) {
                 android.text.Editable editable = android.text.Editable.Factory.getInstance().newEditable(content);
 
@@ -1210,6 +1145,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             );
                         } else if ("underline".equals(bookmark.getStyle())) {
+                            // ✅ FIXED: Only apply colored underline, don't change text color
                             editable.setSpan(
                                     new ColoredUnderlineSpan(color),
                                     start,
@@ -1225,20 +1161,19 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 contentEdit.setText(content);
             }
 
-            // ✅ NO POST - Direct selection like Subpage
-            contentEdit.setSelection(contentEdit.getText().length());
+            // ✅ Set cursor to end
+            contentEdit.post(() -> {
+                contentEdit.setSelection(contentEdit.getText().length());
+            });
 
-            // Apply indent
+
             int marginLeft = dpToPx(block.getIndentLevel() * 24);
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) itemView.getLayoutParams();
             params.leftMargin = marginLeft;
             itemView.setLayoutParams(params);
 
-            // Apply font style
             applyFontStyle(contentEdit, block.getFontStyle(), block.getFontColor());
         }
-
-
 
         private int dpToPx(int dp) {
             return (int) (dp * itemView.getContext().getResources().getDisplayMetrics().density);
@@ -2150,5 +2085,5 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             canvas.drawLine(x, underlineY, x + textWidth, underlineY, underlinePaint);
         }
     }
-//go lia
+
 }

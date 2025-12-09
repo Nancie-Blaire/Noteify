@@ -286,5 +286,4 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Error deleting bookmark", Toast.LENGTH_SHORT).show());
     }
-    //go lia
 }

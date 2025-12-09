@@ -229,5 +229,4 @@ public class NoteBlock {
 
         return block;
     }
-    //go lia
 }

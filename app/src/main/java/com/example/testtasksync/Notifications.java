@@ -396,6 +396,8 @@ public class Notifications extends Fragment {
                                                                                 "weekly"
                                                                         );
 
+                                                                        // ✅ FIX: Compare actual task time, not notification time
+                                                                        // Task is overdue only if the scheduled time has passed
                                                                         if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
                                                                             if (!overdueList.contains(item)) {
                                                                                 overdueList.add(item);
@@ -420,12 +422,28 @@ public class Notifications extends Fragment {
                                                                     taskDate.add(Calendar.DAY_OF_MONTH, 1);
                                                                 }
 
+                                                                // ✅ FIX: Set time from task's scheduleTime if available
+                                                                Timestamp taskScheduleTimestamp = taskDoc.getTimestamp("scheduleDate");
+                                                                String taskScheduleTime = taskDoc.getString("scheduleTime");
+
+                                                                if (taskScheduleTime != null && !taskScheduleTime.isEmpty()) {
+                                                                    try {
+                                                                        String[] timeParts = taskScheduleTime.split(":");
+                                                                        taskDate.set(Calendar.HOUR_OF_DAY,
+                                                                                Integer.parseInt(timeParts[0]));
+                                                                        taskDate.set(Calendar.MINUTE,
+                                                                                Integer.parseInt(timeParts[1]));
+                                                                    } catch (Exception e) {
+                                                                        Log.e(TAG, "Error parsing task time", e);
+                                                                    }
+                                                                }
+
                                                                 NotificationItem item = new NotificationItem(
                                                                         planId,
                                                                         planTitle + " - " + day,
                                                                         taskText,
                                                                         taskDate.getTime(),
-                                                                        "",
+                                                                        taskScheduleTime != null ? taskScheduleTime : "",
                                                                         "weekly"
                                                                 );
 

@@ -4,7 +4,7 @@ import java.util.Date;
 
 public class WeeklyTask {
     private String id;
-    private String day;
+    private String day; // "Mon", "Tues", "Wed", etc.
     private String taskText;
     private boolean isCompleted;
     private int position;
@@ -16,11 +16,19 @@ public class WeeklyTask {
     private int notificationMinutes;
 
     public WeeklyTask() {
-        this.id = "";
-        this.day = "";
-        this.taskText = "";
-        this.isCompleted = false;
-        this.position = 0;
+        // Required empty constructor for Firebase
+        this.scheduleDate = null;
+        this.scheduleTime = "";
+        this.hasNotification = false;
+        this.notificationMinutes = 60;
+    }
+
+    public WeeklyTask(String id, String day, String taskText, boolean isCompleted, int position) {
+        this.id = id;
+        this.day = day;
+        this.taskText = taskText;
+        this.isCompleted = isCompleted;
+        this.position = position;
         this.scheduleDate = null;
         this.scheduleTime = "";
         this.hasNotification = false;

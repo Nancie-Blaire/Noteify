@@ -16,13 +16,13 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.SimpleDateFormat;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.TaskViewHolder> {
-    private String day;
+
     private List<WeeklyTask> tasks;
+    private String day;
     private TaskActionListener listener;
 
     public interface TaskActionListener {
@@ -30,8 +30,8 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
         void onTaskCompletionChanged(WeeklyTask task, boolean isCompleted);
         void onDeleteClicked(WeeklyTask task, int position);
         void onTaskMoved(int fromPosition, int toPosition);
-        void onScheduleClicked(WeeklyTask task, int position);
-        void onClearScheduleClicked(WeeklyTask task);
+        void onScheduleClicked(WeeklyTask task, int position); // ✅ NEW
+        void onClearScheduleClicked(WeeklyTask task); // ✅ NEW
     }
 
     public WeeklyTaskAdapter(String day, List<WeeklyTask> tasks, TaskActionListener listener) {
@@ -62,33 +62,48 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
     public void moveItem(int fromPosition, int toPosition) {
         if (fromPosition < toPosition) {
             for (int i = fromPosition; i < toPosition; i++) {
-                Collections.swap(tasks, i, i + 1);
+                WeeklyTask temp = tasks.get(i);
+                tasks.set(i, tasks.get(i + 1));
+                tasks.set(i + 1, temp);
             }
         } else {
             for (int i = fromPosition; i > toPosition; i--) {
-                Collections.swap(tasks, i, i - 1);
+                WeeklyTask temp = tasks.get(i);
+                tasks.set(i, tasks.get(i - 1));
+                tasks.set(i - 1, temp);
             }
         }
+
         notifyItemMoved(fromPosition, toPosition);
-        listener.onTaskMoved(fromPosition, toPosition);
+
+        // Update positions
+        for (int i = 0; i < tasks.size(); i++) {
+            tasks.get(i).setPosition(i);
+        }
+
+        if (listener != null) {
+            listener.onTaskMoved(fromPosition, toPosition);
+        }
     }
 
     class TaskViewHolder extends RecyclerView.ViewHolder {
-        CheckBox checkbox;
-        EditText taskText;
-        ImageView scheduleButton;
-        ImageView deleteButton;
-        LinearLayout scheduleDisplay;
-        TextView scheduleText;
-        ImageView notificationIcon;
-        ImageView clearScheduleButton;
+        public CheckBox checkbox;
+        public EditText taskText;
+        public ImageView deleteButton;
+        // ✅ NEW: Schedule UI elements
+        public ImageView scheduleButton;
+        public LinearLayout scheduleDisplay;
+        public TextView scheduleText;
+        public ImageView notificationIcon;
+        public ImageView clearScheduleButton;
 
-        public TaskViewHolder(@NonNull View itemView) {
+        TaskViewHolder(@NonNull View itemView) {
             super(itemView);
             checkbox = itemView.findViewById(R.id.taskCheckbox);
             taskText = itemView.findViewById(R.id.taskEditText);
-            scheduleButton = itemView.findViewById(R.id.scheduleButton);
             deleteButton = itemView.findViewById(R.id.deleteTaskButton);
+            // ✅ NEW: Initialize schedule views
+            scheduleButton = itemView.findViewById(R.id.scheduleButton);
             scheduleDisplay = itemView.findViewById(R.id.scheduleDisplay);
             scheduleText = itemView.findViewById(R.id.scheduleText);
             notificationIcon = itemView.findViewById(R.id.notificationIcon);
@@ -96,11 +111,10 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
         }
 
         void bind(WeeklyTask task, int position) {
-            // ✅ FIX 1: Remove previous listeners properly
+            // Remove previous listeners
             checkbox.setOnCheckedChangeListener(null);
-            taskText.removeTextChangedListener(null);
 
-            // ✅ FIX 2: Set task text
+            // Set task text
             if (task.getTaskText() != null && !task.getTaskText().isEmpty()) {
                 taskText.setText(task.getTaskText());
             } else {
@@ -110,30 +124,30 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
             // Set checkbox state
             checkbox.setChecked(task.isCompleted());
 
-            // Apply strikethrough if completed
+            // Apply strikethrough
             if (task.isCompleted()) {
-                taskText.setTextColor(itemView.getContext()
-                        .getResources().getColor(android.R.color.darker_gray));
+                taskText.setTextColor(itemView.getContext().getResources()
+                        .getColor(android.R.color.darker_gray));
                 taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
             } else {
-                taskText.setTextColor(itemView.getContext()
-                        .getResources().getColor(android.R.color.black));
+                taskText.setTextColor(itemView.getContext().getResources()
+                        .getColor(android.R.color.black));
                 taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             }
 
-            // ✅ FIX 3: Update schedule display
+            // ✅ NEW: Update schedule display
             updateScheduleDisplay(task);
 
             // Checkbox listener
             checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 task.setCompleted(isChecked);
                 if (isChecked) {
-                    taskText.setTextColor(itemView.getContext()
-                            .getResources().getColor(android.R.color.darker_gray));
+                    taskText.setTextColor(itemView.getContext().getResources()
+                            .getColor(android.R.color.darker_gray));
                     taskText.setPaintFlags(taskText.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
                 } else {
-                    taskText.setTextColor(itemView.getContext()
-                            .getResources().getColor(android.R.color.black));
+                    taskText.setTextColor(itemView.getContext().getResources()
+                            .getColor(android.R.color.black));
                     taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
                 }
                 if (listener != null) {
@@ -141,7 +155,7 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
                 }
             });
 
-            // ✅ FIX 4: Text change listener (THIS WAS THE PROBLEM!)
+            // Text change listener
             taskText.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -158,26 +172,26 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
                 public void afterTextChanged(Editable s) {}
             });
 
-            // Schedule button listener
+            // ✅ NEW: Schedule button listener
             scheduleButton.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onScheduleClicked(task, getAdapterPosition());
                 }
             });
 
-            // Clear schedule button listener
+            // ✅ NEW: Clear schedule button listener
             clearScheduleButton.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onClearScheduleClicked(task);
                 }
             });
 
-            // Focus listener for delete button
+            // Focus listener
             taskText.setOnFocusChangeListener((v, hasFocus) -> {
                 deleteButton.setVisibility(hasFocus ? View.VISIBLE : View.GONE);
             });
 
-            // Delete button listener
+            // Delete button
             deleteButton.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onDeleteClicked(task, getAdapterPosition());
@@ -185,7 +199,7 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
             });
         }
 
-        // ✅ FIX 5: Schedule display method
+        // ✅ NEW: Schedule display method
         private void updateScheduleDisplay(WeeklyTask task) {
             if (task.getScheduleDate() != null) {
                 scheduleDisplay.setVisibility(View.VISIBLE);

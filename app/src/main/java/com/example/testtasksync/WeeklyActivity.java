@@ -115,6 +115,9 @@ public class WeeklyActivity extends AppCompatActivity {
     private String titleFontStyle = "normal";
     private int titleFontSize = 16;
     private String titleFontColor = "#000000";
+    private LinearLayout dueDateDisplay;
+    private TextView dueDateText;
+    private ImageView clearDateButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -193,6 +196,12 @@ public class WeeklyActivity extends AppCompatActivity {
         headingsAndFont = findViewById(R.id.headingsandfont);
         addThemeBtn = findViewById(R.id.addThemeOption);
         addSubpageBtn = findViewById(R.id.addSubpageOption);
+        dueDateDisplay = findViewById(R.id.dueDateDisplay);
+        dueDateText = findViewById(R.id.dueDateText);
+        clearDateButton = findViewById(R.id.clearDateButton);
+
+        // Add click listener for clear button
+        clearDateButton.setOnClickListener(v -> clearSchedule());
         colorPickerPanel = findViewById(R.id.colorPickerPanel);
 
         setupKeyboardToolbar();
@@ -635,7 +644,7 @@ public class WeeklyActivity extends AppCompatActivity {
             // ✅ Save schedule to task
             task.setScheduleDate(taskScheduleDate.getTime());
             task.setScheduleTime(selectedTimeText.getText().toString());
-            task.setHasNotification(notificationCheckbox.isChecked());
+            task.setHasNotification(notificationCheckbox.isChecked());  // ✅ IMPORTANT
 
             if (notificationCheckbox.isChecked()) {
                 int selectedPos = notificationTimeSpinner.getSelectedItemPosition();
@@ -647,6 +656,13 @@ public class WeeklyActivity extends AppCompatActivity {
             if (currentAdapter != null) {
                 currentAdapter.notifyDataSetChanged();
             }
+
+            // ✅ Show confirmation with details
+            String message = "✓ Schedule set for " + taskDay;
+            if (notificationCheckbox.isChecked()) {
+                message += " (Notification enabled)";
+            }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
 
             // Save to Firebase
             if (!isNewPlan) {
@@ -754,10 +770,22 @@ public class WeeklyActivity extends AppCompatActivity {
                         // ✅ Load date/time/range from schedule document
                         DocumentSnapshot scheduleDoc = scheduleSnapshots.getDocuments().get(0);
 
-                        // Load time
+                        // ✅ CRITICAL: Load time from schedule first
                         String savedTime = scheduleDoc.getString("time");
                         if (savedTime != null && !savedTime.isEmpty()) {
                             selectedTime = savedTime;
+                            Log.d(TAG, "✅ Loaded time from schedule: " + selectedTime);
+                        }
+
+                        // Load reminder settings
+                        Boolean hasReminderFromSchedule = scheduleDoc.getBoolean("hasReminder");
+                        Long reminderMinutesFromSchedule = scheduleDoc.getLong("reminderMinutes");
+
+                        if (hasReminderFromSchedule != null) {
+                            hasReminder = hasReminderFromSchedule;
+                        }
+                        if (reminderMinutesFromSchedule != null) {
+                            reminderMinutes = reminderMinutesFromSchedule.intValue();
                         }
 
                         // Try to get date range from schedule
@@ -821,10 +849,12 @@ public class WeeklyActivity extends AppCompatActivity {
                                     new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
                                     " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime()));
                         } else {
-                            // ✅ Only set current week if no saved dates exist
                             Log.d(TAG, "⚠️ No saved dates, using current week");
                             setCurrentWeek();
                         }
+
+                        // ✅ NEW: Update schedule display after loading
+                        updateScheduleDisplay();
 
                         // Load notification settings
                         db.collection("users")
@@ -845,6 +875,9 @@ public class WeeklyActivity extends AppCompatActivity {
                                         if (reminderMinutesFromSchedule != null) {
                                             reminderMinutes = reminderMinutesFromSchedule.intValue();
                                         }
+
+                                        // ✅ Update display again with reminder info
+                                        updateScheduleDisplay();
                                     }
                                 })
                                 .addOnFailureListener(e -> {
@@ -859,6 +892,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load plan", Toast.LENGTH_SHORT).show();
                 });
     }
+
     // ✅ NEW: Separate method to load tasks
     private void loadWeeklyPlanTasks(String userId) {
         db.collection("users")
@@ -1069,10 +1103,11 @@ public class WeeklyActivity extends AppCompatActivity {
                 .collection("tasks")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    // Delete old tasks and cancel their notifications
+                    // ✅ FIX: Cancel notifications using the correct composite ID format
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
                         String oldTaskId = doc.getId();
-                        NotificationHelper.cancelNotification(this, oldTaskId);
+                        // Cancel with composite ID (same format used when scheduling)
+                        NotificationHelper.cancelNotification(this, planId + "_" + oldTaskId);
                         doc.getReference().delete();
                     }
 
@@ -1271,13 +1306,13 @@ public class WeeklyActivity extends AppCompatActivity {
     // ✅ ADD helper method to get full day name
     private String getFullDayName(String shortDay) {
         switch (shortDay) {
-            case "Mon": return "Monday";
-            case "Tues": return "Tuesday";
-            case "Wed": return "Wednesday";
-            case "Thur": return "Thursday";
-            case "Fri": return "Friday";
-            case "Sat": return "Saturday";
-            case "Sun": return "Sunday";
+            case "MONDAY": return "Monday";
+            case "TUESDAY": return "Tuesday";
+            case "WEDNESDAY": return "Wednesday";
+            case "THURSDAY": return "Thursday";
+            case "FRIDAY": return "Friday";
+            case "SATURDAY": return "Saturday";
+            case "SUNDAY": return "Sunday";
             default: return shortDay;
         }
     }
@@ -1395,6 +1430,9 @@ public class WeeklyActivity extends AppCompatActivity {
             } else {
                 selectedTime = "";
             }
+
+            // ✅ NEW: Update display immediately
+            updateScheduleDisplay();
 
             String message = "Schedule set for " +
                     new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
@@ -2129,5 +2167,34 @@ public class WeeklyActivity extends AppCompatActivity {
                     Log.e(TAG, "❌ Failed to load subpages", e);
                 });
     }
+    private void updateScheduleDisplay() {
+        if (startDate != null && endDate != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            String displayText = sdf.format(startDate.getTime()) + " - " + sdf.format(endDate.getTime());
+
+            if (selectedTime != null && !selectedTime.isEmpty()) {
+                displayText += ", " + selectedTime;
+            }
+
+            dueDateText.setText(displayText);
+            dueDateDisplay.setVisibility(View.VISIBLE);
+        } else {
+            dueDateDisplay.setVisibility(View.GONE);
+        }
+    }
+
+    // ✅ NEW METHOD: Clear schedule
+    private void clearSchedule() {
+        startDate = null;
+        endDate = null;
+        selectedTime = "";
+        hasReminder = false;
+        updateScheduleDisplay();
+
+        if (!isNewPlan) {
+            saveWeeklyPlan();
+        }
+    }
+
 
 }

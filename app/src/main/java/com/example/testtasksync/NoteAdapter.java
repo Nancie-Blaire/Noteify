@@ -576,105 +576,108 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             String userId = user.getUid();
             String itemId = note.getId();
 
-            if (itemType.equals("todo")) {
-                deleteTodo(userId, itemId, db, view, noteList, adapter);
-            } else if (itemType.equals("weekly")) {
-                deleteWeekly(userId, itemId, db, view, noteList, adapter);
-            } else {
-                deleteNote(userId, itemId, db, view, noteList, adapter);
-            }
+            // Show confirmation dialog
+            new android.app.AlertDialog.Builder(view.getContext())
+                    .setTitle("Move to Bin?")
+                    .setMessage("This item will be moved to the bin and can be restored within 30 days.")
+                    .setPositiveButton("Move to Bin", (dialog, which) -> {
+                        if (itemType.equals("todo") || itemType.equals("weekly")) {
+                            softDeleteSchedule(userId, itemId, db, view, noteList, adapter, itemType);
+                        } else {
+                            softDeleteNote(userId, itemId, db, view, noteList, adapter);
+                        }
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
         }
 
-        private void deleteTodo(String userId, String todoId, FirebaseFirestore db, View view,
-                                List<Note> noteList, NoteAdapter adapter) {
-            // ✅ Delete from schedules collection (where the todo actually is)
-            db.collection("users")
-                    .document(userId)
-                    .collection("schedules")  // ✅ FIXED: was "schedule" (singular)
-                    .document(todoId)
-                    .delete()
-                    .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ To-Do deleted",
-                                Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Todo deleted from schedules collection");
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
-                        Log.e("NoteAdapter", "Failed to delete todo", e);
-                    });
-        }
-
-        private void deleteWeekly(String userId, String weeklyId, FirebaseFirestore db, View view,
-                                  List<Note> noteList, NoteAdapter adapter) {
-            // ✅ Delete from schedules collection (where the weekly actually is)
-            db.collection("users")
-                    .document(userId)
-                    .collection("schedules")  // ✅ Correct
-                    .document(weeklyId)
-                    .delete()
-                    .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ Weekly plan deleted",
-                                Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Weekly deleted from schedules collection");
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
-                        Log.e("NoteAdapter", "Failed to delete weekly", e);
-                    });
-        }
-        private void deleteNote(String userId, String noteId, FirebaseFirestore db, View view,
-                                List<Note> noteList, NoteAdapter adapter) {
+        // ✅ NEW: Soft delete for notes
+        private void softDeleteNote(String userId, String noteId, FirebaseFirestore db, View view,
+                                    List<Note> noteList, NoteAdapter adapter) {
             db.collection("users")
                     .document(userId)
                     .collection("notes")
                     .document(noteId)
-                    .collection("subpages")
-                    .get()
-                    .addOnSuccessListener(querySnapshot -> {
-                        for (com.google.firebase.firestore.QueryDocumentSnapshot document : querySnapshot) {
-                            document.getReference().delete();
-                        }
-
-                        db.collection("users")
-                                .document(userId)
-                                .collection("notes")
-                                .document(noteId)
-                                .delete()
-                                .addOnSuccessListener(aVoid -> {
-                                    removeFromList(view, noteList, adapter);
-                                    Log.d("NoteAdapter", "Note deleted successfully");
-                                    Toast.makeText(view.getContext(), "✓ Note deleted",
-                                            Toast.LENGTH_SHORT).show();
-                                })
-                                .addOnFailureListener(e -> {
-                                    Log.e("NoteAdapter", "Failed to delete note", e);
-                                    Toast.makeText(view.getContext(), "✗ Failed to delete note",
-                                            Toast.LENGTH_SHORT).show();
-                                });
+                    .update("deletedAt", com.google.firebase.Timestamp.now())
+                    .addOnSuccessListener(aVoid -> {
+                        removeFromList(view, noteList, adapter);
+                        Toast.makeText(view.getContext(), "✓ Note moved to bin",
+                                Toast.LENGTH_SHORT).show();
+                        Log.d("NoteAdapter", "Note soft deleted: " + noteId);
                     })
                     .addOnFailureListener(e -> {
-                        Log.e("NoteAdapter", "Failed to fetch subpages", e);
-                        db.collection("users")
-                                .document(userId)
-                                .collection("notes")
-                                .document(noteId)
-                                .delete()
-                                .addOnSuccessListener(aVoid -> {
-                                    removeFromList(view, noteList, adapter);
-                                    Toast.makeText(view.getContext(), "✓ Note deleted",
-                                            Toast.LENGTH_SHORT).show();
-                                })
-                                .addOnFailureListener(deleteError -> {
-                                    Toast.makeText(view.getContext(), "✗ Failed to delete note",
-                                            Toast.LENGTH_SHORT).show();
-                                });
+                        Toast.makeText(view.getContext(), "✗ Failed to delete",
+                                Toast.LENGTH_SHORT).show();
+                        Log.e("NoteAdapter", "Failed to soft delete note", e);
                     });
         }
 
+        // ✅ NEW: Soft delete for schedules (todo & weekly)
+        private void softDeleteSchedule(String userId, String scheduleId, FirebaseFirestore db,
+                                        View view, List<Note> noteList, NoteAdapter adapter, String itemType) {
+            // First, get the schedule to find its sourceId
+            db.collection("users")
+                    .document(userId)
+                    .collection("schedules")
+                    .document(scheduleId)
+                    .get()
+                    .addOnSuccessListener(scheduleDoc -> {
+                        if (scheduleDoc.exists()) {
+                            String sourceId = scheduleDoc.getString("sourceId");
+                            String category = scheduleDoc.getString("category");
+
+                            // Use batch to update both schedule and source
+                            com.google.firebase.firestore.WriteBatch batch = db.batch();
+
+                            // Mark schedule as deleted
+                            batch.update(
+                                    db.collection("users")
+                                            .document(userId)
+                                            .collection("schedules")
+                                            .document(scheduleId),
+                                    "deletedAt", com.google.firebase.Timestamp.now()
+                            );
+
+                            // Also mark the source document as deleted
+                            if (sourceId != null && !sourceId.isEmpty() && category != null) {
+                                String sourceCollection = "todo".equals(category) ? "todoLists" : "weeklyPlans";
+
+                                batch.update(
+                                        db.collection("users")
+                                                .document(userId)
+                                                .collection(sourceCollection)
+                                                .document(sourceId),
+                                        "deletedAt", com.google.firebase.Timestamp.now()
+                                );
+
+                                Log.d("NoteAdapter", "Marking source as deleted: " + sourceCollection + "/" + sourceId);
+                            }
+
+                            // Commit the batch
+                            batch.commit()
+                                    .addOnSuccessListener(aVoid -> {
+                                        removeFromList(view, noteList, adapter);
+                                        String itemLabel = "todo".equals(itemType) ? "To-Do" : "Weekly plan";
+                                        Toast.makeText(view.getContext(), "✓ " + itemLabel + " moved to bin",
+                                                Toast.LENGTH_SHORT).show();
+                                        Log.d("NoteAdapter", "Schedule soft deleted with source: " + scheduleId);
+                                    })
+                                    .addOnFailureListener(e -> {
+                                        Toast.makeText(view.getContext(), "✗ Failed to delete",
+                                                Toast.LENGTH_SHORT).show();
+                                        Log.e("NoteAdapter", "Failed to soft delete schedule", e);
+                                    });
+                        } else {
+                            Toast.makeText(view.getContext(), "✗ Item not found",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(view.getContext(), "✗ Failed to delete",
+                                Toast.LENGTH_SHORT).show();
+                        Log.e("NoteAdapter", "Failed to get schedule data", e);
+                    });
+        }
         private void removeFromList(View view, List<Note> noteList, NoteAdapter adapter) {
             int position = getAdapterPosition();
             if (position != RecyclerView.NO_POSITION) {

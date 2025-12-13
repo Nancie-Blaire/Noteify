@@ -79,29 +79,46 @@ public class BinAdapter extends RecyclerView.Adapter<BinAdapter.BinViewHolder> {
             holder.daysRemaining.setTextColor(Color.parseColor("#D32F2F"));
         }
 
-        // Handle selection state
+        // ✅ Handle selection state
         boolean isSelected = selectedIds.contains(noteId);
+
+        // ✅ Remove old listener to avoid conflicts
+        holder.checkbox.setOnCheckedChangeListener(null);
         holder.checkbox.setChecked(isSelected);
 
-        // Highlight selected items
+        // ✅ Highlight selected items - KEEP SAME BACKGROUND
         if (isSelected) {
-            holder.cardView.setCardBackgroundColor(Color.parseColor("#E3F2FD"));
-            holder.cardView.setStrokeColor(Color.parseColor("#2196F3"));
-            holder.cardView.setStrokeWidth(4);
+            holder.cardView.setCardBackgroundColor(Color.parseColor("#f6d5b6"));
+            holder.cardView.setStrokeColor(Color.parseColor("#ff9376"));
+            holder.cardView.setStrokeWidth(6);
         } else {
-            holder.cardView.setCardBackgroundColor(Color.parseColor("#BBDEFB"));
+            holder.cardView.setCardBackgroundColor(Color.parseColor("#f6d5b6"));
             holder.cardView.setStrokeColor(Color.parseColor("#E0E0E0"));
             holder.cardView.setStrokeWidth(2);
         }
 
-        // Handle click - toggle selection
+        // ✅ Handle click - toggle selection
         View.OnClickListener toggleSelection = v -> {
-            if (isSelected) {
-                selectedIds.remove(noteId);
-            } else {
+            boolean newState = !selectedIds.contains(noteId);
+
+            if (newState) {
                 selectedIds.add(noteId);
+            } else {
+                selectedIds.remove(noteId);
             }
-            notifyItemChanged(position);
+
+            // ✅ Update checkbox immediately
+            holder.checkbox.setChecked(newState);
+
+            // ✅ Update card styling
+            if (newState) {
+                holder.cardView.setStrokeColor(Color.parseColor("#ff9376"));
+                holder.cardView.setStrokeWidth(6);
+            } else {
+                holder.cardView.setStrokeColor(Color.parseColor("#E0E0E0"));
+                holder.cardView.setStrokeWidth(2);
+            }
+
             if (selectionListener != null) {
                 selectionListener.onSelectionChanged(selectedIds.size());
             }
@@ -110,7 +127,6 @@ public class BinAdapter extends RecyclerView.Adapter<BinAdapter.BinViewHolder> {
         holder.cardView.setOnClickListener(toggleSelection);
         holder.checkbox.setOnClickListener(toggleSelection);
     }
-
     @Override
     public int getItemCount() {
         return items.size();

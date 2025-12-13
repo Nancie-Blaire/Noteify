@@ -123,6 +123,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        //TOP BAR COLOR THEME
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(Color.parseColor("#8daaa6")); // Same as your top bar
+        }
+
         // ✅ MODERN: Handle Android back button/gesture
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override

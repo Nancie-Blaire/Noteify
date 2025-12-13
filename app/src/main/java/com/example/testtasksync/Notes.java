@@ -3,6 +3,8 @@ package com.example.testtasksync;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -87,6 +89,22 @@ public class Notes extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
+        //TOP BAR COLOR
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            requireActivity().getWindow().setStatusBarColor(
+                    Color.parseColor("#f4e8df") // White
+            );
+            // ✅ THIS IS FOR THE ICONS
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                View decorView = requireActivity().getWindow().getDecorView();
+                decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR); // Dark icons
+                // OR remove this line for white icons
+            }
+
+        }
+
+
 
         Log.d(TAG, "onViewCreated started");
 
@@ -563,6 +581,8 @@ public class Notes extends Fragment {
         }
     }
 
+// Replace the loadNotes method in Notes.java - BALIK SA ORIGINAL NA MAY MANUAL CHECK
+
     private void loadNotes(FirebaseUser user) {
         db.collection("users")
                 .document(user.getUid())
@@ -579,7 +599,9 @@ public class Notes extends Fragment {
 
                     if (snapshots != null) {
                         for (QueryDocumentSnapshot doc : snapshots) {
+                            // ✅ MANUAL CHECK: Skip deleted items
                             if (doc.get("deletedAt") != null) {
+                                Log.d(TAG, "Skipping deleted note: " + doc.getId());
                                 continue;
                             }
 
@@ -604,7 +626,6 @@ public class Notes extends Fragment {
                                 Log.w(TAG, "Timestamp not in Firestore format, using fallback", ex);
                             }
 
-                            // ✅ CRITICAL FIX: Always explicitly set starred state from Firebase
                             Boolean isStarred = doc.getBoolean("isStarred");
                             note.setStarred(isStarred != null && isStarred);
 
@@ -630,6 +651,8 @@ public class Notes extends Fragment {
                 });
     }
 
+// Replace the loadSchedules method in Notes.java - BALIK SA ORIGINAL NA MAY MANUAL CHECK
+
     private void loadSchedules(FirebaseUser user) {
         Log.d(TAG, "Loading schedules (todo & weekly)...");
 
@@ -651,7 +674,9 @@ public class Notes extends Fragment {
                         Log.d(TAG, "Found " + snapshots.size() + " schedule items");
 
                         for (QueryDocumentSnapshot doc : snapshots) {
+                            // ✅ MANUAL CHECK: Skip deleted items
                             if (doc.get("deletedAt") != null) {
+                                Log.d(TAG, "Skipping deleted schedule: " + doc.getId());
                                 continue;
                             }
 
@@ -691,7 +716,6 @@ public class Notes extends Fragment {
                     updateUI();
                 });
     }
-
     private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");

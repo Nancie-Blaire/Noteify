@@ -80,4 +80,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel:2.6.2")
 // or newer version
     implementation("androidx.lifecycle:lifecycle-livedata:2.6.2")
+
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }

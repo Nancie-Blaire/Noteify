@@ -98,10 +98,12 @@
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".Notes"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.App.Starting"/>
         <activity
             android:name=".MainActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.App.Starting"/>
         <activity
             android:name=".WeeklyActivity"
             android:exported="false"
@@ -126,7 +128,8 @@
             android:exported="false" />
         <activity
             android:name=".Login"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.App.Starting">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

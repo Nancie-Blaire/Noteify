@@ -31,4 +31,5 @@
 
     <!-- Radio button color-->
     <color name="radio_button_color">#FF9376</color>
+    <color name="autumn">#f4e8df</color>
 </resources>

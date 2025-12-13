@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/lightmode_bg">
-<!--COMMENT-->
+    <!--COMMENT-->
     <!-- Header with Back Button -->
     <LinearLayout
         android:id="@+id/header"
@@ -20,7 +20,7 @@
             android:layout_height="wrap_content"
             android:text="Settings"
             android:textColor="#000000"
-            android:textSize="25sp"
+            android:textSize="20sp"
             android:textStyle="bold"
             android:layout_marginStart="12dp"/>
     </LinearLayout>
@@ -70,9 +70,9 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Time Format"
+                        android:text="TIME FORMAT"
                         android:textColor="#333333"
-                        android:textSize="18sp"
+                        android:textSize="14sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -183,9 +183,9 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Notification"
+                        android:text="NOTIFICATION"
                         android:textColor="#333333"
-                        android:textSize="18sp"
+                        android:textSize="14sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -250,9 +250,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Profile"
+                    android:text="PROFILE"
                     android:textColor="#333333"
-                    android:textSize="18sp"
+                    android:textSize="14sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -278,9 +278,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Theme"
+                    android:text="THEME"
                     android:textColor="#333333"
-                    android:textSize="18sp"
+                    android:textSize="14sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -306,9 +306,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Bin"
+                    android:text="BIN"
                     android:textColor="#333333"
-                    android:textSize="18sp"
+                    android:textSize="14sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -333,9 +333,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Privacy"
+                    android:text="PRIVACY"
                     android:textColor="#333333"
-                    android:textSize="18sp"
+                    android:textSize="14sp"
                     android:textStyle="bold"/>
 
                 <ImageView

@@ -123,6 +123,10 @@ public class WeeklyActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_weekly);
+        //TOP BAR COLOR THEME
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(Color.parseColor("#8daaa6")); // Same as your top bar
+        }
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
@@ -192,21 +196,10 @@ public class WeeklyActivity extends AppCompatActivity {
         scheduleButton.setOnClickListener(v -> showScheduleDialog());
 
         // ✅ REMOVED: Image and divider setup
-        keyboardToolbar = findViewById(R.id.keyboardToolbar);
-        headingsAndFont = findViewById(R.id.headingsandfont);
-        addThemeBtn = findViewById(R.id.addThemeOption);
-        addSubpageBtn = findViewById(R.id.addSubpageOption);
         dueDateDisplay = findViewById(R.id.dueDateDisplay);
         dueDateText = findViewById(R.id.dueDateText);
         clearDateButton = findViewById(R.id.clearDateButton);
 
-        // Add click listener for clear button
-        clearDateButton.setOnClickListener(v -> clearSchedule());
-        colorPickerPanel = findViewById(R.id.colorPickerPanel);
-
-        setupKeyboardToolbar();
-        setupColorPicker();
-        keyboardToolbar.setVisibility(View.VISIBLE);
 
         if (isNewPlan) {
             Log.d(TAG, "📝 Creating new plan - adding default tasks");

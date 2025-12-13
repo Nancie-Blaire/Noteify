@@ -77,4 +77,7 @@ dependencies {
     // RecyclerView (if not already added)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("com.google.firebase:firebase-firestore:24.10.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.6.2")
+// or newer version
+    implementation("androidx.lifecycle:lifecycle-livedata:2.6.2")
 }

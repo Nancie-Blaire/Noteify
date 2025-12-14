@@ -77,6 +77,8 @@ public class SubpageActivity extends AppCompatActivity {
 
     private Map<String, List<Bookmark>> blockBookmarksMap = new HashMap<>();
     private ImageView viewBookmarksBtn;
+    private static final int REQUEST_BOOKMARKS = 200;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,6 +115,14 @@ public class SubpageActivity extends AppCompatActivity {
         subpageId = getIntent().getStringExtra("subpageId");
         String initialTitle = getIntent().getStringExtra("subpageTitle");
 
+        if (viewBookmarksBtn != null) {
+            viewBookmarksBtn.setOnClickListener(v -> {
+                Intent intent = new Intent(this, SubpageBookmarksActivity.class);
+                intent.putExtra("noteId", noteId);
+                intent.putExtra("subpageId", subpageId);
+                startActivityForResult(intent, REQUEST_BOOKMARKS);
+            });
+        }
         if (noteId == null || subpageId == null) {
             Toast.makeText(this, "Error: Invalid subpage data", Toast.LENGTH_SHORT).show();
             finish();
@@ -1860,5 +1870,299 @@ public class SubpageActivity extends AppCompatActivity {
                         blockAdapter.notifyDataSetChanged();
                     }
                 });
+    }
+
+    //BOOKMARKS
+    public Bookmark getBookmarkAtSelection(String blockId, int start, int end) {
+        List<Bookmark> bookmarks = blockBookmarksMap.get(blockId);
+        if (bookmarks == null) return null;
+
+        for (Bookmark bookmark : bookmarks) {
+            int bStart = bookmark.getStartIndex();
+            int bEnd = bookmark.getEndIndex();
+
+            // Check if selection overlaps with bookmark
+            if ((start >= bStart && start < bEnd) ||
+                    (end > bStart && end <= bEnd) ||
+                    (start <= bStart && end >= bEnd)) {
+                return bookmark;
+            }
+        }
+        return null;
+    }
+
+    // ✅ EXPAND existing bookmark
+    public void expandBookmark(Bookmark bookmark, String blockId, int newStart, int newEnd) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        // Get the block
+        SubpageBlock block = null;
+        int blockPosition = -1;
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getBlockId().equals(blockId)) {
+                block = blocks.get(i);
+                blockPosition = i;
+                break;
+            }
+        }
+
+        if (block == null) return;
+
+        String content = block.getContent();
+        if (content == null) return;
+
+        int expandedStart = Math.min(bookmark.getStartIndex(), newStart);
+        int expandedEnd = Math.max(bookmark.getEndIndex(), newEnd);
+
+        if (expandedStart < 0 || expandedEnd > content.length() || expandedStart >= expandedEnd) {
+            Toast.makeText(this, "Invalid selection range", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Trim whitespace
+        while (expandedStart < expandedEnd && expandedStart < content.length()
+                && Character.isWhitespace(content.charAt(expandedStart))) {
+            expandedStart++;
+        }
+        while (expandedEnd > expandedStart && expandedEnd > 0
+                && Character.isWhitespace(content.charAt(expandedEnd - 1))) {
+            expandedEnd--;
+        }
+
+        String expandedText = content.substring(expandedStart, expandedEnd);
+
+        if (expandedText.trim().isEmpty()) {
+            Toast.makeText(this, "Cannot bookmark empty text", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final int finalStart = expandedStart;
+        final int finalEnd = expandedEnd;
+        final String finalText = expandedText;
+        final int finalBlockPosition = blockPosition;
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("startIndex", finalStart);
+        updates.put("endIndex", finalEnd);
+        updates.put("text", finalText);
+
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
+                .collection("bookmarks").document(bookmark.getId())
+                .update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    bookmark.setStartIndex(finalStart);
+                    bookmark.setEndIndex(finalEnd);
+                    bookmark.setText(finalText);
+
+                    blockAdapter.notifyItemChanged(finalBlockPosition);
+                    restoreFocusToBlock(finalBlockPosition, finalEnd);
+
+                    Toast.makeText(this, "Bookmark expanded", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error expanding bookmark", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    // ✅ SHOW update bookmark bottom sheet
+    public void showUpdateBookmarkBottomSheet(Bookmark bookmark, int blockPosition) {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet_update, null);
+        bottomSheet.setContentView(sheetView);
+
+        // Color options
+        View colorViolet = sheetView.findViewById(R.id.colorViolet);
+        View colorYellow = sheetView.findViewById(R.id.colorYellow);
+        View colorPink = sheetView.findViewById(R.id.colorPink);
+        View colorGreen = sheetView.findViewById(R.id.colorGreen);
+        View colorBlue = sheetView.findViewById(R.id.colorBlue);
+        View colorOrange = sheetView.findViewById(R.id.colorOrange);
+        View colorRed = sheetView.findViewById(R.id.colorRed);
+        View colorCyan = sheetView.findViewById(R.id.colorCyan);
+
+        colorViolet.setTag("#E1BEE7");
+        colorYellow.setTag("#FFF9C4");
+        colorPink.setTag("#F8BBD0");
+        colorGreen.setTag("#C8E6C9");
+        colorBlue.setTag("#BBDEFB");
+        colorOrange.setTag("#FFE0B2");
+        colorRed.setTag("#FFCDD2");
+        colorCyan.setTag("#B2EBF2");
+
+        TextView styleHighlight = sheetView.findViewById(R.id.styleHighlight);
+        TextView styleUnderline = sheetView.findViewById(R.id.styleUnderline);
+        com.google.android.material.textfield.TextInputEditText noteInput =
+                sheetView.findViewById(R.id.bookmarkNoteInput);
+        TextView updateBtn = sheetView.findViewById(R.id.updateBtn);
+        TextView deleteBtn = sheetView.findViewById(R.id.deleteBtn);
+
+        final String[] selectedColor = {bookmark.getColor()};
+        final String[] selectedStyle = {bookmark.getStyle()};
+
+        // Pre-fill note
+        noteInput.setText(bookmark.getNote());
+
+        // Set initial selections
+        setColorScale(colorViolet, colorYellow, colorPink, colorGreen, colorBlue,
+                colorOrange, colorRed, colorCyan, selectedColor[0]);
+
+        if ("highlight".equals(selectedStyle[0])) {
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        } else {
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        }
+
+        // Color selection listeners
+        View.OnClickListener colorListener = v -> {
+            resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen,
+                    colorBlue, colorOrange, colorRed, colorCyan);
+            v.setScaleX(1.2f);
+            v.setScaleY(1.2f);
+            selectedColor[0] = (String) v.getTag();
+        };
+
+        colorViolet.setOnClickListener(colorListener);
+        colorYellow.setOnClickListener(colorListener);
+        colorPink.setOnClickListener(colorListener);
+        colorGreen.setOnClickListener(colorListener);
+        colorBlue.setOnClickListener(colorListener);
+        colorOrange.setOnClickListener(colorListener);
+        colorRed.setOnClickListener(colorListener);
+        colorCyan.setOnClickListener(colorListener);
+
+        // Style selection
+        styleHighlight.setOnClickListener(v -> {
+            selectedStyle[0] = "highlight";
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        styleUnderline.setOnClickListener(v -> {
+            selectedStyle[0] = "underline";
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        });
+
+        updateBtn.setOnClickListener(v -> {
+            String newNote = noteInput.getText().toString().trim();
+
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("color", selectedColor[0]);
+            updates.put("style", selectedStyle[0]);
+            updates.put("note", newNote);
+
+            FirebaseUser user = auth.getCurrentUser();
+            if (user != null) {
+                db.collection("users").document(user.getUid())
+                        .collection("notes").document(noteId)
+                        .collection("subpages").document(subpageId)
+                        .collection("bookmarks").document(bookmark.getId())
+                        .update(updates)
+                        .addOnSuccessListener(aVoid -> {
+                            bookmark.setColor(selectedColor[0]);
+                            bookmark.setStyle(selectedStyle[0]);
+                            bookmark.setNote(newNote);
+
+                            blockAdapter.notifyItemChanged(blockPosition);
+                            restoreFocusToBlock(blockPosition, bookmark.getEndIndex());
+
+                            Toast.makeText(this, "Bookmark updated", Toast.LENGTH_SHORT).show();
+                        })
+                        .addOnFailureListener(e -> {
+                            Toast.makeText(this, "Error updating bookmark", Toast.LENGTH_SHORT).show();
+                        });
+            }
+
+            bottomSheet.dismiss();
+        });
+
+        deleteBtn.setOnClickListener(v -> {
+            showDeleteBookmarkConfirmation(bookmark, blockPosition);
+            bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+
+    // ✅ SHOW delete confirmation
+    public void showDeleteBookmarkConfirmation(Bookmark bookmark, int blockPosition) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Delete Bookmark")
+                .setMessage("Are you sure you want to delete this bookmark?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    FirebaseUser user = auth.getCurrentUser();
+                    if (user != null) {
+                        db.collection("users").document(user.getUid())
+                                .collection("notes").document(noteId)
+                                .collection("subpages").document(subpageId)
+                                .collection("bookmarks").document(bookmark.getId())
+                                .delete()
+                                .addOnSuccessListener(aVoid -> {
+                                    blockAdapter.notifyItemChanged(blockPosition);
+                                    restoreFocusToBlock(blockPosition, bookmark.getStartIndex());
+
+                                    Toast.makeText(this, "Bookmark deleted", Toast.LENGTH_SHORT).show();
+                                });
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    // ✅ RESTORE focus to block after bookmark action
+    private void restoreFocusToBlock(int position, int cursorPosition) {
+        subpageBlocksRecycler.postDelayed(() -> {
+            RecyclerView.ViewHolder holder =
+                    subpageBlocksRecycler.findViewHolderForAdapterPosition(position);
+            if (holder != null && holder.itemView != null) {
+                EditText editText = holder.itemView.findViewById(R.id.contentEdit);
+                if (editText != null) {
+                    editText.requestFocus();
+
+                    int safePosition = Math.min(cursorPosition, editText.getText().length());
+                    safePosition = Math.max(0, safePosition);
+                    editText.setSelection(safePosition);
+
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager)
+                                    getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.showSoftInput(editText,
+                                android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    }
+                }
+            }
+        }, 150);
+    }
+
+    // THEN ADD onActivityResult method:
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_BOOKMARKS && resultCode == RESULT_OK && data != null) {
+            int scrollToBlockPosition = data.getIntExtra("scrollToBlockPosition", -1);
+            int scrollToTextPosition = data.getIntExtra("scrollToTextPosition", -1);
+
+            if (scrollToBlockPosition >= 0 && scrollToTextPosition >= 0) {
+                subpageBlocksRecycler.postDelayed(() -> {
+                    subpageBlocksRecycler.smoothScrollToPosition(scrollToBlockPosition);
+                    focusBlockAt(scrollToBlockPosition);
+                }, 300);
+            }
+        }
     }
 }

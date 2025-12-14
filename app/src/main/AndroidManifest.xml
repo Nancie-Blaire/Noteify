@@ -45,6 +45,8 @@
             </intent-filter>
         </receiver>
 
+        <activity android:name=".SubpageBookmarksActivity" />
+
         <activity
             android:name=".Bin"
             android:exported="false" />

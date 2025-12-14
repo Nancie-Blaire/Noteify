@@ -226,8 +226,35 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
             holder.editText.setCustomSelectionActionModeCallback(new android.view.ActionMode.Callback() {
                 @Override
                 public boolean onCreateActionMode(android.view.ActionMode mode, android.view.Menu menu) {
-                    menu.add(0, android.R.id.button1, 0, "📌 Bookmark")
-                            .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                    int pos = holder.getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    SubpageBlock block = blocks.get(pos);
+                    int start = holder.editText.getSelectionStart();
+                    int end = holder.editText.getSelectionEnd();
+
+                    // ✅ Check if selection is within an existing bookmark
+                    if (context instanceof SubpageActivity) {
+                        SubpageActivity activity = (SubpageActivity) context;
+                        Bookmark existingBookmark = activity.getBookmarkAtSelection(block.getBlockId(), start, end);
+
+                        if (existingBookmark != null) {
+                            // ✅ Selection is within bookmark - show expand/update options
+                            menu.clear();
+                            menu.add(0, 1, 0, "Expand Bookmark")
+                                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                            menu.add(0, 2, 0, "Update Color/Style")
+                                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                            menu.add(0, 3, 0, "Delete Bookmark")
+                                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                        } else {
+                            // ✅ Normal selection - show bookmark option
+                            menu.clear();
+                            menu.add(0, 0, 0, "📌 Bookmark")
+                                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+                        }
+                    }
+
                     return true;
                 }
 
@@ -241,31 +268,56 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
 
                 @Override
                 public boolean onActionItemClicked(android.view.ActionMode mode, android.view.MenuItem item) {
-                    if (item.getItemId() == android.R.id.button1) {
-                        int pos = holder.getAdapterPosition();
-                        if (pos == RecyclerView.NO_POSITION) return false;
+                    int pos = holder.getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
 
-                        SubpageBlock block = blocks.get(pos);
-                        int start = holder.editText.getSelectionStart();
-                        int end = holder.editText.getSelectionEnd();
+                    SubpageBlock block = blocks.get(pos);
+                    int start = holder.editText.getSelectionStart();
+                    int end = holder.editText.getSelectionEnd();
 
-                        if (start >= 0 && end > start && end <= holder.editText.getText().length()) {
-                            String selectedText = holder.editText.getText().toString().substring(start, end);
+                    if (context instanceof SubpageActivity) {
+                        SubpageActivity activity = (SubpageActivity) context;
 
-                            // ✅ FIX: Call through context instead of listener
-                            if (context instanceof SubpageActivity) {
-                                ((SubpageActivity) context).showBookmarkBottomSheet(
-                                        selectedText,
-                                        block.getBlockId(),
-                                        start,
-                                        end
-                                );
-                            }
+                        switch (item.getItemId()) {
+                            case 0: // Bookmark (new)
+                                if (start >= 0 && end > start && end <= holder.editText.getText().length()) {
+                                    String selectedText = holder.editText.getText().toString().substring(start, end);
+                                    activity.showBookmarkBottomSheet(
+                                            selectedText,
+                                            block.getBlockId(),
+                                            start,
+                                            end
+                                    );
+                                }
+                                mode.finish();
+                                return true;
+
+                            case 1: // Expand Bookmark
+                                Bookmark bookmarkToExpand = activity.getBookmarkAtSelection(block.getBlockId(), start, end);
+                                if (bookmarkToExpand != null) {
+                                    activity.expandBookmark(bookmarkToExpand, block.getBlockId(), start, end);
+                                }
+                                mode.finish();
+                                return true;
+
+                            case 2: // Update Color/Style
+                                Bookmark bookmarkToUpdate = activity.getBookmarkAtSelection(block.getBlockId(), start, end);
+                                if (bookmarkToUpdate != null) {
+                                    activity.showUpdateBookmarkBottomSheet(bookmarkToUpdate, pos);
+                                }
+                                mode.finish();
+                                return true;
+
+                            case 3: // Delete Bookmark
+                                Bookmark bookmarkToDelete = activity.getBookmarkAtSelection(block.getBlockId(), start, end);
+                                if (bookmarkToDelete != null) {
+                                    activity.showDeleteBookmarkConfirmation(bookmarkToDelete, pos);
+                                }
+                                mode.finish();
+                                return true;
                         }
-
-                        mode.finish();
-                        return true;
                     }
+
                     return false;
                 }
 

@@ -17,7 +17,8 @@ public class NoteBlock {
         IMAGE,
         DIVIDER,
         SUBPAGE,
-        LINK
+        LINK,
+        LINK_TO_PAGE
     }
 
     private String id;
@@ -42,6 +43,24 @@ public class NoteBlock {
     private int listNumber;
     private String linkBackgroundColor;
     private String linkDescription;
+
+    //LINK TO PAGE
+    // For LINK_TO_PAGE blocks
+    private String linkedPageId;
+    private String linkedPageType;      // "note", "todo", "weekly"
+    private String linkedPageCollection; // Firestore collection
+
+    // Getters and Setters
+    public String getLinkedPageId() { return linkedPageId; }
+    public void setLinkedPageId(String linkedPageId) { this.linkedPageId = linkedPageId; }
+
+    public String getLinkedPageType() { return linkedPageType; }
+    public void setLinkedPageType(String linkedPageType) { this.linkedPageType = linkedPageType; }
+
+    public String getLinkedPageCollection() { return linkedPageCollection; }
+    public void setLinkedPageCollection(String linkedPageCollection) {
+        this.linkedPageCollection = linkedPageCollection;
+    }
 
 
     private String fontStyle;
@@ -157,10 +176,12 @@ public class NoteBlock {
         map.put("sizeKB", sizeKB);
         map.put("linkBackgroundColor", linkBackgroundColor);
         map.put("linkDescription", linkDescription);
-        map.put("fontStyle", fontStyle);  // ✅ ADD THIS
+        map.put("fontStyle", fontStyle);
         map.put("fontColor", fontColor);
-        map.put("styleData", styleData); // ✅ NEW
-
+        map.put("styleData", styleData);
+        map.put("linkedPageId", linkedPageId);
+        map.put("linkedPageType", linkedPageType);
+        map.put("linkedPageCollection", linkedPageCollection);
         return map;
     }
 
@@ -174,6 +195,9 @@ public class NoteBlock {
         block.linkDescription = (String) map.get("linkDescription");
         block.fontStyle = (String) map.get("fontStyle");
         block.fontColor = (String) map.get("fontColor");
+        block.linkedPageId = (String) map.get("linkedPageId");
+        block.linkedPageType = (String) map.get("linkedPageType");
+        block.linkedPageCollection = (String) map.get("linkedPageCollection");
 
         // ✅ MIGRATION: If fontStyle is null but styleData exists, migrate it
         if (block.fontStyle == null && map.get("styleData") != null) {

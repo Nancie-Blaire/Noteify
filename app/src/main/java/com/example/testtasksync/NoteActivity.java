@@ -173,6 +173,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         outdentBtn = findViewById(R.id.outdentOption);
         addThemeBtn = findViewById(R.id.addThemeOption);
         addSubpageBtn = findViewById(R.id.addSubpageOption);
+// Link to Page
+        ImageButton linkToPageBtn = findViewById(R.id.linkToPageOption);
+        linkToPageBtn.setOnClickListener(v -> showLinkToPageBottomSheet());
 
         noteLayout = findViewById(R.id.noteLayout);
         colorPickerPanel = findViewById(R.id.colorPickerPanel);
@@ -276,6 +279,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             } else {
                 // ✅ Normal load
                 loadBlocks();
+                refreshLinkedPageTitles();
             }
         }
     }
@@ -2843,4 +2847,231 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .show();
     }
 
+//LINK TO PAGE
+private void showLinkToPageBottomSheet() {
+    BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+    View sheetView = getLayoutInflater().inflate(R.layout.link_to_page_bottom_sheet, null);
+    bottomSheet.setContentView(sheetView);
+
+    com.google.android.material.textfield.TextInputEditText searchInput =
+            sheetView.findViewById(R.id.searchInput);
+    RecyclerView resultsRecycler = sheetView.findViewById(R.id.resultsRecycler);
+    View emptyState = sheetView.findViewById(R.id.emptyState);
+
+    List<LinkableItem> allItems = new ArrayList<>();
+    List<LinkableItem> filteredItems = new ArrayList<>();
+
+    LinkToPageAdapter adapter = new LinkToPageAdapter(item -> {
+        // Insert link block
+        insertLinkToPageBlock(item);
+        bottomSheet.dismiss();
+    });
+
+    resultsRecycler.setLayoutManager(new LinearLayoutManager(this));
+    resultsRecycler.setAdapter(adapter);
+
+    // Load all items from Firestore
+    loadLinkableItems(allItems, adapter, emptyState);
+
+    // Search functionality
+    searchInput.addTextChangedListener(new android.text.TextWatcher() {
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+            String query = s.toString().toLowerCase().trim();
+
+            if (query.isEmpty()) {
+                adapter.updateItems(allItems);
+                emptyState.setVisibility(allItems.isEmpty() ? View.VISIBLE : View.GONE);
+            } else {
+                filteredItems.clear();
+                for (LinkableItem item : allItems) {
+                    if (item.getTitle().toLowerCase().contains(query)) {
+                        filteredItems.add(item);
+                    }
+                }
+                adapter.updateItems(filteredItems);
+                emptyState.setVisibility(filteredItems.isEmpty() ? View.VISIBLE : View.GONE);
+            }
+        }
+
+        @Override
+        public void afterTextChanged(android.text.Editable s) {}
+    });
+
+    bottomSheet.show();
+}
+
+    private void loadLinkableItems(List<LinkableItem> items, LinkToPageAdapter adapter, View emptyState) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        items.clear(); // ✅ Clear first
+        final int[] loadedCount = {0}; // ✅ Track loaded collections
+
+        // ✅ Helper method to check if all loaded
+        Runnable checkAllLoaded = () -> {
+            loadedCount[0]++;
+            if (loadedCount[0] >= 3) { // 3 collections: notes, todoLists, weeklyPlans
+                adapter.updateItems(items);
+                emptyState.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+            }
+        };
+
+        // ==========================================
+        // 1️⃣ LOAD NOTES
+        // ==========================================
+        db.collection("users").document(user.getUid())
+                .collection("notes")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                        // ✅ Skip current note (don't link to itself)
+                        if (noteId != null && doc.getId().equals(noteId)) {
+                            continue;
+                        }
+
+                        String title = doc.getString("title");
+                        items.add(new LinkableItem(
+                                doc.getId(),
+                                title != null && !title.isEmpty() ? title : "Untitled Note",
+                                "note",
+                                "notes"
+                        ));
+                    }
+                    checkAllLoaded.run();
+                })
+                .addOnFailureListener(e -> {
+                    android.util.Log.e("LoadItems", "Error loading notes", e);
+                    checkAllLoaded.run();
+                });
+
+        // ==========================================
+        // 2️⃣ LOAD TODO LISTS ✅ FIXED COLLECTION NAME
+        // ==========================================
+        db.collection("users").document(user.getUid())
+                .collection("todoLists") // ✅ CHANGED FROM "todos" to "todoLists"
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                        String title = doc.getString("title");
+                        items.add(new LinkableItem(
+                                doc.getId(),
+                                title != null && !title.isEmpty() ? title : "Untitled Todo",
+                                "todo",
+                                "todoLists" // ✅ CHANGED FROM "todos" to "todoLists"
+                        ));
+                    }
+                    checkAllLoaded.run();
+                })
+                .addOnFailureListener(e -> {
+                    android.util.Log.e("LoadItems", "Error loading todos", e);
+                    checkAllLoaded.run();
+                });
+
+        // ==========================================
+        // 3️⃣ LOAD WEEKLY PLANS ✅ FIXED COLLECTION NAME
+        // ==========================================
+        db.collection("users").document(user.getUid())
+                .collection("weeklyPlans") // ✅ CHANGED FROM "weekly" to "weeklyPlans"
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                        String title = doc.getString("title");
+                        items.add(new LinkableItem(
+                                doc.getId(),
+                                title != null && !title.isEmpty() ? title : "Untitled Weekly",
+                                "weekly",
+                                "weeklyPlans" // ✅ CHANGED FROM "weekly" to "weeklyPlans"
+                        ));
+                    }
+                    checkAllLoaded.run();
+                })
+                .addOnFailureListener(e -> {
+                    android.util.Log.e("LoadItems", "Error loading weekly", e);
+                    checkAllLoaded.run();
+                });
+    }
+    private void insertLinkToPageBlock(LinkableItem item) {
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock(NoteBlock.BlockType.LINK_TO_PAGE);
+
+        if (!replacedEmptyBlock) {
+            NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.LINK_TO_PAGE);
+            block.setPosition(blocks.size());
+            block.setContent(item.getTitle());
+            block.setLinkedPageId(item.getId());
+            block.setLinkedPageType(item.getType());
+            block.setLinkedPageCollection(item.getCollection());
+
+            blocks.add(block);
+            adapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(block);
+
+            // Add new text block after
+            addTextBlock();
+        } else {
+            // If replaced empty block, update its data
+            NoteBlock lastBlock = blocks.get(blocks.size() - 1);
+            lastBlock.setContent(item.getTitle());
+            lastBlock.setLinkedPageId(item.getId());
+            lastBlock.setLinkedPageType(item.getType());
+            lastBlock.setLinkedPageCollection(item.getCollection());
+            adapter.notifyItemChanged(blocks.size() - 1);
+            saveBlock(lastBlock);
+        }
+
+        Toast.makeText(this, "✅ Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
+    }
+    @Override
+    public void onLinkToPageClick(String pageId, String pageType) {
+        switch (pageType) {
+            case "note":
+                Intent intent = new Intent(this, NoteActivity.class);
+                intent.putExtra("noteId", pageId);
+                startActivity(intent);
+                break;
+            case "todo":
+                // TODO: Navigate to todo
+                Toast.makeText(this, "Opening todo...", Toast.LENGTH_SHORT).show();
+                break;
+            case "weekly":
+                // TODO: Navigate to weekly
+                Toast.makeText(this, "Opening weekly...", Toast.LENGTH_SHORT).show();
+                break;
+        }
+    }
+    private void refreshLinkedPageTitles() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        for (int i = 0; i < blocks.size(); i++) {
+            NoteBlock block = blocks.get(i);
+
+            if (block.getType() == NoteBlock.BlockType.LINK_TO_PAGE &&
+                    block.getLinkedPageId() != null) {
+
+                final int position = i;
+                String collection = block.getLinkedPageCollection();
+                String pageId = block.getLinkedPageId();
+
+                db.collection("users").document(user.getUid())
+                        .collection(collection).document(pageId)
+                        .get()
+                        .addOnSuccessListener(doc -> {
+                            if (doc.exists()) {
+                                String title = doc.getString("title");
+                                if (title != null) {
+                                    blocks.get(position).setContent(title);
+                                    adapter.notifyItemChanged(position);
+                                }
+                            }
+                        });
+            }
+        }
+    }
 }

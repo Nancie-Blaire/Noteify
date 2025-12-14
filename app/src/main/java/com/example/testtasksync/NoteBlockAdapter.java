@@ -57,6 +57,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private static final int TYPE_SUBPAGE = 7;
     private static final int TYPE_LINK = 8;
 
+    private static final int TYPE_LINK_TO_PAGE = 9;
+
     public interface OnBlockChangeListener {
         void onBlockChanged(NoteBlock block);
         void onBlockDeleted(int position);
@@ -68,7 +70,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         void onEnterPressed(int position, String textBeforeCursor, String textAfterCursor);
         void onBackspaceOnEmptyBlock(int position);
         void onBackspaceAtStart(int position, String currentText);
-
+        void onLinkToPageClick(String pageId, String pageType);
     }
 
     public NoteBlockAdapter(List<NoteBlock> blocks, OnBlockChangeListener listener, String noteId) {
@@ -103,6 +105,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 return TYPE_SUBPAGE;
             case LINK:
                 return TYPE_LINK;
+            case LINK_TO_PAGE:
+                return TYPE_LINK_TO_PAGE;
             default:
                 return TYPE_TEXT;
         }
@@ -130,6 +134,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 return new SubpageViewHolder(inflater.inflate(R.layout.item_block_subpage, parent, false));
             case TYPE_LINK:
                 return new LinkViewHolder(inflater.inflate(R.layout.item_block_link, parent, false));
+            case TYPE_LINK_TO_PAGE:
+                return new LinkToPageViewHolder(inflater.inflate(R.layout.item_block_link_to_page, parent, false));
+
             default:
                 return new TextViewHolder(inflater.inflate(R.layout.item_block_text, parent, false));
         }
@@ -139,6 +146,9 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         NoteBlock block = blocks.get(position);
 
+        if (holder instanceof LinkToPageViewHolder) {
+            ((LinkToPageViewHolder) holder).bind(block);
+        }
         if (holder instanceof TextViewHolder) {
             ((TextViewHolder) holder).bind(block);
         } else if (holder instanceof HeadingViewHolder) {
@@ -3440,5 +3450,116 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             canvas.drawLine(x, underlineY, x + textWidth, underlineY, underlinePaint);
         }
     }
+//LINK TO PAGE
+class LinkToPageViewHolder extends RecyclerView.ViewHolder {
+    ImageView pageIcon;
+    TextView pageTitle;
+    TextView pageType;
 
+    LinkToPageViewHolder(View view) {
+        super(view);
+        pageIcon = view.findViewById(R.id.pageIcon);
+        pageTitle = view.findViewById(R.id.pageTitle);
+        pageType = view.findViewById(R.id.pageType);
+
+        // Click to open linked page
+        itemView.setOnClickListener(v -> {
+            int pos = getAdapterPosition();
+            if (pos != RecyclerView.NO_POSITION) {
+                NoteBlock block = blocks.get(pos);
+                openLinkedPage(block);
+            }
+        });
+
+        // Long press for options
+        itemView.setOnLongClickListener(v -> {
+            int pos = getAdapterPosition();
+            if (pos != RecyclerView.NO_POSITION) {
+                showLinkToPageOptions(v, pos);
+            }
+            return true;
+        });
+    }
+
+    void bind(NoteBlock block) {
+        // Set title
+        String title = block.getContent();
+        pageTitle.setText(title != null && !title.isEmpty() ? title : "Untitled");
+
+        // Set type badge
+        String type = block.getLinkedPageType();
+        pageType.setText(type != null ? type : "page");
+
+        // Set icon based on type
+        if (type != null) {
+            switch (type) {
+                case "note":
+                    pageIcon.setImageResource(R.drawable.ic_fab_notes);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#E3F2FD")));
+                    break;
+                case "todo":
+                    pageIcon.setImageResource(R.drawable.ic_fab_todo);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#FFF3E0")));
+                    break;
+                case "weekly":
+                    pageIcon.setImageResource(R.drawable.ic_calendar);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#F3E5F5")));
+                    break;
+                default:
+                    pageIcon.setImageResource(R.drawable.ic_fab_notes);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#E0E0E0")));
+                    break;
+            }
+        }
+    }
+
+    private void openLinkedPage(NoteBlock block) {
+        String pageId = block.getLinkedPageId();
+        String pageType = block.getLinkedPageType();
+
+        if (pageId == null || pageType == null) {
+            Toast.makeText(itemView.getContext(), "Invalid link", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        android.content.Context context = itemView.getContext();
+
+        switch (pageType) {
+            case "note":
+                android.content.Intent noteIntent = new android.content.Intent(context, NoteActivity.class);
+                noteIntent.putExtra("noteId", pageId);
+                context.startActivity(noteIntent);
+                break;
+
+            case "todo":
+                // ✅ FIXED: Open TodoActivity
+                android.content.Intent todoIntent = new android.content.Intent(context, TodoActivity.class);
+                todoIntent.putExtra("listId", pageId); // ✅ Use "listId" not "todoId"
+                context.startActivity(todoIntent);
+                break;
+
+            case "weekly":
+                // ✅ FIXED: Open WeeklyActivity
+                android.content.Intent weeklyIntent = new android.content.Intent(context, WeeklyActivity.class);
+                weeklyIntent.putExtra("planId", pageId); // ✅ Use "planId" not "weeklyId"
+                context.startActivity(weeklyIntent);
+                break;
+        }
+    }
+    private void showLinkToPageOptions(View view, int position) {
+        android.widget.PopupMenu popup = new android.widget.PopupMenu(view.getContext(), view);
+        popup.getMenu().add("🗑️ Remove link");
+
+        popup.setOnMenuItemClickListener(item -> {
+            listener.onBlockDeleted(position);
+            return true;
+        });
+
+        popup.show();
+    }
+}
 }

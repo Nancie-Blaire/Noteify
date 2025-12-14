@@ -273,6 +273,16 @@
                 android:contentDescription="Subpage"
                 app:tint="#FFFFFFFF" />
 
+            <!-- Link to Page -->
+            <ImageButton
+                android:id="@+id/linkToPageOption"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_margin="4dp"
+                android:src="@drawable/ic_link_to_page"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Link to Page"
+                app:tint="#FFFFFFFF" />
         </LinearLayout>
 
     </HorizontalScrollView>

@@ -21,7 +21,7 @@
             android:textColor="#000000"
             android:textSize="25sp"
             android:textStyle="bold"
-            android:layout_marginStart="5dp"/>
+            android:layout_marginStart="3dp"/>
     </LinearLayout>
 
     <ScrollView
@@ -40,9 +40,9 @@
 
             <!-- Settings Icon -->
             <ImageView
-                android:layout_width="150dp"
-                android:layout_height="150dp"
-                android:src="@drawable/settings_icon"
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:src="@drawable/settings_logo"
                 android:layout_gravity="center"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="32dp"/>
@@ -71,7 +71,7 @@
                         android:layout_weight="1"
                         android:text="TIME FORMAT"
                         android:textColor="#000000"
-                        android:textSize="14sp"
+                        android:textSize="15sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -184,7 +184,7 @@
                         android:layout_weight="1"
                         android:text="NOTIFICATION"
                         android:textColor="#000000"
-                        android:textSize="14sp"
+                        android:textSize="15sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -251,7 +251,7 @@
                     android:layout_weight="1"
                     android:text="PROFILE"
                     android:textColor="#000000"
-                    android:textSize="14sp"
+                    android:textSize="15sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -262,31 +262,87 @@
             </LinearLayout>
 
             <!-- THEME Section -->
+            <!-- THEME Section - UPDATED TO EXPANDABLE -->
             <LinearLayout
                 android:id="@+id/btnTheme"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
+                android:orientation="vertical"
                 android:padding="16dp"
                 android:layout_marginBottom="2dp"
                 android:clickable="true"
-                android:focusable="true"
-                android:gravity="center_vertical">
+                android:focusable="true">
 
-                <TextView
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:id="@+id/themeHeader"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="THEME"
-                    android:textColor="#000000"
-                    android:textSize="14sp"
-                    android:textStyle="bold"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_arrow_right"
-                    app:tint="#666666"/>
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="THEME"
+                        android:textColor="#000000"
+                        android:textSize="15sp"
+                        android:textStyle="bold"/>
+
+                    <ImageView
+                        android:id="@+id/themeArrow"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_chevron_down"
+                        app:tint="#666666"/>
+                </LinearLayout>
+
+                <!-- Expandable Content -->
+                <LinearLayout
+                    android:id="@+id/themeContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="100dp"
+                    android:layout_marginTop="16dp"
+                    android:background="#ffffff"
+                    android:padding="8dp"
+                    android:visibility="gone">
+
+                    <RadioGroup
+                        android:id="@+id/themeRadioGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <RadioButton
+                            android:id="@+id/rbLightTheme"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Light"
+                            android:textStyle="bold"
+                            android:textSize="14sp"
+                            android:textColor="#333333"
+                            android:layout_marginBottom="8dp"/>
+
+                        <RadioButton
+                            android:id="@+id/rbDarkTheme"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Dark"
+                            android:textStyle="bold"
+                            android:textSize="14sp"
+                            android:textColor="#333333"
+                            android:layout_marginBottom="8dp"/>
+
+                        <RadioButton
+                            android:id="@+id/rbSystemTheme"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="System Default"
+                            android:textStyle="bold"
+                            android:textSize="14sp"
+                            android:textColor="#333333"/>
+                    </RadioGroup>
+                </LinearLayout>
             </LinearLayout>
 
             <!-- BIN Section -->
@@ -307,7 +363,7 @@
                     android:layout_weight="1"
                     android:text="BIN"
                     android:textColor="#000000"
-                    android:textSize="14sp"
+                    android:textSize="15sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -334,7 +390,7 @@
                     android:layout_weight="1"
                     android:text="PRIVACY"
                     android:textColor="#000000"
-                    android:textSize="14sp"
+                    android:textSize="15sp"
                     android:textStyle="bold"/>
 
                 <ImageView

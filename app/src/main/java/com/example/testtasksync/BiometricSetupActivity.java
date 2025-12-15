@@ -45,14 +45,7 @@ public class BiometricSetupActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_biometric_setup);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().setStatusBarColor(Color.parseColor("#f4e8df"));
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                // This makes the status bar icons dark
-                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        }
 
         Log.d(TAG, "🚀 BiometricSetupActivity started");
 

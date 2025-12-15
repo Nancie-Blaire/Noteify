@@ -1,13 +1,13 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.TESTtaskSync" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/background_color</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/background_color</item>
     </style>
 
-
     <style name="Theme.TESTtaskSync" parent="Base.Theme.TESTtaskSync">
-        <!-- Add popup menu styling -->
         <item name="popupMenuStyle">@style/CustomPopupMenu</item>
         <item name="android:textAppearanceLargePopupMenu">@style/CustomMenuTextAppearance</item>
         <item name="android:textAppearanceSmallPopupMenu">@style/CustomMenuTextAppearance</item>
@@ -16,12 +16,17 @@
         <item name="android:listPreferredItemPaddingStart">16dp</item>
         <item name="android:listPreferredItemPaddingEnd">16dp</item>
     </style>
+
+    <!-- Splash screen theme - inherits from base theme -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/autumn</item>
+        <item name="windowSplashScreenBackground">@color/background_color</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_app_logo</item>
         <item name="windowSplashScreenAnimationDuration">1000</item>
         <item name="postSplashScreenTheme">@style/Base.Theme.TESTtaskSync</item>
 
-<!-- Adjust mo yung size -->
+        <!-- Match status bar to background -->
+        <item name="android:statusBarColor">@color/background_color</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/background_color</item>
     </style>
 </resources>

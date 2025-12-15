@@ -1,6 +1,7 @@
 package com.example.testtasksync;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -11,6 +12,7 @@ import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.fragment.app.Fragment;
 
@@ -38,7 +40,25 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // ✅ CRITICAL FIX: Apply theme BEFORE super.onCreate() and splash screen
+        SharedPreferences prefs = getSharedPreferences("AppSettings", MODE_PRIVATE);
+        String theme = prefs.getString("theme", "system");
+
+        switch (theme) {
+            case "light":
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+                break;
+            case "dark":
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+                break;
+            case "system":
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+                break;
+        }
+
+        // ✅ Now install splash screen AFTER theme is applied
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -86,7 +106,7 @@ public class MainActivity extends AppCompatActivity {
         // Set up navigation click listeners
         Home.setOnClickListener(v -> {
             Log.d(TAG, "Home icon clicked");
-            closeFABMenu(); // Close FAB menu when navigating
+            closeFABMenu();
             loadFragment(new Notes());
             updateSelectedIcon(Home);
             selectedNavId = R.id.Home;
@@ -94,7 +114,7 @@ public class MainActivity extends AppCompatActivity {
 
         Calendar.setOnClickListener(v -> {
             Log.d(TAG, "Calendar icon clicked");
-            closeFABMenu(); // Close FAB menu when navigating
+            closeFABMenu();
             loadFragment(new CalendarFragment());
             updateSelectedIcon(Calendar);
             selectedNavId = R.id.Calendar;
@@ -102,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
 
         Notifs.setOnClickListener(v -> {
             Log.d(TAG, "Notifications icon clicked");
-            closeFABMenu(); // Close FAB menu when navigating
+            closeFABMenu();
             loadFragment(new Notifications());
             updateSelectedIcon(Notifs);
             selectedNavId = R.id.Notifs;
@@ -110,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
 
         Settings.setOnClickListener(v -> {
             Log.d(TAG, "Settings icon clicked");
-            closeFABMenu(); // Close FAB menu when navigating
+            closeFABMenu();
             loadFragment(new Settings());
             updateSelectedIcon(Settings);
             selectedNavId = R.id.Settings;
@@ -141,28 +161,20 @@ public class MainActivity extends AppCompatActivity {
             selectedNavId = savedInstanceState.getInt(KEY_SELECTED_NAV, R.id.Home);
             restoreSelectedFragment();
         }
-
-        /**LinearLayout bottomNav = findViewById(R.id.bottomNavRoot);
-        bottomNav.setBackgroundResource(R.drawable.curved_navbar);**/
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // Close FAB menu when activity goes to background or another activity starts
         closeFABMenu();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        // Save which nav item is selected
         outState.putInt(KEY_SELECTED_NAV, selectedNavId);
     }
 
-    /**
-     * Restores the selected fragment after configuration change (like rotation)
-     */
     private void restoreSelectedFragment() {
         ImageView selectedIcon;
         Fragment fragment;
@@ -177,7 +189,6 @@ public class MainActivity extends AppCompatActivity {
             fragment = new Settings();
             selectedIcon = Settings;
         } else {
-            // Default to Home
             fragment = new Notes();
             selectedIcon = Home;
         }
@@ -186,9 +197,6 @@ public class MainActivity extends AppCompatActivity {
         updateSelectedIcon(selectedIcon);
     }
 
-    /**
-     * Loads a Fragment into the fragmentContainer
-     */
     private void loadFragment(Fragment fragment) {
         if (findViewById(R.id.fragmentContainer) == null) {
             Log.e(TAG, "fragmentContainer not found!");
@@ -200,53 +208,36 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
-    /**
-     * Updates the circle background indicator
-     */
     private void updateSelectedIcon(ImageView selectedIcon) {
-        // Remove circle from all icons
         Home.setBackgroundResource(0);
         Calendar.setBackgroundResource(0);
         Notifs.setBackgroundResource(0);
         Settings.setBackgroundResource(0);
 
-        // Clear tints
         Home.setBackgroundTintList(null);
         Calendar.setBackgroundTintList(null);
         Notifs.setBackgroundTintList(null);
         Settings.setBackgroundTintList(null);
 
-        // Resets color
         Home.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
         Calendar.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
         Notifs.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
         Settings.setImageTintList(ColorStateList.valueOf(Color.parseColor("#ffffff")));
 
-
-        // Add circle to selected icon
         selectedIcon.setBackgroundResource(R.drawable.circle_bg);
         selectedIcon.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FFFFFF")));
-
-        // Change icon's color if selected
         selectedIcon.setImageTintList(ColorStateList.valueOf(Color.parseColor("#008f84")));
-
     }
 
-    /**
-     * Sets up all FAB functionality
-     */
     private void setupFAB() {
-        // Ensure sub-FABs start hidden
         fabNote.setVisibility(View.GONE);
         fabTodo.setVisibility(View.GONE);
         fabWeekly.setVisibility(View.GONE);
 
-        // Ensure overlay starts hidden
         if (overlayView != null) {
             overlayView.setVisibility(View.GONE);
         }
 
-        // Main FAB toggles the menu
         fabMain.setOnClickListener(v -> {
             Log.d(TAG, "FAB Main clicked! Current state: " + isFabOpen);
             if (isFabOpen) {
@@ -256,7 +247,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Note FAB opens NoteActivity
         fabNote.setOnClickListener(v -> {
             Log.d(TAG, "FAB Note clicked");
             Intent intent = new Intent(MainActivity.this, NoteActivity.class);
@@ -264,7 +254,6 @@ public class MainActivity extends AppCompatActivity {
             closeFABMenu();
         });
 
-        // TodoActivity FAB (disabled for now)
         fabTodo.setOnClickListener(v -> {
             Log.d(TAG, "FAB clicked");
             Intent intent = new Intent(MainActivity.this, TodoActivity.class);
@@ -272,7 +261,6 @@ public class MainActivity extends AppCompatActivity {
             closeFABMenu();
         });
 
-        // Weekly FAB (disabled for now)
         fabWeekly.setOnClickListener(v -> {
             Log.d(TAG, "FAB Weekly clicked");
             Intent intent = new Intent(MainActivity.this, WeeklyActivity.class);
@@ -281,14 +269,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Opens the FAB menu with overlay
-     */
     private void openFABMenu() {
         isFabOpen = true;
         Log.d(TAG, "Opening FAB menu");
 
-        // Show overlay with fade-in animation
         if (overlayView != null) {
             overlayView.setVisibility(View.VISIBLE);
             overlayView.setAlpha(0f);
@@ -298,29 +282,21 @@ public class MainActivity extends AppCompatActivity {
                     .start();
         }
 
-        // Show sub-FABs
         fabNote.setVisibility(View.VISIBLE);
         fabTodo.setVisibility(View.VISIBLE);
         fabWeekly.setVisibility(View.VISIBLE);
 
-        // Change main FAB to red with minus icon
-        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FF5757"))); // Red
-        fabMain.setImageResource(R.drawable.ic_fab_remove); // Change to minus icon
-
-        // Optional: Rotate icon for smooth transition
+        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FF5757")));
+        fabMain.setImageResource(R.drawable.ic_fab_remove);
         fabMain.animate().rotation(180f).setDuration(200).start();
     }
 
-    /**
-     * Closes the FAB menu and hides overlay
-     */
     private void closeFABMenu() {
-        if (!isFabOpen) return; // Already closed
+        if (!isFabOpen) return;
 
         isFabOpen = false;
         Log.d(TAG, "Closing FAB menu");
 
-        // Hide overlay with fade-out animation
         if (overlayView != null) {
             overlayView.animate()
                     .alpha(0f)
@@ -329,16 +305,12 @@ public class MainActivity extends AppCompatActivity {
                     .start();
         }
 
-        // Hide sub-FABs
         fabNote.setVisibility(View.GONE);
         fabTodo.setVisibility(View.GONE);
         fabWeekly.setVisibility(View.GONE);
 
-        // Change main FAB back to cyan with plus icon
-        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#f6d5b6"))); // light orange
-        fabMain.setImageResource(R.drawable.ic_fab_add); // Change back to plus icon
-
-        // Optional: Reset rotation
+        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#f6d5b6")));
+        fabMain.setImageResource(R.drawable.ic_fab_add);
         fabMain.animate().rotation(0f).setDuration(200).start();
     }
 }

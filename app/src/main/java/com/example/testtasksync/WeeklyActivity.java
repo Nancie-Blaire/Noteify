@@ -89,6 +89,8 @@ public class WeeklyActivity extends AppCompatActivity {
 
     private Map<String, WeeklyTaskAdapter> dayAdapters = new HashMap<>();
     private Map<String, ItemTouchHelper> dayTouchHelpers = new HashMap<>();
+    private View currentDraggedView = null;
+    private String currentDraggedDay = null;
 
 
     // FEATURES
@@ -118,6 +120,11 @@ public class WeeklyActivity extends AppCompatActivity {
     private LinearLayout dueDateDisplay;
     private TextView dueDateText;
     private ImageView clearDateButton;
+    private View draggedView = null;
+    private WeeklyTask draggedTask = null;
+    private String draggedFromDay = null;
+    private int draggedFromPosition = -1;
+    private boolean isDragging = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -273,18 +280,24 @@ public class WeeklyActivity extends AppCompatActivity {
                             // Save when order changes
                         }
 
-                        // ✅ NEW: Handle schedule button click
                         @Override
                         public void onScheduleClicked(WeeklyTask task, int position) {
                             showTaskScheduleDialog(task, day);
                         }
 
-                        // ✅ NEW: Handle clear schedule
                         @Override
                         public void onClearScheduleClicked(WeeklyTask task) {
                             task.setScheduleDate(null);
                             task.setScheduleTime(null);
                             task.setHasNotification(false);
+                            task.setNotificationMinutes(60);
+
+                            if (!isNewPlan && task.getId() != null && !task.getId().isEmpty()) {
+                                NotificationHelper.cancelNotification(
+                                        WeeklyActivity.this,
+                                        planId + "_" + task.getId()
+                                );
+                            }
 
                             WeeklyTaskAdapter currentAdapter = dayAdapters.get(day);
                             if (currentAdapter != null) {
@@ -292,8 +305,10 @@ public class WeeklyActivity extends AppCompatActivity {
                             }
 
                             if (!isNewPlan) {
-                                saveWeeklyPlan();
+                                saveTaskScheduleOnly(task);
                             }
+
+                            Toast.makeText(WeeklyActivity.this, "Task schedule cleared", Toast.LENGTH_SHORT).show();
                         }
                     });
 
@@ -303,58 +318,15 @@ public class WeeklyActivity extends AppCompatActivity {
 
             dayAdapters.put(day, adapter);
 
-            // ✅ IMPROVED: Better drag logic with cross-day detection
-            ItemTouchHelper.Callback callback = new ItemTouchHelper.Callback() {
-
-                private String draggedFromDay = null;
-                private WeeklyTask draggedTask = null;
-                private int draggedFromPosition = -1;
-                private boolean isDraggingToAnotherDay = false;
-
-                @Override
-                public int getMovementFlags(@NonNull RecyclerView recyclerView,
-                                            @NonNull RecyclerView.ViewHolder viewHolder) {
-                    int dragFlags = ItemTouchHelper.UP | ItemTouchHelper.DOWN;
-                    int swipeFlags = 0;
-                    return makeMovementFlags(dragFlags, swipeFlags);
-                }
+            // ✅ SIMPLE ItemTouchHelper for same-day reordering only
+            ItemTouchHelper.Callback callback = new ItemTouchHelper.SimpleCallback(
+                    ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
 
                 @Override
                 public boolean onMove(@NonNull RecyclerView recyclerView,
                                       @NonNull RecyclerView.ViewHolder viewHolder,
                                       @NonNull RecyclerView.ViewHolder target) {
 
-                    // ✅ ALWAYS check if we're outside bounds on EVERY move attempt
-                    int[] location = new int[2];
-                    viewHolder.itemView.getLocationOnScreen(location);
-                    int itemTop = location[1];
-                    int itemBottom = location[1] + viewHolder.itemView.getHeight();
-                    int itemCenterY = itemTop + (viewHolder.itemView.getHeight() / 2);
-
-                    // Get the day section (parent of RecyclerView) bounds
-                    LinearLayout daysContainer = findViewById(R.id.daysContainer);
-                    int dayIndex = days.indexOf(day);
-                    View daySection = daysContainer.getChildAt(dayIndex);
-
-                    if (daySection != null) {
-                        int[] daySectionLoc = new int[2];
-                        daySection.getLocationOnScreen(daySectionLoc);
-                        int sectionTop = daySectionLoc[1];
-                        int sectionBottom = daySectionLoc[1] + daySection.getHeight();
-
-                        // ✅ If item is clearly outside this day's section, prevent reordering
-                        if (itemCenterY < sectionTop || itemCenterY > sectionBottom) {
-                            isDraggingToAnotherDay = true;
-                            Log.d(TAG, "🔄 Item outside " + day + " section (center: " + itemCenterY +
-                                    ", section: " + sectionTop + "-" + sectionBottom + ")");
-                            return false; // Prevent any reordering
-                        }
-                    }
-
-                    // ✅ Reset flag if we're back in bounds
-                    isDraggingToAnotherDay = false;
-
-                    // ✅ Allow normal reordering within same day
                     int fromPos = viewHolder.getAdapterPosition();
                     int toPos = target.getAdapterPosition();
 
@@ -371,168 +343,414 @@ public class WeeklyActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public boolean isLongPressDragEnabled() {
-                    return true;
-                }
-
-                @Override
-                public boolean isItemViewSwipeEnabled() {
-                    return false;
-                }
-
-                @Override
-                public void onSelectedChanged(RecyclerView.ViewHolder viewHolder, int actionState) {
-                    super.onSelectedChanged(viewHolder, actionState);
-
-                    if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
-                        draggedFromDay = day;
-                        draggedFromPosition = viewHolder.getAdapterPosition();
-                        isDraggingToAnotherDay = false; // Reset flag
-
-                        if (draggedFromPosition >= 0 && draggedFromPosition < tasks.size()) {
-                            draggedTask = tasks.get(draggedFromPosition);
-
-                            // ✅ Force update task text from EditText
-                            if (viewHolder instanceof WeeklyTaskAdapter.TaskViewHolder) {
-                                WeeklyTaskAdapter.TaskViewHolder taskHolder =
-                                        (WeeklyTaskAdapter.TaskViewHolder) viewHolder;
-                                String currentText = taskHolder.taskText.getText().toString();
-                                draggedTask.setTaskText(currentText);
-
-                                Log.d(TAG, "🎯 Started dragging: '" + draggedTask.getTaskText() +
-                                        "' from " + day + " at position " + draggedFromPosition);
-                            }
-                        } else {
-                            Log.e(TAG, "❌ Invalid drag position: " + draggedFromPosition);
-                            draggedTask = null;
-                            return;
-                        }
-
-                        // Visual feedback
-                        viewHolder.itemView.setAlpha(0.6f);
-                        viewHolder.itemView.setScaleX(1.05f);
-                        viewHolder.itemView.setScaleY(1.05f);
-
-                        // ✅ Disable NestedScrollView during drag
-                        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
-                        if (scrollView != null) {
-                            scrollView.requestDisallowInterceptTouchEvent(true);
-                            scrollView.setOnTouchListener((v, event) -> true);
-                        }
-                    } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {
-                        // ✅ Re-enable NestedScrollView when drag ends
-                        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
-                        if (scrollView != null) {
-                            scrollView.requestDisallowInterceptTouchEvent(false);
-                            scrollView.setOnTouchListener(null);
-                        }
-                    }
-                }
-
-                @Override
                 public void clearView(@NonNull RecyclerView recyclerView,
                                       @NonNull RecyclerView.ViewHolder viewHolder) {
                     super.clearView(recyclerView, viewHolder);
-
-                    // Reset visual
-                    viewHolder.itemView.setAlpha(1.0f);
-                    viewHolder.itemView.setScaleX(1.0f);
-                    viewHolder.itemView.setScaleY(1.0f);
-
-                    // ✅ Re-enable scroll
-                    androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
-                    if (scrollView != null) {
-                        scrollView.requestDisallowInterceptTouchEvent(false);
-                        scrollView.setOnTouchListener(null);
-                    }
-
-                    // ✅ Check if we were dragging to another day
-                    if (isDraggingToAnotherDay) {
-                        checkCrossDayDrop(viewHolder);
-                        isDraggingToAnotherDay = false; // Reset flag
-                    } else {
-                        // Just reorder within same day
-                        updateTaskPositions(day);
-                        resetDragState();
-                    }
-                }
-
-                private void checkCrossDayDrop(RecyclerView.ViewHolder viewHolder) {
-                    if (draggedTask == null || draggedFromDay == null) {
-                        resetDragState();
-                        return;
-                    }
-
-                    // Get the dragged item's position on screen
-                    int[] location = new int[2];
-                    viewHolder.itemView.getLocationOnScreen(location);
-                    int itemCenterY = location[1] + (viewHolder.itemView.getHeight() / 2);
-
-                    Log.d(TAG, "🎯 Dropped at Y: " + itemCenterY);
-
-                    LinearLayout daysContainer = findViewById(R.id.daysContainer);
-
-                    // ✅ Check which day section contains the item center
-                    String targetDay = null;
-
-                    for (int i = 0; i < days.size(); i++) {
-                        String dayName = days.get(i);
-                        View daySection = daysContainer.getChildAt(i);
-
-                        if (daySection != null) {
-                            int[] daySectionLoc = new int[2];
-                            daySection.getLocationOnScreen(daySectionLoc);
-
-                            int sectionTop = daySectionLoc[1];
-                            int sectionBottom = daySectionLoc[1] + daySection.getHeight();
-
-                            Log.d(TAG, "📍 Checking " + dayName + " zone: " + sectionTop + " to " + sectionBottom);
-
-                            // ✅ Check if center is within this day's section
-                            if (itemCenterY >= sectionTop && itemCenterY <= sectionBottom) {
-                                targetDay = dayName;
-                                Log.d(TAG, "🎯 Item center is in " + targetDay + " section");
-                                break;
-                            }
-                        }
-                    }
-
-                    // ✅ If target day is different from source day, move it
-                    if (targetDay != null && !targetDay.equals(draggedFromDay)) {
-                        Log.d(TAG, "✅ Moving from " + draggedFromDay + " to " + targetDay);
-
-                        List<WeeklyTask> fromTasks = dayTasks.get(draggedFromDay);
-                        int currentPosition = fromTasks.indexOf(draggedTask);
-
-                        if (currentPosition >= 0) {
-                            moveTaskToAnotherDay(draggedTask, draggedFromDay, targetDay, currentPosition);
-                        } else {
-                            Log.e(TAG, "❌ Task not found in source day list!");
-                        }
-                    } else {
-                        // ✅ Same day or no target found - just reorder within same day
-                        Log.d(TAG, "⚪ Stayed in " + draggedFromDay + " - reordering");
-                        updateTaskPositions(draggedFromDay);
-                    }
-
-                    resetDragState();
-                }
-
-                private void resetDragState() {
-                    draggedTask = null;
-                    draggedFromDay = null;
-                    draggedFromPosition = -1;
-                    isDraggingToAnotherDay = false;
+                    updateTaskPositions(day);
                 }
             };
 
             ItemTouchHelper touchHelper = new ItemTouchHelper(callback);
             touchHelper.attachToRecyclerView(recyclerView);
             dayTouchHelpers.put(day, touchHelper);
+
+            // ✅ MANUAL TOUCH LISTENER for cross-day dragging
+            recyclerView.addOnItemTouchListener(new RecyclerView.OnItemTouchListener() {
+                private float startX = 0;
+                private float startY = 0;
+                private boolean isLongPress = false;
+                private Runnable longPressRunnable = null;
+                private View pressedChild = null;
+
+                @Override
+                public boolean onInterceptTouchEvent(@NonNull RecyclerView rv, @NonNull android.view.MotionEvent e) {
+
+                    if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                        View child = rv.findChildViewUnder(e.getX(), e.getY());
+
+                        if (child != null) {
+                            startX = e.getRawX();
+                            startY = e.getRawY();
+                            isLongPress = false;
+                            pressedChild = child;
+
+                            // Start long press detection
+                            longPressRunnable = new Runnable() {
+                                @Override
+                                public void run() {
+                                    isLongPress = true;
+                                    int position = rv.getChildAdapterPosition(child);
+                                    if (position >= 0 && position < tasks.size()) {
+                                        startCrossDayDrag(child, day, position);
+                                    }
+                                }
+                            };
+
+                            rv.postDelayed(longPressRunnable, 300); // 300ms
+                        }
+                    }
+
+                    if (e.getAction() == android.view.MotionEvent.ACTION_MOVE) {
+                        // Cancel long press if moved too much before drag starts
+                        if (!isDragging && Math.abs(e.getRawY() - startY) > 30 && longPressRunnable != null) {
+                            rv.removeCallbacks(longPressRunnable);
+                        }
+                    }
+
+                    if (e.getAction() == android.view.MotionEvent.ACTION_UP ||
+                            e.getAction() == android.view.MotionEvent.ACTION_CANCEL) {
+                        if (longPressRunnable != null) {
+                            rv.removeCallbacks(longPressRunnable);
+                        }
+                        pressedChild = null;
+                    }
+
+                    // Return true if dragging to intercept all touch events
+                    return isDragging;
+                }
+
+                @Override
+                public void onTouchEvent(@NonNull RecyclerView rv, @NonNull android.view.MotionEvent e) {
+                    // Events are handled in dispatchTouchEvent
+                }
+
+                @Override
+                public void onRequestDisallowInterceptTouchEvent(boolean disallowIntercept) {
+                    // Allow parent to handle
+                }
+            });
         }
     }
+    private void startCrossDayDrag(View view, String fromDay, int position) {
+        List<WeeklyTask> tasks = dayTasks.get(fromDay);
+        if (tasks == null || position >= tasks.size()) return;
 
+        draggedView = view;
+        draggedTask = tasks.get(position);
+        draggedFromDay = fromDay;
+        draggedFromPosition = position;
+        isDragging = true;
+
+        // Get task text from view
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View child = vg.getChildAt(i);
+                if (child instanceof EditText) {
+                    String currentText = ((EditText) child).getText().toString();
+                    draggedTask.setTaskText(currentText);
+                    break;
+                }
+            }
+        }
+
+        // Visual feedback - MORE PROMINENT
+        view.setAlpha(0.7f);
+        view.setScaleX(1.1f);
+        view.setScaleY(1.1f);
+        view.setElevation(8f);
+
+        // Disable scroll
+        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
+        if (scrollView != null) {
+            scrollView.requestDisallowInterceptTouchEvent(true);
+        }
+
+        Log.d(TAG, "🎯 Started cross-day drag: " + draggedTask.getTaskText() + " from " + fromDay);
+    }
+
+    //Cross drag
+    private void startUnifiedDrag(View view, String fromDay, int position) {
+        List<WeeklyTask> tasks = dayTasks.get(fromDay);
+        if (tasks == null || position >= tasks.size()) return;
+
+        draggedView = view;
+        draggedTask = tasks.get(position);
+        draggedFromDay = fromDay;
+        draggedFromPosition = position;
+        isDragging = true;
+
+        // Get task text from view
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View child = vg.getChildAt(i);
+                if (child instanceof EditText) {
+                    String currentText = ((EditText) child).getText().toString();
+                    draggedTask.setTaskText(currentText);
+                    break;
+                }
+            }
+        }
+
+        // Visual feedback
+        view.setAlpha(0.7f);
+        view.setScaleX(1.1f);
+        view.setScaleY(1.1f);
+        view.setElevation(8f);
+
+        // Disable scroll
+        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
+        if (scrollView != null) {
+            scrollView.requestDisallowInterceptTouchEvent(true);
+        }
+
+        Log.d(TAG, "🎯 Started unified drag: " + draggedTask.getTaskText() + " from " + fromDay + " pos " + position);
+    }
+    private void handleUnifiedDrop(float rawY) {
+        if (!isDragging || draggedTask == null || draggedFromDay == null) {
+            return;
+        }
+
+        Log.d(TAG, "📍 Drop at Y: " + rawY);
+
+        LinearLayout daysContainer = findViewById(R.id.daysContainer);
+        String targetDay = null;
+        int targetDayIndex = -1;
+
+        // Find which day section the drop is in
+        for (int i = 0; i < days.size(); i++) {
+            String dayName = days.get(i);
+            View daySection = daysContainer.getChildAt(i);
+
+            if (daySection != null) {
+                int[] location = new int[2];
+                daySection.getLocationOnScreen(location);
+
+                int sectionTop = location[1];
+                int sectionBottom = location[1] + daySection.getHeight();
+
+                if (rawY >= sectionTop && rawY <= sectionBottom) {
+                    targetDay = dayName;
+                    targetDayIndex = i;
+                    Log.d(TAG, "🎯 Target day: " + targetDay);
+                    break;
+                }
+            }
+        }
+
+        if (targetDay != null) {
+            if (targetDay.equals(draggedFromDay)) {
+                // ✅ SAME DAY - reorder within the day
+                handleSameDayReorder(targetDay, rawY);
+            } else {
+                // ✅ DIFFERENT DAY - move to another day
+                handleCrossDayMove(targetDay);
+            }
+        }
+
+        // Reset drag state
+        if (draggedView != null) {
+            draggedView.setAlpha(1.0f);
+            draggedView.setScaleX(1.0f);
+            draggedView.setScaleY(1.0f);
+            draggedView.setElevation(0f);
+        }
+
+        draggedView = null;
+        draggedTask = null;
+        draggedFromDay = null;
+        draggedFromPosition = -1;
+        isDragging = false;
+
+        // Re-enable scroll
+        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
+        if (scrollView != null) {
+            scrollView.requestDisallowInterceptTouchEvent(false);
+        }
+    }
+    private void handleSameDayReorder(String day, float dropY) {
+        List<WeeklyTask> tasks = dayTasks.get(day);
+        if (tasks == null) return;
+
+        RecyclerView recyclerView = dayContainers.get(day);
+        if (recyclerView == null) return;
+
+        // Find which position to insert at based on Y coordinate
+        int targetPosition = draggedFromPosition;
+
+        for (int i = 0; i < recyclerView.getChildCount(); i++) {
+            View child = recyclerView.getChildAt(i);
+            int[] location = new int[2];
+            child.getLocationOnScreen(location);
+
+            int childCenterY = location[1] + (child.getHeight() / 2);
+
+            if (dropY < childCenterY) {
+                targetPosition = recyclerView.getChildAdapterPosition(child);
+                break;
+            }
+        }
+
+        // Clamp position
+        if (targetPosition < 0) targetPosition = 0;
+        if (targetPosition >= tasks.size()) targetPosition = tasks.size() - 1;
+
+        Log.d(TAG, "↕️ Reordering in " + day + " from " + draggedFromPosition + " to " + targetPosition);
+
+        if (targetPosition != draggedFromPosition) {
+            // Remove from old position
+            tasks.remove(draggedFromPosition);
+
+            // Insert at new position
+            tasks.add(targetPosition, draggedTask);
+
+            // Update adapter
+            WeeklyTaskAdapter adapter = dayAdapters.get(day);
+            if (adapter != null) {
+                adapter.notifyItemMoved(draggedFromPosition, targetPosition);
+            }
+
+            // Update positions
+            updateTaskPositions(day);
+        }
+    }
+    private void handleCrossDayMove(String targetDay) {
+        Log.d(TAG, "✅ Moving from " + draggedFromDay + " to " + targetDay);
+
+        List<WeeklyTask> fromTasks = dayTasks.get(draggedFromDay);
+        List<WeeklyTask> toTasks = dayTasks.get(targetDay);
+
+        if (fromTasks == null || toTasks == null) return;
+
+        // Remove from source
+        fromTasks.remove(draggedFromPosition);
+
+        WeeklyTaskAdapter fromAdapter = dayAdapters.get(draggedFromDay);
+        if (fromAdapter != null) {
+            fromAdapter.notifyItemRemoved(draggedFromPosition);
+        }
+
+        // Update task day
+        draggedTask.setDay(targetDay);
+
+        // Add to target
+        toTasks.add(draggedTask);
+        draggedTask.setPosition(toTasks.size() - 1);
+
+        WeeklyTaskAdapter toAdapter = dayAdapters.get(targetDay);
+        if (toAdapter != null) {
+            toAdapter.notifyItemInserted(toTasks.size() - 1);
+        }
+
+        // Update positions
+        updateTaskPositions(draggedFromDay);
+        updateTaskPositions(targetDay);
+
+        Toast.makeText(this, "→ " + targetDay, Toast.LENGTH_SHORT).show();
+    }
+
+
+    private void handleCrossDayDrop(float rawY) {
+        if (!isDragging || draggedTask == null || draggedFromDay == null) {
+            return;
+        }
+
+        Log.d(TAG, "📍 Drop at Y: " + rawY);
+
+        LinearLayout daysContainer = findViewById(R.id.daysContainer);
+        String targetDay = null;
+
+        // Find which day section the drop is in
+        for (int i = 0; i < days.size(); i++) {
+            String dayName = days.get(i);
+            View daySection = daysContainer.getChildAt(i);
+
+            if (daySection != null) {
+                int[] location = new int[2];
+                daySection.getLocationOnScreen(location);
+
+                int sectionTop = location[1];
+                int sectionBottom = location[1] + daySection.getHeight();
+
+                if (rawY >= sectionTop && rawY <= sectionBottom) {
+                    targetDay = dayName;
+                    Log.d(TAG, "🎯 Target day: " + targetDay);
+                    break;
+                }
+            }
+        }
+
+        // Move task if dropped on different day
+        if (targetDay != null && !targetDay.equals(draggedFromDay)) {
+            Log.d(TAG, "✅ Moving from " + draggedFromDay + " to " + targetDay);
+
+            List<WeeklyTask> fromTasks = dayTasks.get(draggedFromDay);
+            int currentPosition = fromTasks.indexOf(draggedTask);
+
+            if (currentPosition >= 0) {
+                // Remove from source
+                fromTasks.remove(currentPosition);
+
+                WeeklyTaskAdapter fromAdapter = dayAdapters.get(draggedFromDay);
+                if (fromAdapter != null) {
+                    fromAdapter.notifyItemRemoved(currentPosition);
+                }
+
+                // Update task day
+                draggedTask.setDay(targetDay);
+
+                // Add to target
+                List<WeeklyTask> toTasks = dayTasks.get(targetDay);
+                toTasks.add(draggedTask);
+                draggedTask.setPosition(toTasks.size() - 1);
+
+                WeeklyTaskAdapter toAdapter = dayAdapters.get(targetDay);
+                if (toAdapter != null) {
+                    toAdapter.notifyItemInserted(toTasks.size() - 1);
+                }
+
+                // Update positions
+                updateTaskPositions(draggedFromDay);
+                updateTaskPositions(targetDay);
+
+                // ✅ SHORT TOAST at the END (doesn't interrupt)
+                Toast.makeText(this, "→ " + targetDay, Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Log.d(TAG, "⚪ Stayed in same day");
+        }
+
+        // Reset drag state
+        if (draggedView != null) {
+            draggedView.setAlpha(1.0f);
+            draggedView.setScaleX(1.0f);
+            draggedView.setScaleY(1.0f);
+            draggedView.setElevation(0f);
+        }
+
+        draggedView = null;
+        draggedTask = null;
+        draggedFromDay = null;
+        draggedFromPosition = -1;
+        isDragging = false;
+
+        // Re-enable scroll
+        androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
+        if (scrollView != null) {
+            scrollView.requestDisallowInterceptTouchEvent(false);
+        }
+    }
     private void showTaskScheduleDialog(WeeklyTask task, String taskDay) {
+        // ✅ FIX: Check if week range exists FIRST before opening dialog
+        if (startDate == null || endDate == null) {
+            // Week range not set - show options
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Week Range Not Set")
+                    .setMessage("Please set a week range first before scheduling tasks.")
+                    .setPositiveButton("Set Current Week", (d, w) -> {
+                        setCurrentWeek();
+                        updateScheduleDisplay();
+                        Toast.makeText(this, "Week range set to current week", Toast.LENGTH_SHORT).show();
+                        d.dismiss();
+                        // Open the task schedule dialog again after setting week range
+                        showTaskScheduleDialog(task, taskDay);
+                    })
+                    .setNegativeButton("Cancel", (d, w) -> d.dismiss())
+                    .show();
+            return; // Exit early
+        }
+
         android.app.Dialog dialog = new android.app.Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         dialog.setContentView(R.layout.dialog_task_schedule);
@@ -564,7 +782,7 @@ public class WeeklyActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         notificationTimeSpinner.setAdapter(adapter);
 
-        // ✅ AUTO-SET DATE: Get the date for this task's day within the week range
+        // ✅ AUTO-SET DATE: Now safe because we checked startDate != null above
         Calendar taskScheduleDate = getDateForDayInWeek(taskDay, startDate);
 
         if (taskScheduleDate != null) {
@@ -625,6 +843,9 @@ public class WeeklyActivity extends AppCompatActivity {
         cancelButton.setOnClickListener(v -> dialog.dismiss());
 
         // Save button
+        // Find this code in showScheduleDialog() and replace the saveScheduleButton.setOnClickListener:
+
+
         saveScheduleButton.setOnClickListener(v -> {
             if (taskScheduleDate == null) {
                 Toast.makeText(this, "Please set week range first", Toast.LENGTH_SHORT).show();
@@ -639,80 +860,99 @@ public class WeeklyActivity extends AppCompatActivity {
             // ✅ Save schedule to task
             task.setScheduleDate(taskScheduleDate.getTime());
             task.setScheduleTime(selectedTimeText.getText().toString());
-            task.setHasNotification(notificationCheckbox.isChecked());  // ✅ IMPORTANT
+            task.setHasNotification(notificationCheckbox.isChecked());
 
             if (notificationCheckbox.isChecked()) {
                 int selectedPos = notificationTimeSpinner.getSelectedItemPosition();
                 task.setNotificationMinutes(notificationMinutes[selectedPos]);
             }
 
-            // Update adapter
+            // Update adapter (this updates the task's GREEN schedule display BELOW the task)
             WeeklyTaskAdapter currentAdapter = dayAdapters.get(taskDay);
             if (currentAdapter != null) {
                 currentAdapter.notifyDataSetChanged();
             }
 
-            // ✅ Show confirmation with details
+            // ✅ Save to Firebase WITHOUT exiting, and DON'T update top bar
+            if (!isNewPlan) {
+                saveTaskScheduleOnly(task);
+            }
+
+            // ✅ Show confirmation
             String message = "✓ Schedule set for " + taskDay;
             if (notificationCheckbox.isChecked()) {
                 message += " (Notification enabled)";
             }
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
 
-            // Save to Firebase
-            if (!isNewPlan) {
-                saveWeeklyPlan();
-            }
-
             dialog.dismiss();
         });
 
         dialog.show();
     }
+    private void saveTaskScheduleOnly(WeeklyTask task) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || task.getId() == null || task.getId().isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> taskData = new HashMap<>();
+
+        if (task.getScheduleDate() != null) {
+            taskData.put("scheduleDate", new com.google.firebase.Timestamp(task.getScheduleDate()));
+        } else {
+            taskData.put("scheduleDate", null);
+        }
+
+        taskData.put("scheduleTime", task.getScheduleTime());
+        taskData.put("hasNotification", task.hasNotification());
+        taskData.put("notificationMinutes", task.getNotificationMinutes());
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document(planId)
+                .collection("tasks")
+                .document(task.getId())
+                .update(taskData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Task schedule saved");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to save task schedule", e);
+                });
+    }
 
     // ✅ NEW: Method to move task between days
-    // ✅ UPDATED: Method to move task between days
-    // ✅ UPDATED: Method to move task between days
     private void moveTaskToAnotherDay(WeeklyTask task, String fromDay, String toDay, int fromPosition) {
-        // ✅ DEBUG: Check the state BEFORE moving (dapat nandito sa simula)
         List<WeeklyTask> fromTasks = dayTasks.get(fromDay);
         List<WeeklyTask> toTasks = dayTasks.get(toDay);
 
-        Log.d(TAG, "📊 BEFORE MOVE:");
-        Log.d(TAG, "   " + fromDay + " has " + (fromTasks != null ? fromTasks.size() : 0) + " tasks");
-        Log.d(TAG, "   " + toDay + " has " + (toTasks != null ? toTasks.size() : 0) + " tasks");
-        Log.d(TAG, "   Removing from position: " + fromPosition);
-        Log.d(TAG, "   Task text: " + task.getTaskText());
+        Log.d(TAG, "🔄 Moving: " + task.getTaskText());
+        Log.d(TAG, "   From: " + fromDay + " (pos " + fromPosition + ")");
+        Log.d(TAG, "   To: " + toDay);
 
-        Log.d(TAG, "🔄 Moving task from " + fromDay + " (pos: " + fromPosition + ") to " + toDay);
-
-        // Remove from source day
+        // Remove from source
         if (fromTasks != null && fromPosition >= 0 && fromPosition < fromTasks.size()) {
-            // ✅ IMPORTANT: Remove the exact task object, not by ID
-            WeeklyTask removedTask = fromTasks.remove(fromPosition);
-
-            Log.d(TAG, "✅ Removed task: " + removedTask.getTaskText() + " from " + fromDay);
+            fromTasks.remove(fromPosition);
 
             WeeklyTaskAdapter fromAdapter = dayAdapters.get(fromDay);
             if (fromAdapter != null) {
                 fromAdapter.notifyItemRemoved(fromPosition);
-                // ✅ Notify range changed to update remaining items
-                fromAdapter.notifyItemRangeChanged(fromPosition, fromTasks.size() - fromPosition);
+                fromAdapter.notifyItemRangeChanged(fromPosition, fromTasks.size());
             }
         } else {
-            Log.e(TAG, "❌ Failed to remove task - invalid position or list");
+            Log.e(TAG, "❌ Remove failed");
             return;
         }
 
-        // Update task's day
+        // Update task
         task.setDay(toDay);
 
-        // Add to target day
+        // Add to target
         if (toTasks != null) {
             toTasks.add(task);
             task.setPosition(toTasks.size() - 1);
-
-            Log.d(TAG, "✅ Added task: " + task.getTaskText() + " to " + toDay + " at position " + task.getPosition());
 
             WeeklyTaskAdapter toAdapter = dayAdapters.get(toDay);
             if (toAdapter != null) {
@@ -720,16 +960,12 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         }
 
-        // Update positions in both days
+        // Update positions
         updateTaskPositions(fromDay);
         updateTaskPositions(toDay);
 
-        // ✅ DEBUG: Check the state AFTER moving
-        Log.d(TAG, "📊 AFTER MOVE:");
-        Log.d(TAG, "   " + fromDay + " has " + (fromTasks != null ? fromTasks.size() : 0) + " tasks");
-        Log.d(TAG, "   " + toDay + " has " + (toTasks != null ? toTasks.size() : 0) + " tasks");
-
-        Toast.makeText(this, "Moved to " + toDay, Toast.LENGTH_SHORT).show();
+        Log.d(TAG, "✅ Move complete");
+        Toast.makeText(this, "→ " + toDay, Toast.LENGTH_SHORT).show();
     }
     private void requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -841,8 +1077,10 @@ public class WeeklyActivity extends AppCompatActivity {
                                     new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
                                     " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime()));
                         } else {
-                            Log.d(TAG, "⚠️ No saved dates, using current week");
-                            setCurrentWeek();
+                            // ✅ FIXED: Don't auto-set current week - leave as null if cleared
+                            Log.d(TAG, "⚠️ No saved dates - schedule is cleared");
+                            startDate = null;
+                            endDate = null;
                         }
 
                         // ✅ NEW: Update schedule display after loading
@@ -1425,7 +1663,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 return;
             }
 
-            // Cancel any existing weekly notification first
+            // Cancel any existing notification
             NotificationHelper.cancelNotification(this, "weekly_" + planId);
 
             hasReminder = notificationCheckbox.isChecked();
@@ -1436,17 +1674,17 @@ public class WeeklyActivity extends AppCompatActivity {
 
             selectedTime = selectedTimeValue;
 
-            // Update display
+            // ✅ Update BLUE top bar display
             updateScheduleDisplay();
 
-            // ✅ CRITICAL: Schedule the notification BEFORE saving
+            // Schedule notification if enabled
             if (hasReminder) {
                 scheduleWeeklyPlanNotification();
             }
 
-            // Save to Firebase
+            // ✅ Save WITHOUT exiting
             if (!isNewPlan) {
-                saveWeeklyPlan();
+                saveWeekScheduleOnly(); // Use new method instead of saveWeeklyPlan()
             }
 
             String message = "Schedule set for " +
@@ -1460,6 +1698,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             dialog.dismiss();
+
         });
 
         dialog.show();
@@ -1660,27 +1899,13 @@ public class WeeklyActivity extends AppCompatActivity {
     // ✅ ADD this method in your WeeklyActivity class
     @Override
     public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
-        // ✅ IMPROVED: Better drag detection
-        boolean isDragging = false;
-
-        // Check if we're in a drag motion
-        if (ev.getAction() == android.view.MotionEvent.ACTION_MOVE) {
-            // Check if any RecyclerView is currently being dragged
-            for (String day : days) {
-                RecyclerView recyclerView = dayContainers.get(day);
-                if (recyclerView != null && recyclerView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING) {
-                    isDragging = true;
-                    break;
-                }
-            }
-        }
-
         if (isDragging) {
-            // Prevent NestedScrollView from intercepting
-            androidx.core.widget.NestedScrollView scrollView = findViewById(R.id.scrollView);
-            if (scrollView != null) {
-                scrollView.requestDisallowInterceptTouchEvent(true);
+            if (ev.getAction() == android.view.MotionEvent.ACTION_UP ||
+                    ev.getAction() == android.view.MotionEvent.ACTION_CANCEL) {
+                // Handle drop
+                handleCrossDayDrop(ev.getRawY());
             }
+            return true; // Consume event during drag
         }
 
         return super.dispatchTouchEvent(ev);
@@ -2180,41 +2405,206 @@ public class WeeklyActivity extends AppCompatActivity {
                 });
     }
     private void updateScheduleDisplay() {
-        if (startDate != null && endDate != null) {
+        // ✅ FIXED: Only display if time is set (even if dates exist)
+        if (startDate != null && endDate != null && selectedTime != null && !selectedTime.isEmpty()) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
             String displayText = sdf.format(startDate.getTime()) + " - " + sdf.format(endDate.getTime());
-
-            if (selectedTime != null && !selectedTime.isEmpty()) {
-                displayText += ", " + selectedTime;
-            }
+            displayText += ", " + selectedTime;
 
             dueDateText.setText(displayText);
             dueDateDisplay.setVisibility(View.VISIBLE);
         } else {
+            // ✅ Hide if no time is set (even if dates exist)
             dueDateDisplay.setVisibility(View.GONE);
         }
     }
 
     // ✅ NEW METHOD: Clear schedule
+    // ✅ FIXED: Clear schedule without exiting
+    // ✅ FIXED: Clear display but keep week range
     private void clearSchedule() {
-        // ✅ Cancel weekly notification
+        // Cancel weekly notification
         if (!isNewPlan && planId != null) {
             NotificationHelper.cancelNotification(this, "weekly_" + planId);
         }
 
-        startDate = null;
-        endDate = null;
+        // Reset to current week (don't set to null)
+        setCurrentWeek();
+
+        // Clear time and reminder settings
         selectedTime = "";
         hasReminder = false;
-        reminderMinutes = 60; // Reset to default
+        reminderMinutes = 60;
 
-        updateScheduleDisplay();
+        // Hide display
+        dueDateDisplay.setVisibility(View.GONE);
 
+        // ✅ Save WITHOUT exiting
         if (!isNewPlan) {
-            saveWeeklyPlan();
+            saveWeekScheduleOnly();
         }
 
         Toast.makeText(this, "Schedule cleared", Toast.LENGTH_SHORT).show();
+    }
+    private void saveWeekScheduleOnly() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || planId == null || planId.isEmpty()) return;
+
+        Map<String, Object> scheduleData = new HashMap<>();
+
+        // Keep the week range dates
+        if (startDate != null && endDate != null) {
+            scheduleData.put("startDate", new Timestamp(startDate.getTime()));
+            scheduleData.put("endDate", new Timestamp(endDate.getTime()));
+        }
+
+        // Save time and notification
+        scheduleData.put("time", selectedTime != null ? selectedTime : "");
+        scheduleData.put("hasReminder", hasReminder);
+        scheduleData.put("reminderMinutes", reminderMinutes);
+
+        // Update weeklyPlans
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document(planId)
+                .update(scheduleData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Week schedule saved");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to save week schedule", e);
+                });
+
+        // Update schedules collection
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .whereEqualTo("sourceId", planId)
+                .whereEqualTo("category", "weekly")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                        db.collection("users")
+                                .document(user.getUid())
+                                .collection("schedules")
+                                .document(scheduleId)
+                                .update(scheduleData);
+                    }
+                });
+    }
+
+    // ✅ NEW: Save cleared schedule (no time, but keep week range)
+    private void saveClearedSchedule() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || planId == null || planId.isEmpty()) return;
+
+        Map<String, Object> scheduleData = new HashMap<>();
+
+        // ✅ Keep the week range dates
+        if (startDate != null && endDate != null) {
+            scheduleData.put("startDate", new Timestamp(startDate.getTime()));
+            scheduleData.put("endDate", new Timestamp(endDate.getTime()));
+        }
+
+        // ✅ Clear the time and notification settings
+        scheduleData.put("time", "");
+        scheduleData.put("hasReminder", false);
+        scheduleData.put("reminderMinutes", 60);
+
+        // Update weeklyPlans document
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document(planId)
+                .update(scheduleData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Schedule cleared (dates kept)");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to clear schedule", e);
+                });
+
+        // Update schedules document
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .whereEqualTo("sourceId", planId)
+                .whereEqualTo("category", "weekly")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                        db.collection("users")
+                                .document(user.getUid())
+                                .collection("schedules")
+                                .document(scheduleId)
+                                .update(scheduleData)
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "✅ Schedule cleared in schedules collection");
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "❌ Failed to clear schedule in schedules", e);
+                                });
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to query schedules", e);
+                });
+    }
+    // ✅ NEW: Save schedule data without finishing activity
+    private void saveScheduleDataOnly() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || planId == null || planId.isEmpty()) return;
+
+        // Update both weeklyPlans and schedules collections
+        Map<String, Object> scheduleData = new HashMap<>();
+        scheduleData.put("startDate", null);
+        scheduleData.put("endDate", null);
+        scheduleData.put("time", "");
+        scheduleData.put("hasReminder", false);
+        scheduleData.put("reminderMinutes", 60);
+
+        // Update weeklyPlans document
+        db.collection("users")
+                .document(user.getUid())
+                .collection("weeklyPlans")
+                .document(planId)
+                .update(scheduleData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Schedule cleared in weeklyPlans");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to clear schedule in weeklyPlans", e);
+                });
+
+        // Update schedules document
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .whereEqualTo("sourceId", planId)
+                .whereEqualTo("category", "weekly")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                        db.collection("users")
+                                .document(user.getUid())
+                                .collection("schedules")
+                                .document(scheduleId)
+                                .update(scheduleData)
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "✅ Schedule cleared in schedules");
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "❌ Failed to clear schedule in schedules", e);
+                                });
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to query schedules", e);
+                });
     }
     private void scheduleWeeklyPlanNotification() {
         if (!hasReminder || selectedTime == null || selectedTime.isEmpty() || startDate == null) {

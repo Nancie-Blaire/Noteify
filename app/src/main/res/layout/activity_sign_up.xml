@@ -2,10 +2,15 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/lightmode_bg">
+    android:layout_height="match_parent">
 
     <!-- Main Content -->
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/lightmode"
+        android:scaleType="centerCrop" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -19,21 +24,20 @@
         <!-- Logo -->
         <ImageView
             android:id="@+id/ivLogo"
-            android:layout_width="100dp"
+            android:layout_width="150dp"
             android:layout_height="100dp"
-            android:layout_marginBottom="12dp"
             android:contentDescription="Noteify Logo"
-            android:src="@drawable/logo_noteify" />
+            android:src="@drawable/final_light" />
 
         <!-- App Name -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="2dp"
+            android:layout_marginBottom="4dp"
             android:fontFamily="@font/inter_regular"
             android:letterSpacing=".3"
             android:text="NOTEIFY"
-            android:textColor="#333333"
+            android:textColor="#000000"
             android:textSize="25sp"
             android:textStyle="bold" />
 
@@ -45,17 +49,17 @@
             android:letterSpacing="0.1"
             android:text="Stay organized. Stay on time."
             android:textColor="#666666"
-            android:textSize="16sp" />
+            android:textSize="10sp" />
 
         <!-- Full Name Input -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="10dp"
             android:background="@drawable/input_border_default"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="12dp">
+            android:padding="10dp">
 
             <ImageView
                 android:layout_width="20dp"
@@ -72,6 +76,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Full Name"
+                android:textColor="#000000"
                 android:inputType="textPersonName"
                 android:textSize="15sp" />
         </LinearLayout>
@@ -80,11 +85,11 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="10dp"
             android:background="@drawable/input_border_default"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="12dp">
+            android:padding="10dp">
 
             <ImageView
                 android:layout_width="20dp"
@@ -101,6 +106,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Email Address"
+                android:textColor="#000000"
                 android:inputType="textEmailAddress"
                 android:letterSpacing="0.1"
                 android:textSize="15sp" />
@@ -110,12 +116,12 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="10dp"
             android:background="@drawable/input_border_default"
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="12dp">
+            android:padding="10dp">
 
             <ImageView
                 android:layout_width="20dp"
@@ -132,6 +138,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Password"
+                android:textColor="#000000"
                 android:inputType="textPassword"
                 android:textSize="15sp" />
 
@@ -148,12 +155,12 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="50dp"
             android:background="@drawable/input_border_default"
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="12dp">
+            android:padding="10dp">
 
             <ImageView
                 android:layout_width="20dp"
@@ -170,6 +177,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Confirm Password"
+                android:textColor="#000000"
                 android:inputType="textPassword"
                 android:textSize="15sp" />
 
@@ -222,12 +230,12 @@
             android:id="@+id/btnSignUp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="3dp"
+            android:layout_marginBottom="-2dp"
             android:backgroundTint="#FF9376"
             android:fontFamily="@font/inter_regular"
             android:letterSpacing=".05"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
             android:text="Sign Up"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
@@ -275,8 +283,9 @@
             android:drawablePadding="8dp"
             android:fontFamily="@font/inter_regular"
             android:gravity="center"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
+            android:layout_marginTop="-5dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
             android:text="Continue with Google"
             android:textColor="#757575"
             android:textSize="14sp"
@@ -316,7 +325,7 @@
                     android:fontFamily="@font/inter_regular"
                     android:text="Already have an account? "
                     android:textColor="#000000"
-                    android:textSize="12sp" />
+                    android:textSize="10sp" />
 
                 <TextView
                     android:id="@+id/tvLoginRedirect"
@@ -329,7 +338,7 @@
                     android:padding="4dp"
                     android:text="@string/underlined_text_login"
                     android:textColor="#000000"
-                    android:textSize="12sp"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </RelativeLayout>

@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/lightmode_bg">
+    android:background="#f4e8df">
     <!--COMMENT-->
     <!-- Header with Back Button -->
     <LinearLayout
@@ -12,7 +12,6 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:layout_marginTop="32dp"
         android:gravity="center_vertical">
 
         <TextView
@@ -20,9 +19,9 @@
             android:layout_height="wrap_content"
             android:text="Settings"
             android:textColor="#000000"
-            android:textSize="20sp"
+            android:textSize="25sp"
             android:textStyle="bold"
-            android:layout_marginStart="12dp"/>
+            android:layout_marginStart="5dp"/>
     </LinearLayout>
 
     <ScrollView
@@ -71,7 +70,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="TIME FORMAT"
-                        android:textColor="#333333"
+                        android:textColor="#000000"
                         android:textSize="14sp"
                         android:textStyle="bold"/>
 
@@ -80,7 +79,7 @@
                         android:layout_width="24dp"
                         android:layout_height="24dp"
                         android:src="@drawable/ic_chevron_down"
-                        android:tint="#666666"/>
+                        app:tint="#666666"/>
                 </LinearLayout>
 
                 <!-- Expandable Content - INLINE LAYOUT -->
@@ -184,7 +183,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="NOTIFICATION"
-                        android:textColor="#333333"
+                        android:textColor="#000000"
                         android:textSize="14sp"
                         android:textStyle="bold"/>
 
@@ -193,7 +192,7 @@
                         android:layout_width="24dp"
                         android:layout_height="24dp"
                         android:src="@drawable/ic_chevron_down"
-                        android:tint="#666666"/>
+                        app:tint="#666666"/>
                 </LinearLayout>
 
                 <!-- Expandable Content - SIMPLE LAYOUT -->
@@ -251,7 +250,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="PROFILE"
-                    android:textColor="#333333"
+                    android:textColor="#000000"
                     android:textSize="14sp"
                     android:textStyle="bold"/>
 
@@ -259,7 +258,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="#666666"/>
+                    app:tint="#666666"/>
             </LinearLayout>
 
             <!-- THEME Section -->
@@ -279,7 +278,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="THEME"
-                    android:textColor="#333333"
+                    android:textColor="#000000"
                     android:textSize="14sp"
                     android:textStyle="bold"/>
 
@@ -287,7 +286,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="#666666"/>
+                    app:tint="#666666"/>
             </LinearLayout>
 
             <!-- BIN Section -->
@@ -307,7 +306,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="BIN"
-                    android:textColor="#333333"
+                    android:textColor="#000000"
                     android:textSize="14sp"
                     android:textStyle="bold"/>
 
@@ -315,7 +314,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="#666666"/>
+                    app:tint="#666666"/>
             </LinearLayout>
 
             <!-- PRIVACY Section -->
@@ -334,7 +333,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="PRIVACY"
-                    android:textColor="#333333"
+                    android:textColor="#000000"
                     android:textSize="14sp"
                     android:textStyle="bold"/>
 
@@ -342,7 +341,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="#666666"/>
+                    app:tint="#666666"/>
             </LinearLayout>
 
         </LinearLayout>

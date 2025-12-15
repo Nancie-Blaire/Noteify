@@ -2,10 +2,14 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/lightmode_bg">
+    android:layout_height="match_parent">
 
-    <!-- Main Content -->
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/lightmode" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -16,16 +20,13 @@
         android:paddingEnd="32dp"
         android:paddingBottom="20dp">
 
-        <!-- Logo -->
         <ImageView
             android:id="@+id/ivLogo"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:layout_marginBottom="16dp"
+            android:layout_width="250dp"
+            android:layout_height="200dp"
             android:contentDescription="Noteify Logo"
-            android:src="@drawable/logo_noteify" />
+            android:src="@drawable/final_light" />
 
-        <!-- App Name -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -33,11 +34,10 @@
             android:fontFamily="@font/inter_regular"
             android:letterSpacing="0.3"
             android:text="NOTEIFY"
-            android:textColor="#333333"
+            android:textColor="#000000"
             android:textSize="25sp"
             android:textStyle="bold" />
 
-        <!-- Tagline -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -46,24 +46,23 @@
             android:letterSpacing="0.1"
             android:text="Stay organized. Stay on time."
             android:textColor="#666666"
-            android:textSize="16sp" />
+            android:textSize="10sp" />
 
-        <!-- Email Input -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="10dp"
             android:background="@drawable/input_border_default"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="14dp">
+            android:padding="10dp">
 
             <ImageView
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginEnd="10dp"
                 android:src="@android:drawable/ic_dialog_email"
-                android:tint="#999999" />
+                app:tint="#999999" />
 
             <EditText
                 android:id="@+id/etEmail"
@@ -75,18 +74,18 @@
                 android:hint="Email"
                 android:inputType="textEmailAddress"
                 android:textColorHint="#CCCCCC"
+                android:textColor="#000000"
                 android:textSize="15sp" />
         </LinearLayout>
 
-        <!-- Password Input -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="5dp"
             android:background="@drawable/input_border_default"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="14dp">
+            android:padding="10dp">
 
             <ImageView
                 android:layout_width="20dp"
@@ -105,6 +104,7 @@
                 android:hint="Password"
                 android:inputType="textPassword"
                 android:textColorHint="#CCCCCC"
+                android:textColor="#000000"
                 android:textSize="15sp" />
 
             <ImageView
@@ -116,40 +116,36 @@
                 android:src="@drawable/ic_password_eye_off" />
         </LinearLayout>
 
-        <!-- Forgot Password -->
         <TextView
             android:id="@+id/tvForgotPassword"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="70dp"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="@font/inter_regular"
             android:letterSpacing="0.2"
-            android:padding="8dp"
+            android:padding="5dp"
             android:text="Forgot Password?"
             android:textColor="#000000"
-            android:textSize="12sp"
+            android:textSize="10sp"
             android:textStyle="bold" />
 
-        <!-- Login Button -->
         <Button
             android:id="@+id/btnLogin"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="3dp"
+            android:layout_marginBottom="-2dp"
             android:backgroundTint="#FF9376"
             android:fontFamily="@font/inter_regular"
             android:letterSpacing=".05"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
             android:text="Log in"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <!-- Divider -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -180,7 +176,6 @@
                 android:background="#E0E0E0" />
         </LinearLayout>
 
-        <!-- Google Sign-In -->
         <Button
             android:id="@+id/btnGoogleSignIn"
             android:layout_width="match_parent"
@@ -190,14 +185,14 @@
             android:drawablePadding="8dp"
             android:fontFamily="@font/inter_regular"
             android:gravity="center"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
+            android:layout_marginTop="-5dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
             android:text="Continue with Google"
             android:textColor="#757575"
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <!-- Progress Bar -->
         <ProgressBar
             android:id="@+id/progressBar"
             android:layout_width="wrap_content"
@@ -212,7 +207,6 @@
 
         </View>
 
-        <!-- Bottom Sign Up Section -->
         <RelativeLayout
             android:id="@+id/bottomNavBar"
             android:layout_width="match_parent"
@@ -230,10 +224,11 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="25dp"
                     android:fontFamily="@font/inter_regular"
                     android:text="Don't have an account? "
                     android:textColor="#000000"
-                    android:textSize="12sp" />
+                    android:textSize="10sp" />
 
                 <TextView
                     android:id="@+id/tvSignUpRedirect"
@@ -244,16 +239,14 @@
                     android:fontFamily="@font/inter_regular"
                     android:letterSpacing="0.1"
                     android:padding="4dp"
+                    android:layout_marginTop="25dp"
                     android:text="@string/underlined_text_signup"
                     android:textColor="#000000"
-                    android:textSize="12sp"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
             </LinearLayout>
-
         </RelativeLayout>
 
     </LinearLayout>
-
-
 
 </RelativeLayout>

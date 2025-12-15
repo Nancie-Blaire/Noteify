@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -54,7 +55,8 @@ public class Account extends AppCompatActivity {
     private FirebaseAuth auth;
     private FirebaseFirestore db;
     private AccountManager accountManager;
-
+    private TextView tvPasswordLabel;
+    private LinearLayout llPasswordContainer;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,6 +82,8 @@ public class Account extends AppCompatActivity {
         tvDeleteAccount = findViewById(R.id.tvDeleteAccount);
         tvSwitchAccount = findViewById(R.id.tvSwitchAccount);
 
+        tvPasswordLabel = findViewById(R.id.tvPasswordLabel);
+        llPasswordContainer = findViewById(R.id.llPasswordContainer);
         // Load user profile
         loadUserProfile();
         // Back Button
@@ -153,7 +157,7 @@ public class Account extends AppCompatActivity {
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
                         String displayName = documentSnapshot.getString("displayName");
-                        String authProvider = documentSnapshot.getString("authProvider");  // ✅ Get from Firestore
+                        String authProvider = documentSnapshot.getString("authProvider");
                         String photoUrl = documentSnapshot.getString("photoUrl");
 
                         // Display name
@@ -175,7 +179,16 @@ public class Account extends AppCompatActivity {
                             showDefaultAvatar(displayName != null ? displayName : "User");
                         }
 
-                        // ✅ Save account to AccountManager WITH authProvider
+                        // ✅ Show/Hide change password based on auth provider
+                        if ("google".equals(authProvider)) {
+                            // Hide change password for Google users
+                            tvChangePassword.setVisibility(View.GONE);
+                        } else {
+                            // Show change password for email users
+                            tvChangePassword.setVisibility(View.VISIBLE);
+                        }
+
+                        // Save account to AccountManager WITH authProvider
                         accountManager.saveAccount(user.getEmail(), user.getUid(), displayName, photoUrl, authProvider);
                     } else {
                         String email = user.getEmail();
@@ -186,7 +199,9 @@ public class Account extends AppCompatActivity {
                         }
                         showDefaultAvatar(tvUserName.getText().toString());
 
-                        // ✅ Save account even without profile data - default to "email" provider
+                        // Default to email provider - show change password
+                        tvChangePassword.setVisibility(View.VISIBLE);
+
                         accountManager.saveAccount(user.getEmail(), user.getUid(),
                                 tvUserName.getText().toString(), null, "email");
                     }
@@ -201,19 +216,11 @@ public class Account extends AppCompatActivity {
                     }
                     showDefaultAvatar(tvUserName.getText().toString());
 
-                    // ✅ Save account even on failure - default to "email" provider
+                    // Default to email provider - show change password
+                    tvChangePassword.setVisibility(View.VISIBLE);
+
                     accountManager.saveAccount(user.getEmail(), user.getUid(),
                             tvUserName.getText().toString(), null, "email");
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show();
-                    String email = user.getEmail();
-                    if (email != null && email.contains("@")) {
-                        tvUserName.setText(email.split("@")[0]);
-                    } else {
-                        tvUserName.setText("User");
-                    }
-                    showDefaultAvatar(tvUserName.getText().toString());
                 });
     }
 

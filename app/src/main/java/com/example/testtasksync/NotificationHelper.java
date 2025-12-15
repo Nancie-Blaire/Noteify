@@ -11,8 +11,10 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 
 public class NotificationHelper {
     private static final String TAG = "NotificationHelper";
@@ -54,52 +56,53 @@ public class NotificationHelper {
      * ✅ UPDATED: Check notification settings before scheduling
      */
     public static void scheduleTodoListNotification(Context context, String listId,
-                                                    String listTitle,
-                                                    Date scheduleDate, String scheduleTime,
-                                                    int reminderMinutes) {
-        // ✅ CHECK: If notifications are disabled in settings, skip
-        if (!areNotificationsEnabled(context)) {
-            Log.d(TAG, "⚠️ Notifications are disabled in settings, skipping");
-            return;
-        }
+                                                    String listTitle, Date dueDate,
+                                                    String dueTime, int reminderMinutes) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(dueDate);
 
-        if (scheduleDate == null) {
-            Log.d(TAG, "⚠️ No schedule date, skipping notification");
-            return;
-        }
-
-        if (listTitle == null || listTitle.trim().isEmpty()) {
-            Log.d(TAG, "⚠️ Skipping notification with empty title");
-            return;
-        }
-
-        Calendar notificationTime = Calendar.getInstance();
-        notificationTime.setTime(scheduleDate);
-
-        if (scheduleTime != null && !scheduleTime.isEmpty()) {
+        // Parse and set time if available
+        if (dueTime != null && !dueTime.isEmpty()) {
             try {
-                String[] timeParts = scheduleTime.split(":");
-                int hour = Integer.parseInt(timeParts[0]);
-                int minute = Integer.parseInt(timeParts[1]);
-                notificationTime.set(Calendar.HOUR_OF_DAY, hour);
-                notificationTime.set(Calendar.MINUTE, minute);
-                notificationTime.set(Calendar.SECOND, 0);
+                String[] timeParts = dueTime.split(":");
+                calendar.set(Calendar.HOUR_OF_DAY, Integer.parseInt(timeParts[0]));
+                calendar.set(Calendar.MINUTE, Integer.parseInt(timeParts[1]));
+                calendar.set(Calendar.SECOND, 0);
             } catch (Exception e) {
-                Log.e(TAG, "Error parsing time", e);
+                Log.e("NotificationHelper", "Error parsing time", e);
             }
         }
 
-        notificationTime.add(Calendar.MINUTE, -reminderMinutes);
+        // Subtract reminder minutes
+        calendar.add(Calendar.MINUTE, -reminderMinutes);
 
-        if (notificationTime.getTimeInMillis() <= System.currentTimeMillis()) {
-            Log.d(TAG, "⚠️ Notification time is in the past, skipping");
+        // Only schedule if in the future
+        if (calendar.getTimeInMillis() <= System.currentTimeMillis()) {
+            Log.d("NotificationHelper", "⚠️ Todo list notification time is in the past");
             return;
         }
 
-        Log.d(TAG, "✅ Scheduling TODO LIST notification: " + listTitle);
+        // ✅ FIXED: Use listTitle as the notification title (not hardcoded "Notify")
+        String notificationTitle = listTitle;  // ✅ THIS IS THE KEY FIX
+        String notificationBody = "Your to-do list is due";
 
-        scheduleNotification(context, listId, APP_NAME, listTitle,
-                notificationTime.getTimeInMillis(), "todo", listId);
+        // Add time to body if available
+        if (dueTime != null && !dueTime.isEmpty()) {
+            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
+            notificationBody += " at " + dueTime;
+        }
+
+        scheduleNotification(
+                context,
+                listId,
+                notificationTitle,  // ✅ Now shows the actual list title
+                notificationBody,
+                calendar.getTimeInMillis(),
+                "todo",
+                listId
+        );
+
+        Log.d("NotificationHelper", "✅ Scheduled todo list notification: " + listTitle);
     }
 
     /**
@@ -216,7 +219,7 @@ public class NotificationHelper {
     /**
      * Schedule notification with sourceId for navigation
      */
-    private static void scheduleNotification(Context context, String id,
+    public static void scheduleNotification(Context context, String id,
                                              String title, String message,
                                              long triggerTime, String type, String sourceId) {
         Intent intent = new Intent(context, NotificationReceiver.class);

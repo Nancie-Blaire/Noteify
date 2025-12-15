@@ -200,6 +200,8 @@ public class WeeklyActivity extends AppCompatActivity {
         dueDateText = findViewById(R.id.dueDateText);
         clearDateButton = findViewById(R.id.clearDateButton);
 
+        clearDateButton.setOnClickListener(v -> clearSchedule());
+
 
         if (isNewPlan) {
             Log.d(TAG, "📝 Creating new plan - adding default tasks");
@@ -751,7 +753,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
         String userId = user.getUid();
 
-        // ✅ FIRST: Load schedule data (has the date/time info from DayDetails)
+        // ✅ FIX: Load BOTH schedule AND plan data to get the time
         db.collection("users")
                 .document(userId)
                 .collection("schedules")
@@ -760,10 +762,9 @@ public class WeeklyActivity extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(scheduleSnapshots -> {
                     if (!scheduleSnapshots.isEmpty()) {
-                        // ✅ Load date/time/range from schedule document
                         DocumentSnapshot scheduleDoc = scheduleSnapshots.getDocuments().get(0);
 
-                        // ✅ CRITICAL: Load time from schedule first
+                        // ✅ CRITICAL: Load time from schedule
                         String savedTime = scheduleDoc.getString("time");
                         if (savedTime != null && !savedTime.isEmpty()) {
                             selectedTime = savedTime;
@@ -784,18 +785,16 @@ public class WeeklyActivity extends AppCompatActivity {
                         // Try to get date range from schedule
                         Timestamp dateTimestamp = scheduleDoc.getTimestamp("date");
                         if (dateTimestamp != null && startDate == null) {
-                            // If no range set, use the date as start of week
                             startDate = Calendar.getInstance();
                             startDate.setTime(dateTimestamp.toDate());
                         }
                     }
 
-                    // ✅ THEN: Load plan details
+                    // Load plan details
                     loadWeeklyPlanDetails(userId);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to load schedule", e);
-                    // Still try to load plan details even if schedule fails
                     loadWeeklyPlanDetails(userId);
                 });
     }
@@ -1189,10 +1188,8 @@ public class WeeklyActivity extends AppCompatActivity {
     }
     private void createOrUpdateMainSchedule(String userId, String planId,
                                             Map<String, Object> mainScheduleData) {
-        // Add sourceId to link back to the weekly plan
         mainScheduleData.put("sourceId", planId);
 
-        // Check if schedule already exists for this weekly plan
         db.collection("users")
                 .document(userId)
                 .collection("schedules")
@@ -1210,6 +1207,12 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .update(mainScheduleData)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d(TAG, "Main schedule updated for weekly plan");
+
+                                    // ✅ NEW: Schedule notification after successful save
+                                    if (hasReminder) {
+                                        scheduleWeeklyPlanNotification();
+                                    }
+
                                     Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
@@ -1226,12 +1229,18 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .add(mainScheduleData)
                                 .addOnSuccessListener(documentReference -> {
                                     Log.d(TAG, "Main schedule created for weekly plan");
+
+                                    // ✅ NEW: Schedule notification after successful save
+                                    if (hasReminder) {
+                                        scheduleWeeklyPlanNotification();
+                                    }
+
                                     Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to create schedule", e);
-                                    Toast.makeText(this, " Weekly plan saved", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
                                     finish();
                                 });
                     }
@@ -1357,7 +1366,6 @@ public class WeeklyActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         notificationTimeSpinner.setAdapter(adapter);
 
-        // ✅ FIX: Use existing week range if available, otherwise set current week
         if (startDate == null || endDate == null) {
             setCurrentWeek();
         }
@@ -1373,7 +1381,6 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ Display existing time if set
         if (selectedTime != null && !selectedTime.isEmpty()) {
             selectedTimeText.setText(selectedTime);
         }
@@ -1409,8 +1416,17 @@ public class WeeklyActivity extends AppCompatActivity {
 
         cancelButton.setOnClickListener(v -> dialog.dismiss());
 
+        // ✅ MODIFIED: Save button now schedules notification
         saveScheduleButton.setOnClickListener(v -> {
             String selectedTimeValue = selectedTimeText.getText().toString();
+
+            if (selectedTimeValue.equals("Select time")) {
+                Toast.makeText(this, "Please select a time", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Cancel any existing weekly notification first
+            NotificationHelper.cancelNotification(this, "weekly_" + planId);
 
             hasReminder = notificationCheckbox.isChecked();
             if (hasReminder) {
@@ -1418,25 +1434,28 @@ public class WeeklyActivity extends AppCompatActivity {
                 reminderMinutes = notificationMinutes[selectedPos];
             }
 
-            if (!selectedTimeValue.equals("Select time")) {
-                selectedTime = selectedTimeValue;
-            } else {
-                selectedTime = "";
+            selectedTime = selectedTimeValue;
+
+            // Update display
+            updateScheduleDisplay();
+
+            // ✅ CRITICAL: Schedule the notification BEFORE saving
+            if (hasReminder) {
+                scheduleWeeklyPlanNotification();
             }
 
-            // ✅ NEW: Update display immediately
-            updateScheduleDisplay();
+            // Save to Firebase
+            if (!isNewPlan) {
+                saveWeeklyPlan();
+            }
 
             String message = "Schedule set for " +
                     new SimpleDateFormat("MMM dd", Locale.getDefault()).format(startDate.getTime()) +
-                    " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime());
-
-            if (!selectedTime.isEmpty()) {
-                message += " at " + selectedTime;
-            }
+                    " - " + new SimpleDateFormat("MMM dd", Locale.getDefault()).format(endDate.getTime()) +
+                    " at " + selectedTime;
 
             if (hasReminder) {
-                message += "\nReminder: " + notificationTimes[notificationTimeSpinner.getSelectedItemPosition()];
+                message += "\n✓ Reminder: " + notificationTimes[notificationTimeSpinner.getSelectedItemPosition()] + " before";
             }
 
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
@@ -2178,15 +2197,73 @@ public class WeeklyActivity extends AppCompatActivity {
 
     // ✅ NEW METHOD: Clear schedule
     private void clearSchedule() {
+        // ✅ Cancel weekly notification
+        if (!isNewPlan && planId != null) {
+            NotificationHelper.cancelNotification(this, "weekly_" + planId);
+        }
+
         startDate = null;
         endDate = null;
         selectedTime = "";
         hasReminder = false;
+        reminderMinutes = 60; // Reset to default
+
         updateScheduleDisplay();
 
         if (!isNewPlan) {
             saveWeeklyPlan();
         }
+
+        Toast.makeText(this, "Schedule cleared", Toast.LENGTH_SHORT).show();
+    }
+    private void scheduleWeeklyPlanNotification() {
+        if (!hasReminder || selectedTime == null || selectedTime.isEmpty() || startDate == null) {
+            Log.d(TAG, "⚠️ Cannot schedule weekly notification - missing data");
+            return;
+        }
+
+        // Parse the selected time
+        String[] timeParts = selectedTime.split(":");
+        int hour = Integer.parseInt(timeParts[0]);
+        int minute = Integer.parseInt(timeParts[1]);
+
+        // Create notification time using startDate + selectedTime
+        Calendar notificationTime = (Calendar) startDate.clone();
+        notificationTime.set(Calendar.HOUR_OF_DAY, hour);
+        notificationTime.set(Calendar.MINUTE, minute);
+        notificationTime.set(Calendar.SECOND, 0);
+
+        // Subtract reminder minutes
+        notificationTime.add(Calendar.MINUTE, -reminderMinutes);
+
+        // Only schedule if notification time is in the future
+        if (notificationTime.getTimeInMillis() <= System.currentTimeMillis()) {
+            Log.d(TAG, "⚠️ Notification time is in the past, skipping");
+            Toast.makeText(this, "⚠️ Reminder time has passed", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String title = weeklyTitle.getText().toString().trim();
+        if (title.isEmpty()) {
+            title = "Weekly Plan";
+        }
+
+        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+        String weekRange = sdf.format(startDate.getTime()) + " - " + sdf.format(endDate.getTime());
+        String notificationBody = "Your weekly plan (" + weekRange + ") starts at " + selectedTime;
+
+        // Schedule the notification
+        NotificationHelper.scheduleNotification(
+                this,
+                "weekly_" + planId, // Unique ID for this weekly plan
+                title,
+                notificationBody,
+                notificationTime.getTimeInMillis(),
+                "weekly",
+                planId
+        );
+
+        Log.d(TAG, "✅ Scheduled weekly notification for: " + notificationTime.getTime());
     }
 
 

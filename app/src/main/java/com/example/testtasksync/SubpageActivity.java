@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -79,7 +80,10 @@ public class SubpageActivity extends AppCompatActivity {
     private ImageView viewBookmarksBtn;
     private static final int REQUEST_BOOKMARKS = 200;
 
+    private int scrollToBlockPosition = -1;
+    private int scrollToTextPosition = -1;
 
+    private ImageButton btnLinkToPage;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -91,7 +95,7 @@ public class SubpageActivity extends AppCompatActivity {
         checkBtn = findViewById(R.id.checkBtn);
         emptySpace = findViewById(R.id.subpageEmptySpace);
         colorPickerPanel = findViewById(R.id.subpageColorPickerPanel);
-
+        btnLinkToPage = findViewById(R.id.subpageLinkToPage);
         // ✅ Initialize bookmark button
         viewBookmarksBtn = findViewById(R.id.viewBookmarksBtn);
 
@@ -106,6 +110,7 @@ public class SubpageActivity extends AppCompatActivity {
         btnIndent = findViewById(R.id.subpageIndent);
         btnOutdent = findViewById(R.id.subpageOutdent);
         btnTheme = findViewById(R.id.subpageAddTheme);
+        btnLinkToPage.setOnClickListener(v -> showLinkToPageBottomSheet());
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
@@ -114,6 +119,8 @@ public class SubpageActivity extends AppCompatActivity {
         noteId = getIntent().getStringExtra("noteId");
         subpageId = getIntent().getStringExtra("subpageId");
         String initialTitle = getIntent().getStringExtra("subpageTitle");
+        scrollToBlockPosition = getIntent().getIntExtra("scrollToBlockPosition", -1);
+        scrollToTextPosition = getIntent().getIntExtra("scrollToTextPosition", -1);
 
         if (viewBookmarksBtn != null) {
             viewBookmarksBtn.setOnClickListener(v -> {
@@ -174,6 +181,7 @@ public class SubpageActivity extends AppCompatActivity {
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
                 startActivity(browserIntent);
             }
+
             @Override
             public void onBlockChanged(SubpageBlock block) {
                 saveBlock(block);
@@ -204,7 +212,13 @@ public class SubpageActivity extends AppCompatActivity {
                 saveBlock(block);
                 blockAdapter.notifyDataSetChanged();
             }
-        }, noteId, subpageId); // ✅ CORRECT PLACEMENT - after the closing brace of BlockListener
+
+            // ✅ ADD THIS METHOD:
+            @Override
+            public void onLinkToPageClick(String pageId, String pageType, String collection) {
+                openLinkedPage(pageId, pageType, collection);
+            }
+        }, noteId, subpageId);// ✅ CORRECT PLACEMENT - after the closing brace of BlockListener
 
         subpageBlocksRecycler.setLayoutManager(new LinearLayoutManager(this));
         subpageBlocksRecycler.setAdapter(blockAdapter);
@@ -243,7 +257,7 @@ public class SubpageActivity extends AppCompatActivity {
         btnBullet.setOnClickListener(v -> addBlock("bullet"));
         btnNumbered.setOnClickListener(v -> addBlock("numbered"));
         btnCheckbox.setOnClickListener(v -> addBlock("checkbox"));
-
+        btnLinkToPage.setOnClickListener(v -> showLinkToPageBottomSheet());
         btnIndent.setOnClickListener(v -> indentSelectedBlock(true));
         btnOutdent.setOnClickListener(v -> indentSelectedBlock(false));
 
@@ -429,6 +443,11 @@ public class SubpageActivity extends AppCompatActivity {
                     } else {
                         blockAdapter.notifyDataSetChanged();
                     }
+
+                    // ✅ Scroll to bookmark if needed
+                    if (scrollToBlockPosition >= 0 && scrollToTextPosition >= 0) {
+                        scrollToBookmark(scrollToBlockPosition, scrollToTextPosition);
+                    }
                 })
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Error loading blocks", Toast.LENGTH_SHORT).show()
@@ -449,55 +468,47 @@ public class SubpageActivity extends AppCompatActivity {
         addNewBlock(type, "");
     }
 
-    private boolean tryReplaceLastEmptyTextBlock(String type) {
+    private boolean tryReplaceLastEmptyTextBlock(String newType) {
         if (blocks.isEmpty()) {
             return false;
         }
 
         SubpageBlock lastBlock = blocks.get(blocks.size() - 1);
 
-        // Check if last block is an empty TEXT block
         if (lastBlock.getType().equals("text") &&
                 (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
 
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) return false;
 
-            // Delete the old empty text block from Firestore
             db.collection("users").document(user.getUid())
                     .collection("notes").document(noteId)
                     .collection("subpages").document(subpageId)
                     .collection("blocks").document(lastBlock.getBlockId())
                     .delete();
 
-            // Remove from list
             int position = blocks.size() - 1;
             blocks.remove(position);
 
-            // Create new block with the desired type
             SubpageBlock newBlock = new SubpageBlock();
             newBlock.setBlockId(java.util.UUID.randomUUID().toString());
-            newBlock.setType(type);
+            newBlock.setType(newType);  // ✅ This now supports "link_to_page"
             newBlock.setContent("");
             newBlock.setOrder(position);
             newBlock.setIndentLevel(0);
             newBlock.setChecked(false);
 
-            // Add new block at same position
             blocks.add(position, newBlock);
             blockAdapter.notifyItemChanged(position);
             saveBlock(newBlock);
 
-            // Scroll and focus
             subpageBlocksRecycler.smoothScrollToPosition(position);
 
-            return true; // Successfully replaced
+            return true;
         }
 
-        return false; // No empty text block to replace
+        return false;
     }
-
-// Add this helper method to SubpageActivity.java
 
     private void focusBlockAt(int position) {
         subpageBlocksRecycler.post(() -> {
@@ -696,14 +707,17 @@ public class SubpageActivity extends AppCompatActivity {
         blockData.put("linkDescription", block.getLinkDescription());
         blockData.put("dividerStyle", block.getDividerStyle());
 
-        // Image fields
         blockData.put("imageId", block.getImageId());
         blockData.put("isChunked", block.isChunked());
         blockData.put("sizeKB", block.getSizeKB());
 
-        // ✅ NEW FIELDS: Font style and color
         blockData.put("fontStyle", block.getFontStyle());
         blockData.put("fontColor", block.getFontColor());
+
+        // ✅ ADD THESE:
+        blockData.put("linkedPageId", block.getLinkedPageId());
+        blockData.put("linkedPageType", block.getLinkedPageType());
+        blockData.put("linkedPageCollection", block.getLinkedPageCollection());
 
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
@@ -2154,15 +2168,286 @@ public class SubpageActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == REQUEST_BOOKMARKS && resultCode == RESULT_OK && data != null) {
-            int scrollToBlockPosition = data.getIntExtra("scrollToBlockPosition", -1);
-            int scrollToTextPosition = data.getIntExtra("scrollToTextPosition", -1);
+            // ✅ Get scroll position from result
+            scrollToBlockPosition = data.getIntExtra("scrollToBlockPosition", -1);
+            scrollToTextPosition = data.getIntExtra("scrollToTextPosition", -1);
 
-            if (scrollToBlockPosition >= 0 && scrollToTextPosition >= 0) {
-                subpageBlocksRecycler.postDelayed(() -> {
-                    subpageBlocksRecycler.smoothScrollToPosition(scrollToBlockPosition);
-                    focusBlockAt(scrollToBlockPosition);
-                }, 300);
-            }
+            // ✅ Reload blocks and bookmarks
+            loadBlocks();
+            loadBookmarksForSubpage();
         }
     }
+
+
+    private void scrollToBookmark(int blockPosition, int textPosition) {
+        if (blockPosition < 0 || blockPosition >= blocks.size()) {
+            android.util.Log.e("SubpageActivity", "Invalid block position: " + blockPosition);
+            return;
+        }
+
+        android.util.Log.d("SubpageActivity", "Scrolling to block " + blockPosition + ", text pos " + textPosition);
+
+        // ✅ Scroll RecyclerView to position
+        subpageBlocksRecycler.post(() -> {
+            try {
+                subpageBlocksRecycler.smoothScrollToPosition(blockPosition);
+
+                // ✅ Wait for scroll, then focus and set selection
+                subpageBlocksRecycler.postDelayed(() -> {
+                    RecyclerView.ViewHolder holder = subpageBlocksRecycler.findViewHolderForAdapterPosition(blockPosition);
+
+                    if (holder != null) {
+                        View itemView = holder.itemView;
+                        EditText editText = itemView.findViewById(R.id.contentEdit);
+
+                        if (editText != null) {
+                            android.util.Log.d("SubpageActivity", "Found EditText, setting focus");
+
+                            // Request focus
+                            editText.requestFocus();
+
+                            // Set selection (cursor position)
+                            int safePosition = Math.min(textPosition, editText.getText().length());
+                            safePosition = Math.max(0, safePosition);
+                            editText.setSelection(safePosition);
+
+                            // Show keyboard
+                            android.view.inputmethod.InputMethodManager imm =
+                                    (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                            if (imm != null) {
+                                imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                            }
+
+                            android.util.Log.d("SubpageActivity", "Focus and selection applied");
+                        } else {
+                            android.util.Log.e("SubpageActivity", "EditText not found in holder");
+                        }
+                    } else {
+                        android.util.Log.e("SubpageActivity", "ViewHolder not found, retrying...");
+
+                        // Retry once if holder not found
+                        subpageBlocksRecycler.postDelayed(() -> {
+                            RecyclerView.ViewHolder retryHolder = subpageBlocksRecycler.findViewHolderForAdapterPosition(blockPosition);
+                            if (retryHolder != null) {
+                                View itemView = retryHolder.itemView;
+                                EditText editText = itemView.findViewById(R.id.contentEdit);
+                                if (editText != null) {
+                                    editText.requestFocus();
+                                    int safePosition = Math.min(textPosition, editText.getText().length());
+                                    editText.setSelection(Math.max(0, safePosition));
+                                }
+                            }
+                        }, 500);
+                    }
+                }, 400); // Delay to ensure scroll completes
+
+            } catch (Exception e) {
+                android.util.Log.e("SubpageActivity", "Error scrolling to bookmark", e);
+                e.printStackTrace();
+            }
+        });
+
+        // ✅ Reset scroll flags after use
+        scrollToBlockPosition = -1;
+        scrollToTextPosition = -1;
+    }
+    private void showLinkToPageBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.link_to_page_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
+
+        com.google.android.material.textfield.TextInputEditText searchInput =
+                sheetView.findViewById(R.id.searchInput);
+        RecyclerView resultsRecycler = sheetView.findViewById(R.id.resultsRecycler);
+        View emptyState = sheetView.findViewById(R.id.emptyState);
+
+        List<LinkableItem> allItems = new ArrayList<>();
+        List<LinkableItem> filteredItems = new ArrayList<>();
+
+        LinkToPageAdapter adapter = new LinkToPageAdapter(item -> {
+            insertLinkToPageBlock(item);
+            bottomSheet.dismiss();
+        });
+
+        resultsRecycler.setLayoutManager(new LinearLayoutManager(this));
+        resultsRecycler.setAdapter(adapter);
+
+        loadLinkableItems(allItems, adapter, emptyState);
+
+        searchInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().toLowerCase().trim();
+
+                if (query.isEmpty()) {
+                    adapter.updateItems(allItems);
+                    emptyState.setVisibility(allItems.isEmpty() ? View.VISIBLE : View.GONE);
+                } else {
+                    filteredItems.clear();
+                    for (LinkableItem item : allItems) {
+                        if (item.getTitle().toLowerCase().contains(query)) {
+                            filteredItems.add(item);
+                        }
+                    }
+                    adapter.updateItems(filteredItems);
+                    emptyState.setVisibility(filteredItems.isEmpty() ? View.VISIBLE : View.GONE);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        bottomSheet.show();
+    }
+
+
+    // ✅ ADD: Load linkable items from Firestore
+    private void loadLinkableItems(List<LinkableItem> items, LinkToPageAdapter adapter, View emptyState) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        items.clear();
+        final int[] loadedCount = {0};
+
+        Runnable checkAllLoaded = () -> {
+            loadedCount[0]++;
+            if (loadedCount[0] >= 3) {
+                adapter.updateItems(items);
+                emptyState.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+            }
+        };
+
+        // 1️⃣ LOAD NOTES
+        db.collection("users").document(user.getUid())
+                .collection("notes")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                        if (noteId != null && doc.getId().equals(noteId)) {
+                            continue;
+                        }
+
+                        String title = doc.getString("title");
+                        items.add(new LinkableItem(
+                                doc.getId(),
+                                title != null && !title.isEmpty() ? title : "Untitled Note",
+                                "note",
+                                "notes"
+                        ));
+                    }
+                    checkAllLoaded.run();
+                })
+                .addOnFailureListener(e -> checkAllLoaded.run());
+
+        // 2️⃣ LOAD TODO LISTS
+        db.collection("users").document(user.getUid())
+                .collection("todoLists")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                        String title = doc.getString("title");
+                        items.add(new LinkableItem(
+                                doc.getId(),
+                                title != null && !title.isEmpty() ? title : "Untitled Todo",
+                                "todo",
+                                "todoLists"
+                        ));
+                    }
+                    checkAllLoaded.run();
+                })
+                .addOnFailureListener(e -> checkAllLoaded.run());
+
+        // 3️⃣ LOAD WEEKLY PLANS
+        db.collection("users").document(user.getUid())
+                .collection("weeklyPlans")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
+                        String title = doc.getString("title");
+                        items.add(new LinkableItem(
+                                doc.getId(),
+                                title != null && !title.isEmpty() ? title : "Untitled Weekly",
+                                "weekly",
+                                "weeklyPlans"
+                        ));
+                    }
+                    checkAllLoaded.run();
+                })
+                .addOnFailureListener(e -> checkAllLoaded.run());
+    }
+
+    // ✅ ADD: Insert Link to Page block
+    private void insertLinkToPageBlock(LinkableItem item) {
+        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock("link_to_page");
+
+        if (!replacedEmptyBlock) {
+            SubpageBlock block = new SubpageBlock();
+            block.setBlockId(java.util.UUID.randomUUID().toString());
+            block.setType("link_to_page");
+            block.setContent(item.getTitle());
+            block.setLinkedPageId(item.getId());
+            block.setLinkedPageType(item.getType());
+            block.setLinkedPageCollection(item.getCollection());
+            block.setOrder(blocks.size());
+
+            blocks.add(block);
+            blockAdapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(block);
+
+            SubpageBlock textBlock = new SubpageBlock();
+            textBlock.setBlockId(java.util.UUID.randomUUID().toString());
+            textBlock.setType("text");
+            textBlock.setContent("");
+            textBlock.setOrder(blocks.size());
+            blocks.add(textBlock);
+            blockAdapter.notifyItemInserted(blocks.size() - 1);
+            saveBlock(textBlock);
+        } else {
+            SubpageBlock lastBlock = blocks.get(blocks.size() - 1);
+            lastBlock.setContent(item.getTitle());
+            lastBlock.setLinkedPageId(item.getId());
+            lastBlock.setLinkedPageType(item.getType());
+            lastBlock.setLinkedPageCollection(item.getCollection());
+            blockAdapter.notifyItemChanged(blocks.size() - 1);
+            saveBlock(lastBlock);
+        }
+
+        Toast.makeText(this, "✅ Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
+    }
+
+    // 8️⃣ ADD: Open linked page
+    private void openLinkedPage(String pageId, String pageType, String collection) {
+        if (pageId == null || pageType == null) {
+            Toast.makeText(this, "Invalid link", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        switch (pageType) {
+            case "note":
+                Intent noteIntent = new Intent(this, NoteActivity.class);
+                noteIntent.putExtra("noteId", pageId);
+                startActivity(noteIntent);
+                break;
+
+            case "todo":
+                Intent todoIntent = new Intent(this, TodoActivity.class);
+                todoIntent.putExtra("listId", pageId);
+                startActivity(todoIntent);
+                break;
+
+            case "weekly":
+                Intent weeklyIntent = new Intent(this, WeeklyActivity.class);
+                weeklyIntent.putExtra("planId", pageId);
+                startActivity(weeklyIntent);
+                break;
+        }
+    }
+
 }

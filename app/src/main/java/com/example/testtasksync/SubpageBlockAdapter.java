@@ -48,6 +48,7 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
         void onBackspaceOnEmptyBlock(int position);
         void onIndentChanged(SubpageBlock block, boolean indent);
         void onLinkClick(String url);
+        void onLinkToPageClick(String pageId, String pageType, String collection);
     }
 
     public SubpageBlockAdapter(Context context, List<SubpageBlock> blocks,
@@ -81,6 +82,8 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                 return 6;
             case "link":
                 return 7;
+            case "link_to_page": // ✅ ADD THIS
+                return 8;
             default:
                 return 0; // text
         }
@@ -107,11 +110,14 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
             case 5: // Heading
                 view = LayoutInflater.from(context).inflate(R.layout.item_block_heading, parent, false);
                 break;
-            case 6: // ✅ ADD THIS - Image
+            case 6: // Image
                 view = LayoutInflater.from(context).inflate(R.layout.item_block_image, parent, false);
                 break;
             case 7: // Link
                 view = LayoutInflater.from(context).inflate(R.layout.item_block_link, parent, false);
+                break;
+            case 8: // ✅ ADD THIS - Link to Page
+                view = LayoutInflater.from(context).inflate(R.layout.item_block_link_to_page_subpage, parent, false);
                 break;
             default: // Text
                 view = LayoutInflater.from(context).inflate(R.layout.item_block_text, parent, false);
@@ -120,6 +126,7 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
 
         return new BlockViewHolder(view);
     }
+
     // ================================================================
 // REPLACE THE onBindViewHolder METHOD IN SubpageBlockAdapter.java
 // ================================================================
@@ -127,6 +134,11 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
     @Override
     public void onBindViewHolder(@NonNull BlockViewHolder holder, int position) {
         SubpageBlock block = blocks.get(position);
+
+        if (block.getType().equals("link_to_page")) {
+            bindLinkToPageBlock(holder, block);
+            return;
+        }
 
         if (block.getType().equals("link")) {
             bindLinkBlock(holder, block);
@@ -1086,5 +1098,87 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
             canvas.drawLine(x, underlineY, x + textWidth, underlineY, underlinePaint);
         }
     }
+    private void bindLinkToPageBlock(BlockViewHolder holder, SubpageBlock block) {
+        // Find views
+        ImageView pageIcon = holder.itemView.findViewById(R.id.pageIcon);
+        TextView pageTitle = holder.itemView.findViewById(R.id.pageTitle);
+        TextView pageType = holder.itemView.findViewById(R.id.pageType);
 
+        if (pageTitle == null || pageType == null || pageIcon == null) {
+            android.util.Log.e("SubpageBlockAdapter", "Link to page views not found!");
+            return;
+        }
+
+        // Set title
+        String title = block.getContent();
+        pageTitle.setText(title != null && !title.isEmpty() ? title : "Untitled");
+
+        // Set type badge
+        String type = block.getLinkedPageType();
+        pageType.setText(type != null ? type : "page");
+
+        // Set icon based on type
+        if (type != null) {
+            switch (type) {
+                case "note":
+                    pageIcon.setImageResource(R.drawable.ic_fab_notes);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#E3F2FD")));
+                    break;
+                case "todo":
+                    pageIcon.setImageResource(R.drawable.ic_fab_todo);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#FFF3E0")));
+                    break;
+                case "weekly":
+                    pageIcon.setImageResource(R.drawable.ic_calendar);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#F3E5F5")));
+                    break;
+                default:
+                    pageIcon.setImageResource(R.drawable.ic_fab_notes);
+                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                            android.graphics.Color.parseColor("#E0E0E0")));
+                    break;
+            }
+        }
+
+        // Click listener to open linked page
+        holder.itemView.setOnClickListener(v -> {
+            String pageId = block.getLinkedPageId();
+            String pageTypeStr = block.getLinkedPageType();
+            String collection = block.getLinkedPageCollection();
+
+            if (pageId != null && pageTypeStr != null && collection != null) {
+                listener.onLinkToPageClick(pageId, pageTypeStr, collection);
+            } else {
+                android.widget.Toast.makeText(context, "Invalid link",
+                        android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Long press to delete
+        holder.itemView.setOnLongClickListener(v -> {
+            showLinkToPageOptions(v, holder.getAdapterPosition());
+            return true;
+        });
+    }
+
+    // 6️⃣ ADD: Show options for link to page (add after bindLinkToPageBlock)
+    private void showLinkToPageOptions(View view, int position) {
+        if (position < 0 || position >= blocks.size()) return;
+
+        android.widget.PopupMenu popup = new android.widget.PopupMenu(view.getContext(), view);
+        popup.getMenu().add("🗑️ Remove link");
+
+        popup.setOnMenuItemClickListener(item -> {
+            if (position < blocks.size()) {
+                SubpageBlock block = blocks.get(position);
+                listener.onBlockDeleted(block, position);
+            }
+            return true;
+        });
+
+        popup.show();
+    }
 }

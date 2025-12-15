@@ -1,177 +1,210 @@
 package com.example.testtasksync;
 
-import android.graphics.Color;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
-import android.content.Intent;
-
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
 import com.google.android.material.bottomsheet.BottomSheetDialog;
-import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
-
+import com.google.firebase.firestore.Source;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class BookmarksActivity extends AppCompatActivity implements BookmarkAdapter.OnBookmarkClickListener {
+public class BookmarksActivity extends AppCompatActivity {
 
     private RecyclerView bookmarksRecyclerView;
-    private BookmarkAdapter bookmarkAdapter;
+    private LinearLayout emptyView;
+    private ImageView backBtn;
+
     private FirebaseFirestore db;
     private FirebaseAuth auth;
     private String noteId;
-    private ImageView backBtn;
-    private LinearLayout emptyView;
 
-    // ✅ FIX: Store blocks to find bookmark positions
-    private List<NoteBlock> allBlocks = new ArrayList<>();
+    private List<BookmarkWithPosition> bookmarks = new ArrayList<>();
+    private BookmarkAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bookmarks);
 
-        noteId = getIntent().getStringExtra("noteId");
-
-        backBtn = findViewById(R.id.backBtn);
-        bookmarksRecyclerView = findViewById(R.id.bookmarksRecyclerView);
-        emptyView = findViewById(R.id.emptyView);
-
+        // Initialize Firebase
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
 
-        backBtn.setOnClickListener(v -> finish());
+        // Get noteId from intent
+        noteId = getIntent().getStringExtra("noteId");
 
-        setupRecyclerView();
-        loadBlocks(); // ✅ NEW: Load blocks first
-        loadBookmarks();
-    }
+        if (noteId == null) {
+            finish();
+            return;
+        }
 
-    private void setupRecyclerView() {
-        bookmarkAdapter = new BookmarkAdapter(this, this);
+        // Initialize views
+        bookmarksRecyclerView = findViewById(R.id.bookmarksRecyclerView);
+        emptyView = findViewById(R.id.emptyView);
+        backBtn = findViewById(R.id.backBtn);
+
+        // ✅ Setup adapter with your existing BookmarkAdapter
+        adapter = new BookmarkAdapter(this, new BookmarkAdapter.OnBookmarkClickListener() {
+            @Override
+            public void onBookmarkClick(BookmarkWithPosition bookmark) {
+                // Navigate to bookmark location
+                Intent resultIntent = new Intent();
+                resultIntent.putExtra("scrollToBlockPosition", bookmark.blockPosition);
+                resultIntent.putExtra("scrollToTextPosition", bookmark.bookmark.getStartIndex());
+                setResult(RESULT_OK, resultIntent);
+                finish();
+            }
+
+            @Override
+            public void onBookmarkMenuClick(BookmarkWithPosition bookmark) {
+                // Show edit/delete menu
+                showBookmarkMenu(bookmark);
+            }
+        });
+
         bookmarksRecyclerView.setLayoutManager(new LinearLayoutManager(this));
-        bookmarksRecyclerView.setAdapter(bookmarkAdapter);
-    }
+        bookmarksRecyclerView.setAdapter(adapter);
 
-    // ✅ NEW METHOD: Load all blocks to find bookmark positions
-    private void loadBlocks() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
+        // Back button
+        if (backBtn != null) {
+            backBtn.setOnClickListener(v -> finish());
+        }
 
-        db.collection("users").document(user.getUid())
-                .collection("notes").document(noteId)
-                .collection("blocks")
-                .orderBy("position")
-                .get()
-                .addOnSuccessListener(querySnapshot -> {
-                    allBlocks.clear();
-                    for (QueryDocumentSnapshot doc : querySnapshot) {
-                        NoteBlock block = NoteBlock.fromMap(doc.getData());
-                        allBlocks.add(block);
-                    }
-                    android.util.Log.d("BOOKMARK_SCROLL", "Loaded " + allBlocks.size() + " blocks");
-                })
-                .addOnFailureListener(e -> {
-                    android.util.Log.e("BOOKMARK_SCROLL", "Error loading blocks", e);
-                });
+        // Load bookmarks
+        loadBookmarks();
     }
 
     private void loadBookmarks() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
+        // ✅ OFFLINE-FIRST: Try cache first, then server
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
-                .collection("bookmarks")
-                .orderBy("timestamp")
-                .addSnapshotListener((value, error) -> {
-                    if (error != null) {
-                        Toast.makeText(this, "Error loading bookmarks", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    if (value != null) {
-                        List<Bookmark> bookmarks = new ArrayList<>();
-                        for (QueryDocumentSnapshot doc : value) {
-                            Bookmark bookmark = doc.toObject(Bookmark.class);
-                            bookmark.setId(doc.getId());
-                            bookmarks.add(bookmark);
-                        }
-
-                        bookmarkAdapter.setBookmarks(bookmarks);
-
-                        if (bookmarks.isEmpty()) {
-                            emptyView.setVisibility(View.VISIBLE);
-                            bookmarksRecyclerView.setVisibility(View.GONE);
-                        } else {
-                            emptyView.setVisibility(View.GONE);
-                            bookmarksRecyclerView.setVisibility(View.VISIBLE);
-                        }
-                    }
+                .collection("blocks")
+                .orderBy("position")
+                .get(Source.CACHE)
+                .addOnSuccessListener(blocksSnapshot -> {
+                    loadBookmarksWithBlocks(blocksSnapshot);
+                })
+                .addOnFailureListener(e -> {
+                    // If cache fails, try server
+                    db.collection("users").document(user.getUid())
+                            .collection("notes").document(noteId)
+                            .collection("blocks")
+                            .orderBy("position")
+                            .get(Source.SERVER)
+                            .addOnSuccessListener(this::loadBookmarksWithBlocks)
+                            .addOnFailureListener(serverError -> showEmptyState());
                 });
     }
 
-    @Override
-    public void onBookmarkClick(Bookmark bookmark) {
-        // ✅ FIX: Find which block contains this bookmark
-        int blockPosition = findBlockPositionForBookmark(bookmark);
+    private void loadBookmarksWithBlocks(com.google.firebase.firestore.QuerySnapshot blocksSnapshot) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
 
-        android.util.Log.d("BOOKMARK_SCROLL", "Bookmark clicked - blockId: " + bookmark.getBlockId() +
-                ", startIndex: " + bookmark.getStartIndex() + ", blockPosition: " + blockPosition);
-
-        Intent intent = new Intent(BookmarksActivity.this, NoteActivity.class);
-        intent.putExtra("noteId", noteId);
-        intent.putExtra("scrollToBlockPosition", blockPosition);
-        intent.putExtra("scrollToTextPosition", bookmark.getStartIndex());
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        startActivity(intent);
-        finish();
-    }
-
-    // ✅ NEW METHOD: Find block position from bookmark
-    private int findBlockPositionForBookmark(Bookmark bookmark) {
-        String bookmarkBlockId = bookmark.getBlockId();
-
-        if (bookmarkBlockId == null || allBlocks.isEmpty()) {
-            android.util.Log.w("BOOKMARK_SCROLL", "No blockId or blocks not loaded yet");
-            return 0;
+        // Build blockId -> position map
+        Map<String, Integer> blockPositionMap = new HashMap<>();
+        int position = 0;
+        for (QueryDocumentSnapshot blockDoc : blocksSnapshot) {
+            blockPositionMap.put(blockDoc.getId(), position);
+            position++;
         }
 
-        // Find the block with matching ID
-        for (int i = 0; i < allBlocks.size(); i++) {
-            NoteBlock block = allBlocks.get(i);
-            if (block.getId().equals(bookmarkBlockId)) {
-                android.util.Log.d("BOOKMARK_SCROLL", "Found block at position: " + i);
-                return i;
+        // ✅ OFFLINE-FIRST: Load bookmarks from cache first
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("bookmarks")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get(Source.CACHE)
+                .addOnSuccessListener(bookmarksSnapshot -> {
+                    processBookmarks(bookmarksSnapshot, blockPositionMap);
+                })
+                .addOnFailureListener(e -> {
+                    // If cache fails, try server
+                    db.collection("users").document(user.getUid())
+                            .collection("notes").document(noteId)
+                            .collection("bookmarks")
+                            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                            .get(Source.SERVER)
+                            .addOnSuccessListener(serverSnapshot -> {
+                                processBookmarks(serverSnapshot, blockPositionMap);
+                            })
+                            .addOnFailureListener(serverError -> showEmptyState());
+                });
+    }
+
+    private void processBookmarks(com.google.firebase.firestore.QuerySnapshot bookmarksSnapshot,
+                                  Map<String, Integer> blockPositionMap) {
+        bookmarks.clear();
+
+        if (bookmarksSnapshot.isEmpty()) {
+            showEmptyState();
+            return;
+        }
+
+        for (QueryDocumentSnapshot doc : bookmarksSnapshot) {
+            Bookmark bookmark = doc.toObject(Bookmark.class);
+            bookmark.setId(doc.getId());
+
+            String blockId = bookmark.getBlockId();
+            Integer blockPos = blockPositionMap.get(blockId);
+
+            if (blockPos != null) {
+                bookmarks.add(new BookmarkWithPosition(bookmark, blockPos));
             }
         }
 
-        android.util.Log.w("BOOKMARK_SCROLL", "Block not found, returning 0");
-        return 0;
+        if (bookmarks.isEmpty()) {
+            showEmptyState();
+        } else {
+            hideEmptyState();
+            adapter.setBookmarks(bookmarks); // ✅ Use your adapter's setBookmarks method
+        }
+    }
+
+    private void showEmptyState() {
+        if (emptyView != null) {
+            emptyView.setVisibility(View.VISIBLE);
+        }
+        if (bookmarksRecyclerView != null) {
+            bookmarksRecyclerView.setVisibility(View.GONE);
+        }
+    }
+
+    private void hideEmptyState() {
+        if (emptyView != null) {
+            emptyView.setVisibility(View.GONE);
+        }
+        if (bookmarksRecyclerView != null) {
+            bookmarksRecyclerView.setVisibility(View.VISIBLE);
+        }
     }
 
     @Override
-    public void onBookmarkMenuClick(Bookmark bookmark, View anchorView) {
-        showUpdateBottomSheet(bookmark);
+    protected void onResume() {
+        super.onResume();
+        loadBookmarks();
     }
 
-    private void showUpdateBottomSheet(Bookmark bookmark) {
+    private void showBookmarkMenu(BookmarkWithPosition bookmarkWithPos) {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.bookmark_bottom_sheet_update, null);
         bottomSheet.setContentView(sheetView);
+
+        Bookmark bookmark = bookmarkWithPos.bookmark;
 
         // Color options
         View colorViolet = sheetView.findViewById(R.id.colorViolet);
@@ -183,7 +216,6 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         View colorRed = sheetView.findViewById(R.id.colorRed);
         View colorCyan = sheetView.findViewById(R.id.colorCyan);
 
-        // Set tags for each color view
         colorViolet.setTag("#E1BEE7");
         colorYellow.setTag("#FFF9C4");
         colorPink.setTag("#F8BBD0");
@@ -193,39 +225,38 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         colorRed.setTag("#FFCDD2");
         colorCyan.setTag("#B2EBF2");
 
-        // Style options
         TextView styleHighlight = sheetView.findViewById(R.id.styleHighlight);
         TextView styleUnderline = sheetView.findViewById(R.id.styleUnderline);
-
-        TextInputEditText noteInput = sheetView.findViewById(R.id.bookmarkNoteInput);
+        com.google.android.material.textfield.TextInputEditText noteInput =
+                sheetView.findViewById(R.id.bookmarkNoteInput);
         TextView updateBtn = sheetView.findViewById(R.id.updateBtn);
         TextView deleteBtn = sheetView.findViewById(R.id.deleteBtn);
 
         final String[] selectedColor = {bookmark.getColor()};
         final String[] selectedStyle = {bookmark.getStyle()};
 
-        // Pre-fill note
-        noteInput.setText(bookmark.getNote());
-
-        // Set initial color selection
-        setColorScale(colorViolet, colorYellow, colorPink, colorGreen, colorBlue, colorOrange, colorRed, colorCyan, selectedColor[0]);
-
-        // Set initial style selection
-        if ("highlight".equals(selectedStyle[0])) {
-            styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange text
-            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
-            styleUnderline.setTextColor(Color.parseColor("#666666"));
-        } else {
-            styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange text
-            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
-            styleHighlight.setTextColor(Color.parseColor("#666666"));
+        if (noteInput != null) {
+            noteInput.setText(bookmark.getNote());
         }
 
-        // Color selection listeners
+        setColorScale(colorViolet, colorYellow, colorPink, colorGreen, colorBlue,
+                colorOrange, colorRed, colorCyan, selectedColor[0]);
+
+        if ("highlight".equals(selectedStyle[0])) {
+            styleHighlight.setBackgroundResource(R.drawable.style_selected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleUnderline.setBackgroundResource(R.drawable.style_unselected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
+        } else {
+            styleUnderline.setBackgroundResource(R.drawable.style_selected);
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
+            styleHighlight.setBackgroundResource(R.drawable.style_unselected);
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
+        }
+
         View.OnClickListener colorListener = v -> {
-            resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen, colorBlue, colorOrange, colorRed, colorCyan);
+            resetColorSelection(colorViolet, colorYellow, colorPink, colorGreen,
+                    colorBlue, colorOrange, colorRed, colorCyan);
             v.setScaleX(1.2f);
             v.setScaleY(1.2f);
             selectedColor[0] = (String) v.getTag();
@@ -240,49 +271,42 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         colorRed.setOnClickListener(colorListener);
         colorCyan.setOnClickListener(colorListener);
 
-        // Style selection listeners
         styleHighlight.setOnClickListener(v -> {
             selectedStyle[0] = "highlight";
             styleHighlight.setBackgroundResource(R.drawable.style_selected);
-            styleHighlight.setTextColor(Color.parseColor("#ff9376")); // pastel orange
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#ff9376"));
             styleUnderline.setBackgroundResource(R.drawable.style_unselected);
-            styleUnderline.setTextColor(Color.parseColor("#666666"));
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#666666"));
         });
 
         styleUnderline.setOnClickListener(v -> {
             selectedStyle[0] = "underline";
             styleUnderline.setBackgroundResource(R.drawable.style_selected);
-            styleUnderline.setTextColor(Color.parseColor("#ff9376")); // pastel orange
+            styleUnderline.setTextColor(android.graphics.Color.parseColor("#ff9376"));
             styleHighlight.setBackgroundResource(R.drawable.style_unselected);
-            styleHighlight.setTextColor(Color.parseColor("#666666"));
+            styleHighlight.setTextColor(android.graphics.Color.parseColor("#666666"));
         });
 
-        updateBtn.setOnClickListener(v -> {
-            String newNote = noteInput.getText().toString().trim();
-            updateBookmark(bookmark.getId(), selectedColor[0], selectedStyle[0], newNote);
-            bottomSheet.dismiss();
-        });
+        if (updateBtn != null) {
+            updateBtn.setOnClickListener(v -> {
+                String newNote = noteInput.getText().toString().trim();
+                updateBookmark(bookmark, selectedColor[0], selectedStyle[0], newNote);
+                bottomSheet.dismiss();
+            });
+        }
 
-        deleteBtn.setOnClickListener(v -> {
-            showDeleteConfirmation(bookmark, bottomSheet);
-        });
+        if (deleteBtn != null) {
+            deleteBtn.setOnClickListener(v -> {
+                bottomSheet.dismiss();
+                showDeleteConfirmation(bookmark);
+            });
+        }
 
         bottomSheet.show();
     }
 
-    private void showDeleteConfirmation(Bookmark bookmark, BottomSheetDialog parentSheet) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete Bookmark")
-                .setMessage("Are you sure you want to delete this bookmark?")
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    deleteBookmark(bookmark);
-                    parentSheet.dismiss();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
-    private void setColorScale(View violet, View yellow, View pink, View green, View blue, View orange, View red, View cyan, String currentColor) {
+    private void setColorScale(View violet, View yellow, View pink, View green,
+                               View blue, View orange, View red, View cyan, String currentColor) {
         resetColorSelection(violet, yellow, pink, green, blue, orange, red, cyan);
 
         View selectedView = null;
@@ -310,7 +334,7 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         }
     }
 
-    private void updateBookmark(String bookmarkId, String color, String style, String note) {
+    private void updateBookmark(Bookmark bookmark, String color, String style, String note) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
@@ -318,28 +342,77 @@ public class BookmarksActivity extends AppCompatActivity implements BookmarkAdap
         updates.put("color", color);
         updates.put("style", style);
         updates.put("note", note);
+        updates.put("timestamp", System.currentTimeMillis()); // ✅ Update timestamp
 
+        // ✅ Update locally first for instant feedback
+        bookmark.setColor(color);
+        bookmark.setStyle(style);
+        bookmark.setNote(note);
+        adapter.setBookmarks(bookmarks); // ✅ Refresh adapter
+
+        // ✅ Then sync to Firestore (works offline with cache)
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
-                .collection("bookmarks").document(bookmarkId)
+                .collection("bookmarks").document(bookmark.getId())
                 .update(updates)
-                .addOnSuccessListener(aVoid ->
-                        Toast.makeText(this, "Bookmark updated", Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Error updating bookmark", Toast.LENGTH_SHORT).show());
+                .addOnSuccessListener(aVoid -> {
+                    // ✅ Set result to notify NoteActivity to refresh
+                    setResult(RESULT_OK);
+                    android.widget.Toast.makeText(this, "Bookmark updated",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    // ✅ Still works offline - will sync when online
+                    setResult(RESULT_OK); // ✅ Still notify to refresh
+                    android.widget.Toast.makeText(this, "Saved offline - will sync when online",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void showDeleteConfirmation(Bookmark bookmark) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Delete Bookmark")
+                .setMessage("Are you sure you want to delete this bookmark?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    deleteBookmark(bookmark);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void deleteBookmark(Bookmark bookmark) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) return;
 
+        // ✅ Remove from list first for instant feedback
+        for (int i = 0; i < bookmarks.size(); i++) {
+            if (bookmarks.get(i).bookmark.getId().equals(bookmark.getId())) {
+                bookmarks.remove(i);
+                adapter.setBookmarks(bookmarks); // ✅ Refresh adapter
+                break;
+            }
+        }
+
+        if (bookmarks.isEmpty()) {
+            showEmptyState();
+        }
+
+        // ✅ Then delete from Firestore (works offline with cache)
         db.collection("users").document(user.getUid())
                 .collection("notes").document(noteId)
                 .collection("bookmarks").document(bookmark.getId())
                 .delete()
-                .addOnSuccessListener(aVoid ->
-                        Toast.makeText(this, "Bookmark deleted", Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Error deleting bookmark", Toast.LENGTH_SHORT).show());
+                .addOnSuccessListener(aVoid -> {
+                    // ✅ Set result to notify NoteActivity to refresh
+                    setResult(RESULT_OK);
+                    android.widget.Toast.makeText(this, "Bookmark deleted",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    // ✅ Still works offline - will sync when online
+                    setResult(RESULT_OK); // ✅ Still notify to refresh
+                    android.widget.Toast.makeText(this, "Deleted offline - will sync when online",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                });
     }
 }

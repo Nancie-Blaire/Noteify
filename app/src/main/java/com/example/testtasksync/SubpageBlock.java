@@ -2,7 +2,7 @@ package com.example.testtasksync;
 
 public class SubpageBlock {
     private String blockId;
-    private String type; // "text", "bullet", "numbered", "checkbox", "divider", "heading1", "heading2", "heading3"
+    private String type; // "text", "bullet", "numbered", "checkbox", "divider", "heading1", "heading2", "heading3", "image", "link", "link_to_page"
     private String content;
     private int order;
     private int indentLevel;
@@ -20,7 +20,24 @@ public class SubpageBlock {
     private String fontStyle;  // "bold", "italic", "boldItalic", null
     private String fontColor;  // Hex color code (e.g., "#E53935")
 
-    // ✅ NEW GETTERS AND SETTERS
+    // ✅ NEW: Link to Page fields
+    private String linkedPageId;
+    private String linkedPageType;      // "note", "todo", "weekly"
+    private String linkedPageCollection; // Firestore collection
+
+    // ✅ NEW GETTERS AND SETTERS for Link to Page
+    public String getLinkedPageId() { return linkedPageId; }
+    public void setLinkedPageId(String linkedPageId) { this.linkedPageId = linkedPageId; }
+
+    public String getLinkedPageType() { return linkedPageType; }
+    public void setLinkedPageType(String linkedPageType) { this.linkedPageType = linkedPageType; }
+
+    public String getLinkedPageCollection() { return linkedPageCollection; }
+    public void setLinkedPageCollection(String linkedPageCollection) {
+        this.linkedPageCollection = linkedPageCollection;
+    }
+
+    // Existing getters and setters
     public String getFontStyle() {
         return fontStyle;
     }
@@ -37,7 +54,6 @@ public class SubpageBlock {
         this.fontColor = fontColor;
     }
 
-
     public String getDividerStyle() { return dividerStyle; }
     public void setDividerStyle(String dividerStyle) { this.dividerStyle = dividerStyle; }
 
@@ -47,6 +63,7 @@ public class SubpageBlock {
 
     public String getLinkDescription() { return linkDescription; }
     public void setLinkDescription(String desc) { linkDescription = desc; }
+
     //images
     public String getImageId() { return imageId; }
     public void setImageId(String imageId) { this.imageId = imageId; }
@@ -142,5 +159,4 @@ public class SubpageBlock {
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
     }
-    //go lia
 }

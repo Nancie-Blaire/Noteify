@@ -16,13 +16,15 @@ import java.util.List;
 
 public class BookmarkAdapter extends RecyclerView.Adapter<BookmarkAdapter.BookmarkViewHolder> {
 
-    private List<Bookmark> bookmarks = new ArrayList<>();
+    // ✅ Updated to use BookmarkWithPosition
+    private List<BookmarkWithPosition> bookmarks = new ArrayList<>();
     private Context context;
     private OnBookmarkClickListener listener;
 
     public interface OnBookmarkClickListener {
-        void onBookmarkClick(Bookmark bookmark);
-        void onBookmarkMenuClick(Bookmark bookmark, View anchorView);
+        // ✅ Updated to use BookmarkWithPosition
+        void onBookmarkClick(BookmarkWithPosition bookmark);
+        void onBookmarkMenuClick(BookmarkWithPosition bookmark);
     }
 
     public BookmarkAdapter(Context context, OnBookmarkClickListener listener) {
@@ -30,7 +32,8 @@ public class BookmarkAdapter extends RecyclerView.Adapter<BookmarkAdapter.Bookma
         this.listener = listener;
     }
 
-    public void setBookmarks(List<Bookmark> bookmarks) {
+    // ✅ Updated setter
+    public void setBookmarks(List<BookmarkWithPosition> bookmarks) {
         this.bookmarks = bookmarks;
         notifyDataSetChanged();
     }
@@ -44,13 +47,18 @@ public class BookmarkAdapter extends RecyclerView.Adapter<BookmarkAdapter.Bookma
 
     @Override
     public void onBindViewHolder(@NonNull BookmarkViewHolder holder, int position) {
-        Bookmark bookmark = bookmarks.get(position);
+        BookmarkWithPosition item = bookmarks.get(position);
+        Bookmark bookmark = item.bookmark; // ✅ Extract bookmark from wrapper
 
         holder.bookmarkText.setText(bookmark.getText());
 
         // Apply left border color based on user's choice
-        int color = Color.parseColor(bookmark.getColor());
-        holder.leftBorder.setBackgroundColor(color);
+        try {
+            int color = Color.parseColor(bookmark.getColor());
+            holder.leftBorder.setBackgroundColor(color);
+        } catch (Exception e) {
+            holder.leftBorder.setBackgroundColor(Color.parseColor("#FFF9C4"));
+        }
 
         // Remove text background highlight - only show left border
         holder.bookmarkText.setBackgroundColor(Color.TRANSPARENT);
@@ -63,15 +71,17 @@ public class BookmarkAdapter extends RecyclerView.Adapter<BookmarkAdapter.Bookma
             holder.bookmarkNote.setVisibility(View.GONE);
         }
 
+        // ✅ Pass BookmarkWithPosition to listener
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
-                listener.onBookmarkClick(bookmark);
+                listener.onBookmarkClick(item);
             }
         });
 
+        // ✅ Three dots menu - pass BookmarkWithPosition
         holder.menuBtn.setOnClickListener(v -> {
             if (listener != null) {
-                listener.onBookmarkMenuClick(bookmark, v);
+                listener.onBookmarkMenuClick(item);
             }
         });
     }
@@ -95,5 +105,4 @@ public class BookmarkAdapter extends RecyclerView.Adapter<BookmarkAdapter.Bookma
             leftBorder = itemView.findViewById(R.id.leftBorder);
         }
     }
-    //go lia
 }

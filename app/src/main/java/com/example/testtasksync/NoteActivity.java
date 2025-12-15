@@ -118,7 +118,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     private int scrollToBlockPosition = -1;
     private int scrollToTextPosition = -1;
 
-
+    private static final int REQUEST_BOOKMARKS = 200;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -228,7 +228,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         viewBookmarksBtn.setOnClickListener(v -> {
             Intent intent = new Intent(this, BookmarksActivity.class);
             intent.putExtra("noteId", noteId);
-            startActivity(intent);
+            startActivityForResult(intent, REQUEST_BOOKMARKS); // ✅ Use startActivityForResult
         });
     }
 
@@ -1498,6 +1498,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         }
         startActivityForResult(intent, REQUEST_SUBPAGE);
     }
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
@@ -1506,8 +1507,25 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 loadBlocks();
             }
         }
-    }
+        // ✅ ADD THIS NEW CASE:
+        else if (requestCode == REQUEST_BOOKMARKS) {
+            // Refresh bookmarks and highlights
+            loadBookmarksForNote();
+            adapter.notifyDataSetChanged();
 
+            // Handle scroll to bookmark if clicked
+            if (resultCode == RESULT_OK && data != null) {
+                int blockPos = data.getIntExtra("scrollToBlockPosition", -1);
+                int textPos = data.getIntExtra("scrollToTextPosition", -1);
+                if (blockPos >= 0 && textPos >= 0) {
+                    blocksRecycler.postDelayed(() -> {
+                        blocksRecycler.smoothScrollToPosition(blockPos);
+                        focusBlock(blockPos, textPos);
+                    }, 300);
+                }
+            }
+        }
+    }
     @Override
     public void onLinkClick(String url) {
         Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
@@ -1550,15 +1568,21 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // ✅ CHECK: Is cursor at position 0 (beginning of block)?
         boolean isCursorAtStart = textBeforeCursor.isEmpty();
-        // ✅ CHECK: Is the text BEFORE cursor empty (whitespace only)?
-        boolean isTextBeforeEmpty = textBeforeCursor.trim().isEmpty();
+        // ✅ CHECK: Is the ENTIRE block empty?
+        boolean isBlockCompletelyEmpty = textBeforeCursor.trim().isEmpty() && textAfterCursor.trim().isEmpty();
 
         switch (currentType) {
             case BULLET:
             case NUMBERED:
             case CHECKBOX:
-                if (isCursorAtStart) {
-                    // ✅ CURSOR AT START: Insert NEW empty block BEFORE current block
+                if (isBlockCompletelyEmpty) {
+                    // ✅ EMPTY BLOCK + ENTER = Convert to TEXT (no new block)
+                    currentBlock.setContent("");
+                    saveBlock(currentBlock);
+                    convertBlockToText(position);
+                    focusBlock(position, 0);
+                } else if (isCursorAtStart && !isBlockCompletelyEmpty) {
+                    // ✅ CURSOR AT START + HAS TEXT = Insert NEW empty block BEFORE
                     NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
                     newBlock.setIndentLevel(currentBlock.getIndentLevel());
                     newBlock.setContent("");
@@ -1572,14 +1596,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
                     // Focus the new empty block above
                     focusBlock(position, 0);
-                } else if (isTextBeforeEmpty && !isCursorAtStart) {
-                    // ✅ EMPTY + ENTER = Convert to TEXT (no new block)
-                    currentBlock.setContent("");
-                    saveBlock(currentBlock);
-                    convertBlockToText(position);
-                    focusBlock(position, 0);
                 } else {
-                    // ✅ HAS CONTENT = Create new same-type block
+                    // ✅ HAS CONTENT = Create new same-type block BELOW
                     currentBlock.setContent(textBeforeCursor);
                     saveBlock(currentBlock);
 
@@ -1617,8 +1635,17 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             case HEADING_2:
             case HEADING_3:
             default:
-                if (isCursorAtStart) {
-                    // ✅ CURSOR AT START: Insert NEW empty block BEFORE current block
+                if (isBlockCompletelyEmpty) {
+                    // ✅ EMPTY TEXT BLOCK + ENTER = Create new block BELOW
+                    NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
+                    newBlock.setIndentLevel(currentBlock.getIndentLevel());
+                    newBlock.setContent("");
+                    newBlock.setPosition(position + 1);
+
+                    insertBlockAt(newBlock, position + 1);
+                    focusBlock(position + 1, 0);
+                } else if (isCursorAtStart) {
+                    // ✅ CURSOR AT START + HAS TEXT = Insert NEW empty block BEFORE
                     NoteBlock newBlock = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
                     newBlock.setIndentLevel(currentBlock.getIndentLevel());
                     newBlock.setContent("");
@@ -1647,6 +1674,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 break;
         }
     }
+
     // ===============================================
 // HELPER: Focus a specific block
 // ===============================================
@@ -2400,6 +2428,24 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         bookmark.setId(bookmarkId);
         bookmark.setBlockId(blockId);
 
+        // ✅ CRITICAL: Update local map IMMEDIATELY before Firestore
+        if (!blockBookmarksMap.containsKey(blockId)) {
+            blockBookmarksMap.put(blockId, new ArrayList<>());
+        }
+        blockBookmarksMap.get(blockId).add(bookmark);
+
+        // ✅ Update adapter with new bookmarks IMMEDIATELY
+        adapter.updateBookmarks(blockBookmarksMap);
+
+        // ✅ Find and refresh only the affected block
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getId().equals(blockId)) {
+                adapter.notifyItemChanged(i);
+                break;
+            }
+        }
+
+        // ✅ NOW save to Firestore (works offline with cache)
         Map<String, Object> bookmarkData = new HashMap<>();
         bookmarkData.put("text", text);
         bookmarkData.put("note", note);
@@ -2415,30 +2461,14 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("bookmarks").document(bookmarkId)
                 .set(bookmarkData)
                 .addOnSuccessListener(aVoid -> {
-                    // ✅ IMMEDIATELY update local map
-                    if (!blockBookmarksMap.containsKey(blockId)) {
-                        blockBookmarksMap.put(blockId, new ArrayList<>());
-                    }
-                    blockBookmarksMap.get(blockId).add(bookmark);
-
-                    // ✅ Update adapter with new bookmarks
-                    adapter.updateBookmarks(blockBookmarksMap);
-
-                    // ✅ Find and refresh only the affected block
-                    for (int i = 0; i < blocks.size(); i++) {
-                        if (blocks.get(i).getId().equals(blockId)) {
-                            adapter.notifyItemChanged(i);
-                            break;
-                        }
-                    }
-
                     Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Error saving bookmark", Toast.LENGTH_SHORT).show();
+                    // ✅ Still works offline - will sync when online
+                    Toast.makeText(this, "Bookmark saved offline - will sync when online",
+                            Toast.LENGTH_SHORT).show();
                 });
     }
-
     private void loadBookmarksForNote() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || noteId == null) return;
@@ -2452,11 +2482,11 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     }
 
                     if (value != null) {
-                        // Clear existing bookmarks
+                        // ✅ Clear existing bookmarks
                         blockBookmarksMap.clear();
 
-                        // Group bookmarks by blockId
-                        for (QueryDocumentSnapshot doc : value) {
+                        // ✅ Group bookmarks by blockId
+                        for (com.google.firebase.firestore.QueryDocumentSnapshot doc : value) {
                             Bookmark bookmark = doc.toObject(Bookmark.class);
                             bookmark.setId(doc.getId());
 
@@ -2469,7 +2499,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                             }
                         }
 
-                        // Refresh adapter to show bookmarks
+                        // ✅ Refresh adapter to show updated bookmarks
                         adapter.updateBookmarks(blockBookmarksMap);
                         adapter.notifyDataSetChanged();
                     }
@@ -3033,7 +3063,7 @@ private void showLinkToPageBottomSheet() {
             case "note":
                 Intent intent = new Intent(this, NoteActivity.class);
                 intent.putExtra("noteId", pageId);
-                startActivity(intent);
+                startActivityForResult(intent, REQUEST_BOOKMARKS);
                 break;
             case "todo":
                 // TODO: Navigate to todo

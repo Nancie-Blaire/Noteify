@@ -32,4 +32,13 @@
     <!-- Radio button color-->
     <color name="radio_button_color">#FF9376</color>
     <color name="autumn">#f4e8df</color>
+
+
+    <color name="background_color">#FFFFFF</color>
+    <color name="surface_color">#F5F5F5</color>
+    <color name="text_primar">#000000</color>
+    <color name="text_secondar">#666666</color>
+    <color name="card_backgroun">#FFFFFF</color>
+
+
 </resources>

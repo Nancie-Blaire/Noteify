@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="@drawable/calendar_popup_window">
+    android:background="#f4e8df">
 
     <!-- Title -->
     <TextView
@@ -14,7 +14,6 @@
         android:textSize="25sp"
         android:textStyle="bold"
         android:textColor="#000000"
-        android:layout_marginTop="10dp"
         android:layout_marginBottom="24dp" />
 
     <!-- Date Section -->
@@ -22,10 +21,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Date"
-        android:textSize="18sp"
+        android:textSize="15sp"
         android:textStyle="bold"
         android:textColor="#000000"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginBottom="5dp" />
 
     <LinearLayout
         android:id="@+id/datePickerButton"
@@ -33,11 +32,11 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:background="@drawable/input_background"
-        android:padding="16dp"
+        android:padding="10dp"
         android:gravity="center_vertical"
         android:clickable="true"
         android:focusable="true"
-        android:layout_marginBottom="24dp">
+        android:layout_marginBottom="10dp">
 
         <ImageView
             android:layout_width="24dp"
@@ -61,10 +60,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Time"
-        android:textSize="18sp"
+        android:textSize="15sp"
         android:textStyle="bold"
         android:textColor="#000000"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginBottom="5dp" />
 
     <LinearLayout
         android:id="@+id/timePickerButton"
@@ -72,7 +71,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:background="@drawable/input_background"
-        android:padding="16dp"
+        android:padding="10dp"
         android:gravity="center_vertical"
         android:clickable="true"
         android:focusable="true"
@@ -114,7 +113,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Set notification"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textColor="#000000"
             android:layout_marginStart="8dp" />
 
@@ -167,7 +166,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="CANCEL"
-            android:textColor="#808080"
+            android:textColor="#666666"
             android:background="?attr/selectableItemBackground"
             android:layout_marginEnd="8dp"
             android:paddingStart="16dp"

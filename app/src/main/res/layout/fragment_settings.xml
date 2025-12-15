@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/autumn">
+    android:background="#f4e8df">
     <!--COMMENT-->
     <!-- Header with Back Button -->
     <LinearLayout
@@ -12,17 +12,16 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:layout_marginTop="32dp"
         android:gravity="center_vertical">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Settings"
-            android:textColor="@color/text_primary"
-            android:textSize="20sp"
+            android:textColor="#000000"
+            android:textSize="25sp"
             android:textStyle="bold"
-            android:layout_marginStart="12dp"/>
+            android:layout_marginStart="3dp"/>
     </LinearLayout>
 
     <ScrollView
@@ -41,9 +40,9 @@
 
             <!-- Settings Icon -->
             <ImageView
-                android:layout_width="150dp"
-                android:layout_height="150dp"
-                android:src="@drawable/settings_icon"
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:src="@drawable/settings_logo"
                 android:layout_gravity="center"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="32dp"/>
@@ -71,8 +70,8 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="TIME FORMAT"
-                        android:textColor="#333333"
-                        android:textSize="14sp"
+                        android:textColor="#000000"
+                        android:textSize="15sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -184,8 +183,8 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="NOTIFICATION"
-                        android:textColor="#333333"
-                        android:textSize="14sp"
+                        android:textColor="#000000"
+                        android:textSize="15sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -251,8 +250,8 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="PROFILE"
-                    android:textColor="#333333"
-                    android:textSize="14sp"
+                    android:textColor="#000000"
+                    android:textSize="15sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -286,8 +285,8 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="THEME"
-                        android:textColor="#333333"
-                        android:textSize="14sp"
+                        android:textColor="#000000"
+                        android:textSize="15sp"
                         android:textStyle="bold"/>
 
                     <ImageView
@@ -363,8 +362,8 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="BIN"
-                    android:textColor="#333333"
-                    android:textSize="14sp"
+                    android:textColor="#000000"
+                    android:textSize="15sp"
                     android:textStyle="bold"/>
 
                 <ImageView
@@ -390,8 +389,8 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="PRIVACY"
-                    android:textColor="#333333"
-                    android:textSize="14sp"
+                    android:textColor="#000000"
+                    android:textSize="15sp"
                     android:textStyle="bold"/>
 
                 <ImageView

@@ -4,20 +4,20 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@drawable/lightmode_bg">
+    android:background="#f4e8df">
 
     <!-- Schedules Header -->
     <TextView
         android:id="@+id/schedulesHeader"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginStart="22dp"
+        android:layout_marginTop="10dp"
+        android:paddingBottom="4dp"
         android:text="Calendar"
-        android:textSize="18sp"
         android:textColor="#000000"
-        android:textStyle="bold"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="32dp"
-        android:paddingBottom="4dp"/>
+        android:textSize="15sp"
+        android:textStyle="bold" />
 
     <!-- Month/Year Header with Dropdown -->
     <LinearLayout
@@ -26,7 +26,8 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:paddingStart="16dp"
-        android:layout_marginBottom="2dp"
+        android:layout_marginBottom="5dp"
+        android:layout_marginTop="20dp"
         android:gravity="center_vertical"
         android:clickable="true"
         android:focusable="true">
@@ -36,6 +37,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="November"
+            android:layout_marginStart="5dp"
             android:textSize="25sp"
             android:letterSpacing=".1"
             android:textStyle="bold"

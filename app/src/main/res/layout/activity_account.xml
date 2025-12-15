@@ -3,31 +3,39 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:background="@drawable/lightmode_bg"
     android:id="@+id/main"
     android:fitsSystemWindows="true">
 
 
     <!-- Main Content -->
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/lightmode" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:paddingStart="32dp"
+        android:paddingTop="50dp"
+        android:paddingEnd="32dp"
+        android:paddingBottom="20dp">
 
         <!-- Back button and title -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
             android:layout_marginBottom="30dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <ImageView
                 android:id="@+id/ivBack"
-                android:layout_width="17dp"
-                android:layout_height="24dp"
+                android:layout_width="30dp"
+                android:layout_height="20dp"
                 android:contentDescription="Back button"
                 android:src="@drawable/ic_revert_back_btn"
                 app:tint="#000000" />
@@ -35,7 +43,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
+                android:layout_marginStart="30dp"
                 android:text="Profile"
                 android:textColor="#000000"
                 android:textSize="25sp"
@@ -75,7 +83,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
+            android:layout_marginTop="40dp"
+            android:layout_marginBottom="-5dp"
             android:fontFamily="@font/inter_regular"
             android:text="Email"
             android:textColor="#000000"
@@ -96,7 +105,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:minHeight="50dp"
+                android:minHeight="40dp"
                 android:paddingStart="20dp"
                 android:textColor="#000000"
                 android:textSize="16sp" />
@@ -109,7 +118,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="10dp"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="@font/inter_regular"
@@ -117,7 +126,7 @@
             android:padding="8dp"
             android:text="@string/underlined_text_switchAcc"
             android:textColor="#000000"
-            android:textSize="12sp"
+            android:textSize="10sp"
             android:textStyle="bold" />
 
         <TextView
@@ -162,7 +171,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginTop="0dp"
+            android:layout_marginTop="3dp"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="@font/inter_regular"
@@ -170,7 +179,7 @@
             android:padding="8dp"
             android:text="@string/underlined_text_pass"
             android:textColor="#000000"
-            android:textSize="12sp"
+            android:textSize="10sp"
             android:textStyle="bold" />
 
         <!-- Spacer -->
@@ -203,7 +212,7 @@
                 android:padding="8dp"
                 android:text="@string/underlined_text_delAcc"
                 android:textColor="#000000"
-                android:textSize="12sp"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <!-- Logout -->
@@ -220,7 +229,7 @@
                 android:padding="8dp"
                 android:text="@string/underlined_text_logout"
                 android:textColor="#000000"
-                android:textSize="12sp"
+                android:textSize="10sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>

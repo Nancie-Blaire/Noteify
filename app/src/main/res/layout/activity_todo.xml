@@ -11,7 +11,7 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="120dp"
-        android:layout_marginTop="0dp"
+        android:layout_marginBottom="5dp"
         android:background="#8daaa6">
 
         <!-- Back Button -->
@@ -21,7 +21,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_revert_back_btn"
             android:contentDescription="Back"
-            app:tint="#000000"
+            app:tint="#FFFFFF"
             android:padding="8dp"
             android:layout_alignParentStart="true"
             android:layout_marginStart="8dp"
@@ -36,7 +36,7 @@
             android:text="To-Do List"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:textColor="#000000"
+            android:textColor="#FFFFFF"
             android:layout_toEndOf="@id/backButton"
             android:layout_alignTop="@id/backButton"
             android:layout_alignBottom="@id/backButton"
@@ -58,7 +58,7 @@
             android:inputType="textCapWords"
             android:maxLines="1"
             android:text="Title of Todo List"
-            android:textColor="#000000"
+            android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textAlignment="viewEnd"
             android:gravity="end"/>
@@ -81,6 +81,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginEnd="4dp"
+                app:tint="#FFFFFF"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Set Due Date"
                 android:padding="8dp"
@@ -94,6 +95,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Save"
                 android:padding="8dp"
+                app:tint="#FFFFFF"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_check" />
 
@@ -161,6 +163,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nestedScrollingEnabled="false"
+                android:layout_marginBottom="20dp"
                 app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
             <!-- Add Task Button -->
@@ -186,7 +189,7 @@
                     android:layout_height="wrap_content"
                     android:text="Add task"
                     android:textSize="14sp"
-                    android:textColor="#808080"
+                    android:textColor="#666666"
                     android:layout_marginStart="8dp" />
 
             </LinearLayout>

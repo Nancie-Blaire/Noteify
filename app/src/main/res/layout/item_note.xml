@@ -5,8 +5,8 @@
     android:layout_height="wrap_content"
     android:layout_margin="5dp"
     card_view:cardCornerRadius="12dp"
-    card_view:strokeColor="#f6d5b6"
-    card_view:cardBackgroundColor="#f6d5b6">
+    card_view:strokeColor="@color/item_note_card"
+    card_view:cardBackgroundColor="@color/item_note_card">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -70,7 +70,7 @@
                 android:text="Note Title"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#212121"
+                android:textColor="@color/item_note_title"
                 android:maxLines="1"
                 android:ellipsize="end"/>
 
@@ -81,7 +81,7 @@
                 android:text="Note content preview"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                android:textColor="#666666"
+                android:textColor="@color/item_note_content"
                 android:layout_marginTop="3dp"
                 android:maxLines="1"
                 android:ellipsize="end"/>

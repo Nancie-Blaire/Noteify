@@ -5,7 +5,7 @@
     android:id="@+id/notesMainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#f4e8df"
+    android:background="@color/autumn"
     tools:context=".Notes">
 
     <!-- Main Content (can be dimmed) -->
@@ -153,7 +153,7 @@
                     android:text="Prios"
                     android:textSize="15sp"
                     android:textStyle="bold"
-                    android:textColor="#000000"/>
+                    android:textColor="@color/black"/>
 
                 <Space
                     android:layout_width="wrap_content"
@@ -166,7 +166,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:src="@drawable/bullet_points"
-                    app:tint="#000000"
+                    app:tint="@color/black"
                     android:background="@android:color/transparent"/>
             </LinearLayout>
             <!-- Grid RecyclerView for Prio Notes -->
@@ -192,7 +192,7 @@
                     android:text="Recently Open"
                     android:textSize="15sp"
                     android:textStyle="bold"
-                    android:textColor="#424242" />
+                    android:textColor="@color/black" />
 
                 <Space
                     android:layout_width="wrap_content"
@@ -205,7 +205,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:src="@drawable/bullet_points"
-                    app:tint="#000000"
+                    app:tint="@color/black"
                     android:background="@android:color/transparent"/>
             </LinearLayout>
 

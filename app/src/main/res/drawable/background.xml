@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Background color -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/autumn"/>
+        </shape>
+    </item>
+
+    <!-- Peach/Orange Circle (Left/Top) -->
+    <item
+        android:width="360dp"
+        android:height="340dp"
+        android:top="-90dp"
+        android:left="-100dp">
+        <shape android:shape="oval">
+            <stroke
+                android:width="11dp"
+                android:color="@color/small_circle"/>
+            <size
+                android:width="300dp"
+                android:height="280dp"/>
+        </shape>
+    </item>
+
+    <!-- Sage Green Circle (Right/Bottom) -->
+    <item
+        android:width="450dp"
+        android:height="430dp"
+        android:top="40dp"
+        android:left="100dp">
+        <shape android:shape="oval">
+            <stroke
+                android:width="12dp"
+                android:color="@color/big_circle"/>
+            <size
+                android:width="220dp"
+                android:height="220dp"/>
+        </shape>
+    </item>
+
+</layer-list>

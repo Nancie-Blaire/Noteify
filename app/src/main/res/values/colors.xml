@@ -40,5 +40,12 @@
     <color name="text_secondar">#666666</color>
     <color name="card_backgroun">#FFFFFF</color>
 
+    <!-- item_note -->
+    <color name="item_note_card">#f6d5b6</color>
+    <color name="item_note_title">#212121</color>
+    <color name="item_note_content">#666666</color>
 
+    <!-- BGGG BILOGS -->
+    <color name="big_circle">#A8BFB8</color>
+    <color name="small_circle">#E8C5A8</color>
 </resources>

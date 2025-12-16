@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/color_frag_cal">
+    android:background="#f4e8df">
 
     <!-- Schedules Header -->
     <TextView
@@ -15,7 +15,7 @@
         android:layout_marginTop="10dp"
         android:paddingBottom="4dp"
         android:text="Calendar"
-        android:textColor="@color/color_text"
+        android:textColor="#000000"
         android:textSize="15sp"
         android:textStyle="bold" />
 
@@ -42,14 +42,14 @@
             android:textSize="25sp"
             android:letterSpacing=".1"
             android:textStyle="bold"
-            android:textColor="@color/color_text"/>
+            android:textColor="#000000"/>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text=""
             android:textSize="16sp"
-            android:textColor="@color/color_text"
+            android:textColor="#000000"
             android:layout_marginStart="8dp"/>
     </LinearLayout>
  <!-- Custom Calendar Grid (We'll use RecyclerView for this) -->

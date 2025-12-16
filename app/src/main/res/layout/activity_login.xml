@@ -42,7 +42,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="32dp"
-            android:fontFamily="@font/inter_itallic"
+            android:fontFamily="@font/syne"
             android:letterSpacing="0.1"
             android:text="Stay organized. Stay on time."
             android:textColor="@color/stay_text"
@@ -225,7 +225,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="25dp"
-                    android:fontFamily="@font/inter_regular"
+                    android:fontFamily="@font/syne"
                     android:text="Don't have an account? "
                     android:textColor="@color/black"
                     android:textSize="10sp" />

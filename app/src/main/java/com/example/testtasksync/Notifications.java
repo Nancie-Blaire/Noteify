@@ -180,7 +180,7 @@ public class Notifications extends Fragment {
 
                         String listTitle = todoDoc.getString("title");
 
-                        // ✅ NEW: Check if the TODO LIST itself has a schedule
+                        // Check if the TODO LIST itself has a schedule
                         Task<QuerySnapshot> checkScheduleTask = db.collection("users")
                                 .document(user.getUid())
                                 .collection("schedules")
@@ -224,13 +224,12 @@ public class Notifications extends Fragment {
                                                         continue;
                                                     }
 
-                                                    Boolean taskHasNotification = taskDoc.getBoolean("hasNotification");
                                                     Timestamp scheduleTimestamp = taskDoc.getTimestamp("scheduleDate");
                                                     String scheduleTime = taskDoc.getString("scheduleTime");
                                                     String taskText = taskDoc.getString("taskText");
 
-                                                    // ✅ FIXED: Show task if EITHER task has notification OR list has reminder
-                                                    if (Boolean.TRUE.equals(taskHasNotification) && scheduleTimestamp != null) {
+                                                    // ✅ FIXED: Show ALL tasks with schedules (task schedule OR list schedule)
+                                                    if (scheduleTimestamp != null) {
                                                         // Task has its own schedule
                                                         Date scheduleDate = scheduleTimestamp.toDate();
                                                         Calendar taskCalendar = Calendar.getInstance();
@@ -267,7 +266,7 @@ public class Notifications extends Fragment {
                                                             }
                                                         }
                                                     } else if (finalListHasReminder && finalListScheduleDate != null) {
-                                                        // ✅ List has reminder - show all incomplete tasks with list's schedule
+                                                        // List has reminder - show all incomplete tasks with list's schedule
                                                         Date scheduleDate = finalListScheduleDate.toDate();
                                                         Calendar taskCalendar = Calendar.getInstance();
                                                         taskCalendar.setTime(scheduleDate);
@@ -351,7 +350,7 @@ public class Notifications extends Fragment {
                             continue;
                         }
 
-                        // ✅ NEW: Check if the WEEKLY PLAN itself has a schedule
+                        // Check if the WEEKLY PLAN itself has a schedule
                         Task<QuerySnapshot> checkScheduleTask = db.collection("users")
                                 .document(user.getUid())
                                 .collection("schedules")
@@ -379,7 +378,7 @@ public class Notifications extends Fragment {
                                     final boolean finalPlanHasReminder = planHasReminder;
                                     final String finalPlanScheduleTime = planScheduleTime;
 
-                                    // ✅ NEW: If plan has reminder, add a single notification for the week start
+                                    // If plan has reminder, add a single notification for the week start
                                     if (finalPlanHasReminder && startTimestamp != null) {
                                         Calendar weekStartCalendar = Calendar.getInstance();
                                         weekStartCalendar.setTime(startTimestamp.toDate());
@@ -460,106 +459,103 @@ public class Notifications extends Fragment {
                                                                         continue;
                                                                     }
 
-                                                                    Boolean taskHasNotification = taskDoc.getBoolean("hasNotification");
                                                                     String day = taskDoc.getString("day");
                                                                     String taskText = taskDoc.getString("taskText");
 
                                                                     if (day != null) {
                                                                         List<DaySchedule> daySchedules = daySchedulesMap.get(day);
 
-                                                                        if (Boolean.TRUE.equals(taskHasNotification)) {
-                                                                            // Task has individual notification
-                                                                            if (daySchedules != null && !daySchedules.isEmpty()) {
-                                                                                for (DaySchedule daySchedule : daySchedules) {
-                                                                                    if (daySchedule.getDate() != null) {
-                                                                                        Calendar taskDate = Calendar.getInstance();
-                                                                                        taskDate.setTime(daySchedule.getDate().toDate());
-                                                                                        String time = daySchedule.getTime();
+                                                                        // ✅ FIXED: Show ALL tasks with schedules
+                                                                        if (daySchedules != null && !daySchedules.isEmpty()) {
+                                                                            for (DaySchedule daySchedule : daySchedules) {
+                                                                                if (daySchedule.getDate() != null) {
+                                                                                    Calendar taskDate = Calendar.getInstance();
+                                                                                    taskDate.setTime(daySchedule.getDate().toDate());
+                                                                                    String time = daySchedule.getTime();
 
-                                                                                        if (time != null && !time.isEmpty()) {
-                                                                                            try {
-                                                                                                String[] timeParts = time.split(":");
-                                                                                                taskDate.set(Calendar.HOUR_OF_DAY,
-                                                                                                        Integer.parseInt(timeParts[0]));
-                                                                                                taskDate.set(Calendar.MINUTE,
-                                                                                                        Integer.parseInt(timeParts[1]));
-                                                                                                taskDate.set(Calendar.SECOND, 0);
-                                                                                            } catch (Exception e) {
-                                                                                                Log.e(TAG, "Error parsing time", e);
-                                                                                            }
-                                                                                        }
-
-                                                                                        String itemTitle = planTitle + " - " + day;
-                                                                                        if (daySchedules.size() > 1) {
-                                                                                            itemTitle += " (Schedule " +
-                                                                                                    daySchedule.getScheduleNumber() + ")";
-                                                                                        }
-
-                                                                                        NotificationItem item = new NotificationItem(
-                                                                                                planId,
-                                                                                                itemTitle,
-                                                                                                taskText,
-                                                                                                taskDate.getTime(),
-                                                                                                time,
-                                                                                                "weekly"
-                                                                                        );
-
-                                                                                        if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
-                                                                                            if (!overdueList.contains(item)) {
-                                                                                                overdueList.add(item);
-                                                                                            }
-                                                                                        } else {
-                                                                                            if (!upcomingList.contains(item)) {
-                                                                                                upcomingList.add(item);
-                                                                                            }
+                                                                                    if (time != null && !time.isEmpty()) {
+                                                                                        try {
+                                                                                            String[] timeParts = time.split(":");
+                                                                                            taskDate.set(Calendar.HOUR_OF_DAY,
+                                                                                                    Integer.parseInt(timeParts[0]));
+                                                                                            taskDate.set(Calendar.MINUTE,
+                                                                                                    Integer.parseInt(timeParts[1]));
+                                                                                            taskDate.set(Calendar.SECOND, 0);
+                                                                                        } catch (Exception e) {
+                                                                                            Log.e(TAG, "Error parsing time", e);
                                                                                         }
                                                                                     }
+
+                                                                                    String itemTitle = planTitle + " - " + day;
+                                                                                    if (daySchedules.size() > 1) {
+                                                                                        itemTitle += " (Schedule " +
+                                                                                                daySchedule.getScheduleNumber() + ")";
+                                                                                    }
+
+                                                                                    NotificationItem item = new NotificationItem(
+                                                                                            planId,
+                                                                                            itemTitle,
+                                                                                            taskText,
+                                                                                            taskDate.getTime(),
+                                                                                            time,
+                                                                                            "weekly"
+                                                                                    );
+
+                                                                                    if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
+                                                                                        if (!overdueList.contains(item)) {
+                                                                                            overdueList.add(item);
+                                                                                        }
+                                                                                    } else {
+                                                                                        if (!upcomingList.contains(item)) {
+                                                                                            upcomingList.add(item);
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        } else {
+                                                                            // No day schedules - use plan dates
+                                                                            Calendar taskDate = Calendar.getInstance();
+                                                                            taskDate.setTime(startTimestamp.toDate());
+                                                                            int targetDay = getDayOfWeek(day);
+
+                                                                            while (taskDate.get(Calendar.DAY_OF_WEEK) != targetDay) {
+                                                                                taskDate.add(Calendar.DAY_OF_MONTH, 1);
+                                                                            }
+
+                                                                            String taskScheduleTime = taskDoc.getString("scheduleTime");
+                                                                            String timeToUse = (taskScheduleTime != null && !taskScheduleTime.isEmpty())
+                                                                                    ? taskScheduleTime
+                                                                                    : finalPlanScheduleTime;
+
+                                                                            if (timeToUse != null && !timeToUse.isEmpty()) {
+                                                                                try {
+                                                                                    String[] timeParts = timeToUse.split(":");
+                                                                                    taskDate.set(Calendar.HOUR_OF_DAY,
+                                                                                            Integer.parseInt(timeParts[0]));
+                                                                                    taskDate.set(Calendar.MINUTE,
+                                                                                            Integer.parseInt(timeParts[1]));
+                                                                                    taskDate.set(Calendar.SECOND, 0);
+                                                                                } catch (Exception e) {
+                                                                                    Log.e(TAG, "Error parsing time", e);
+                                                                                }
+                                                                            }
+
+                                                                            NotificationItem item = new NotificationItem(
+                                                                                    planId,
+                                                                                    planTitle + " - " + day,
+                                                                                    taskText,
+                                                                                    taskDate.getTime(),
+                                                                                    timeToUse != null ? timeToUse : "",
+                                                                                    "weekly"
+                                                                            );
+
+                                                                            if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
+                                                                                if (!overdueList.contains(item)) {
+                                                                                    overdueList.add(item);
                                                                                 }
                                                                             } else {
-                                                                                // No day schedules - use plan dates
-                                                                                Calendar taskDate = Calendar.getInstance();
-                                                                                taskDate.setTime(startTimestamp.toDate());
-                                                                                int targetDay = getDayOfWeek(day);
-
-                                                                                while (taskDate.get(Calendar.DAY_OF_WEEK) != targetDay) {
-                                                                                    taskDate.add(Calendar.DAY_OF_MONTH, 1);
-                                                                                }
-
-                                                                                String taskScheduleTime = taskDoc.getString("scheduleTime");
-                                                                                String timeToUse = (taskScheduleTime != null && !taskScheduleTime.isEmpty())
-                                                                                        ? taskScheduleTime
-                                                                                        : finalPlanScheduleTime;
-
-                                                                                if (timeToUse != null && !timeToUse.isEmpty()) {
-                                                                                    try {
-                                                                                        String[] timeParts = timeToUse.split(":");
-                                                                                        taskDate.set(Calendar.HOUR_OF_DAY,
-                                                                                                Integer.parseInt(timeParts[0]));
-                                                                                        taskDate.set(Calendar.MINUTE,
-                                                                                                Integer.parseInt(timeParts[1]));
-                                                                                        taskDate.set(Calendar.SECOND, 0);
-                                                                                    } catch (Exception e) {
-                                                                                        Log.e(TAG, "Error parsing time", e);
-                                                                                    }
-                                                                                }
-
-                                                                                NotificationItem item = new NotificationItem(
-                                                                                        planId,
-                                                                                        planTitle + " - " + day,
-                                                                                        taskText,
-                                                                                        taskDate.getTime(),
-                                                                                        timeToUse != null ? timeToUse : "",
-                                                                                        "weekly"
-                                                                                );
-
-                                                                                if (taskDate.getTimeInMillis() < now.getTimeInMillis()) {
-                                                                                    if (!overdueList.contains(item)) {
-                                                                                        overdueList.add(item);
-                                                                                    }
-                                                                                } else {
-                                                                                    if (!upcomingList.contains(item)) {
-                                                                                        upcomingList.add(item);
-                                                                                    }
+                                                                                if (!upcomingList.contains(item)) {
+                                                                                    upcomingList.add(item);
                                                                                 }
                                                                             }
                                                                         }

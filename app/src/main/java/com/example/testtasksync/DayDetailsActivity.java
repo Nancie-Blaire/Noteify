@@ -741,12 +741,25 @@ public class DayDetailsActivity extends AppCompatActivity {
                                                 }
 
                                                 // ✅ Determine which time to use
-                                                String timeToUse = planTime;
+                                                // ✅✅✅ CRITICAL FIX: Better time resolution with proper fallback
+                                                String timeToUse = null;
 
-                                                if (!dayScheduleTimes.isEmpty()) {
-                                                    if (dayScheduleTimes.containsKey(1)) {
-                                                        timeToUse = dayScheduleTimes.get(1);
-                                                        Log.d(TAG, "⏰ Using day schedule 1 time: " + timeToUse);
+                                                // Priority 1: Use day schedule time if available
+                                                if (!dayScheduleTimes.isEmpty() && dayScheduleTimes.containsKey(1)) {
+                                                    timeToUse = dayScheduleTimes.get(1);
+                                                    Log.d(TAG, "⏰ Using day schedule 1 time: " + timeToUse);
+                                                }
+                                                // Priority 2: Use weekly plan's global time
+                                                else if (planTime != null && !planTime.isEmpty()) {
+                                                    timeToUse = planTime;
+                                                    Log.d(TAG, "⏰ Using weekly plan time: " + timeToUse);
+                                                }
+                                                // Priority 3: Check if task has its own scheduleTime
+                                                else {
+                                                    String taskScheduleTime = taskDoc.getString("scheduleTime");
+                                                    if (taskScheduleTime != null && !taskScheduleTime.isEmpty()) {
+                                                        timeToUse = taskScheduleTime;
+                                                        Log.d(TAG, "⏰ Using task's own time: " + timeToUse);
                                                     }
                                                 }
 
@@ -759,12 +772,12 @@ public class DayDetailsActivity extends AppCompatActivity {
                                                 taskSchedule.setCompleted(false);
                                                 taskSchedule.setDate(new Timestamp(selectedDate.getTime()));
 
-                                                // ✅ Set the time
+                                                // ✅ Set the time (will always have a value if any source has time)
                                                 if (timeToUse != null && !timeToUse.isEmpty()) {
                                                     taskSchedule.setTime(timeToUse);
-                                                    Log.d(TAG, "⏰ Set time for task '" + taskText + "': " + timeToUse);
+                                                    Log.d(TAG, "✅ Time set for task '" + taskText + "': " + timeToUse);
                                                 } else {
-                                                    Log.d(TAG, "⚠️ No time set for task '" + taskText + "'");
+                                                    Log.d(TAG, "⚠️ No time available for task '" + taskText + "'");
                                                 }
 
                                                 // Check if already exists

@@ -12,7 +12,7 @@
         android:background="@android:color/transparent"
         android:hint="Enter"
         android:textSize="16sp"
-        android:textColor="#852B2B"
+        android:textColor="#333333"
         android:minHeight="30dp"
         android:gravity="top"
         android:cursorVisible="true"

@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         android:textSize="18sp"
-        android:textColor="@color/black"
+        android:textColor="#333333"
         android:textAlignment="center"
         android:gravity="center"
         android:letterSpacing="0.05"

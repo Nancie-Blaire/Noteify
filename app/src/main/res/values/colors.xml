@@ -47,7 +47,8 @@
     <color name="item_note_card">#f6d5b6</color>
     <color name="item_note_title">#212121</color>
     <color name="item_note_content">#666666</color>
-
+    <color name="star_fav">#FFFFFF</color>
+    <color name="lock">#ff9375</color>
  <!-- Main Activity FABS AND BUTTONS -->
     <color name="nav_bg">#8daaa6</color>
     <color name="plus_bg">#f6d5b6</color>
@@ -57,6 +58,8 @@
 
     <!-- Fragment_notes -->
     <color name="notes_bg">#f4e8df</color>
+    <color name="card_main">#f6d5b6</color>
+    <color name="card_two">#cccccc</color>
 
     <!--Sign_up-->
     <color name="edit_input">#757575</color>
@@ -64,4 +67,8 @@
     <color name="focus">#FF9376</color>
     <!-- BTN NA NAKA HIGHLIGHT -->
     <color name="btn_highlight">#FF9376</color>
+
+
+
+
 </resources>

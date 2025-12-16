@@ -227,7 +227,10 @@ public class MainActivity extends AppCompatActivity {
 
         selectedIcon.setBackgroundResource(R.drawable.circle_bg);
         selectedIcon.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FFFFFF")));
-        selectedIcon.setImageTintList(ColorStateList.valueOf(Color.parseColor("#008f84")));
+        selectedIcon.setImageTintList(
+                AppCompatResources.getColorStateList(this, R.color.btn_selected)
+        );
+
     }
 
     private void setupFAB() {

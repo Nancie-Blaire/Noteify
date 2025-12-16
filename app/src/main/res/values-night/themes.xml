@@ -8,6 +8,11 @@
     </style>
 
     <!-- FOR MAIN ACTIVITY STATUS BAR -->
+    <style name="Theme.MyApp.DarkBars" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/bg_bgcolor</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/nav_bg</item>
+    </style>
 
     <!-- Dark splash screen -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">

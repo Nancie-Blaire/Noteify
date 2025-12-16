@@ -2877,62 +2877,62 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .show();
     }
 
-//LINK TO PAGE
-private void showLinkToPageBottomSheet() {
-    BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
-    View sheetView = getLayoutInflater().inflate(R.layout.link_to_page_bottom_sheet, null);
-    bottomSheet.setContentView(sheetView);
+    //LINK TO PAGE
+    private void showLinkToPageBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.link_to_page_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
 
-    com.google.android.material.textfield.TextInputEditText searchInput =
-            sheetView.findViewById(R.id.searchInput);
-    RecyclerView resultsRecycler = sheetView.findViewById(R.id.resultsRecycler);
-    View emptyState = sheetView.findViewById(R.id.emptyState);
+        com.google.android.material.textfield.TextInputEditText searchInput =
+                sheetView.findViewById(R.id.searchInput);
+        RecyclerView resultsRecycler = sheetView.findViewById(R.id.resultsRecycler);
+        View emptyState = sheetView.findViewById(R.id.emptyState);
 
-    List<LinkableItem> allItems = new ArrayList<>();
-    List<LinkableItem> filteredItems = new ArrayList<>();
+        List<LinkableItem> allItems = new ArrayList<>();
+        List<LinkableItem> filteredItems = new ArrayList<>();
 
-    LinkToPageAdapter adapter = new LinkToPageAdapter(item -> {
-        // Insert link block
-        insertLinkToPageBlock(item);
-        bottomSheet.dismiss();
-    });
+        LinkToPageAdapter adapter = new LinkToPageAdapter(item -> {
+            // Insert link block
+            insertLinkToPageBlock(item);
+            bottomSheet.dismiss();
+        });
 
-    resultsRecycler.setLayoutManager(new LinearLayoutManager(this));
-    resultsRecycler.setAdapter(adapter);
+        resultsRecycler.setLayoutManager(new LinearLayoutManager(this));
+        resultsRecycler.setAdapter(adapter);
 
-    // Load all items from Firestore
-    loadLinkableItems(allItems, adapter, emptyState);
+        // Load all items from Firestore
+        loadLinkableItems(allItems, adapter, emptyState);
 
-    // Search functionality
-    searchInput.addTextChangedListener(new android.text.TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+        // Search functionality
+        searchInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            String query = s.toString().toLowerCase().trim();
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().toLowerCase().trim();
 
-            if (query.isEmpty()) {
-                adapter.updateItems(allItems);
-                emptyState.setVisibility(allItems.isEmpty() ? View.VISIBLE : View.GONE);
-            } else {
-                filteredItems.clear();
-                for (LinkableItem item : allItems) {
-                    if (item.getTitle().toLowerCase().contains(query)) {
-                        filteredItems.add(item);
+                if (query.isEmpty()) {
+                    adapter.updateItems(allItems);
+                    emptyState.setVisibility(allItems.isEmpty() ? View.VISIBLE : View.GONE);
+                } else {
+                    filteredItems.clear();
+                    for (LinkableItem item : allItems) {
+                        if (item.getTitle().toLowerCase().contains(query)) {
+                            filteredItems.add(item);
+                        }
                     }
+                    adapter.updateItems(filteredItems);
+                    emptyState.setVisibility(filteredItems.isEmpty() ? View.VISIBLE : View.GONE);
                 }
-                adapter.updateItems(filteredItems);
-                emptyState.setVisibility(filteredItems.isEmpty() ? View.VISIBLE : View.GONE);
             }
-        }
 
-        @Override
-        public void afterTextChanged(android.text.Editable s) {}
-    });
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
 
-    bottomSheet.show();
-}
+        bottomSheet.show();
+    }
 
     private void loadLinkableItems(List<LinkableItem> items, LinkToPageAdapter adapter, View emptyState) {
         FirebaseUser user = auth.getCurrentUser();

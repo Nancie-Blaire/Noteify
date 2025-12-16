@@ -15,6 +15,23 @@
     <color name="item_note_content">#BFBDBD</color>
 
     <!-- BGGG BILOGS -->
-    <color name="big_circle">#004AAD</color>
-    <color name="small_circle">#060671</color>
+    <color name="big_circle">#80FFF4DB</color>
+    <color name="small_circle">#80B2596D</color>
+    <color name="bg_bgcolor">#220401</color>
+    <!-- Main Activity FABS AND BUTTONS -->
+    <color name="nav_bg">#5e2354</color>
+    <color name="plus_bg">#b2596d</color>
+    <color name="btn_selected">#000000</color>
+    <!-- FABS -->
+    <color name="Fab_Bg">#8daaa6</color>
+
+    <!-- Fragment_notes -->
+    <color name="notes_bg">#220401</color>
+    <!--Sign_up-->
+    <color name="edit_input">#666666</color>
+    <color name="stay_text">#FFFFFF</color>
+    #b2596d
+    <color name="focus">#b2596d</color>
+    <!-- BTN NA NAKA HIGHLIGHT -->
+    <color name="btn_highlight">#b2596d</color>
 </resources>

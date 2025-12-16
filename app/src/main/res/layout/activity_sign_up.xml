@@ -8,7 +8,7 @@
     <ImageView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:src="@drawable/lightmode"
+        android:src="@drawable/background"
         android:scaleType="centerCrop" />
 
     <LinearLayout
@@ -37,7 +37,7 @@
             android:fontFamily="@font/inter_regular"
             android:letterSpacing=".3"
             android:text="NOTEIFY"
-            android:textColor="#000000"
+            android:textColor="@color/black"
             android:textSize="25sp"
             android:textStyle="bold" />
 
@@ -48,7 +48,7 @@
             android:fontFamily="@font/inter_itallic"
             android:letterSpacing="0.1"
             android:text="Stay organized. Stay on time."
-            android:textColor="#666666"
+            android:textColor="@color/stay_text"
             android:textSize="10sp" />
 
         <!-- Full Name Input -->
@@ -76,6 +76,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Full Name"
+                android:textColorHint="@color/edit_input"
                 android:textColor="#000000"
                 android:inputType="textPersonName"
                 android:textSize="15sp" />
@@ -106,6 +107,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Email Address"
+                android:textColorHint="@color/edit_input"
                 android:textColor="#000000"
                 android:inputType="textEmailAddress"
                 android:letterSpacing="0.1"
@@ -138,6 +140,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Password"
+                android:textColorHint="@color/edit_input"
                 android:textColor="#000000"
                 android:inputType="textPassword"
                 android:textSize="15sp" />
@@ -177,6 +180,7 @@
                 android:background="@android:color/transparent"
                 android:fontFamily="@font/inter_regular"
                 android:hint="Confirm Password"
+                android:textColorHint="@color/edit_input"
                 android:textColor="#000000"
                 android:inputType="textPassword"
                 android:textSize="15sp" />
@@ -231,7 +235,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="-2dp"
-            android:backgroundTint="#FF9376"
+            android:backgroundTint="@color/btn_highlight"
             android:fontFamily="@font/inter_regular"
             android:letterSpacing=".05"
             android:paddingTop="10dp"
@@ -263,7 +267,7 @@
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:text="OR"
-                android:textColor="#757575"
+                android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
 
             <View
@@ -324,7 +328,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="@font/inter_regular"
                     android:text="Already have an account? "
-                    android:textColor="#000000"
+                    android:textColor="@color/black"
                     android:textSize="10sp" />
 
                 <TextView
@@ -337,8 +341,8 @@
                     android:letterSpacing=".2"
                     android:padding="4dp"
                     android:text="@string/underlined_text_login"
-                    android:textColor="#000000"
-                    android:textSize="10sp"
+                    android:textColor="@color/black"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </RelativeLayout>

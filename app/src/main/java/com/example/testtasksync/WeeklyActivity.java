@@ -2404,17 +2404,52 @@ public class WeeklyActivity extends AppCompatActivity {
                     Log.e(TAG, "❌ Failed to load subpages", e);
                 });
     }
+    // ✅ ADD this method to WeeklyActivity class (add anywhere in the class)
+
+    private String formatTimeForDisplay(String time24) {
+        if (time24 == null || time24.isEmpty()) {
+            return "";
+        }
+
+        // Get user's time format preference
+        String timeFormat = Settings.getTimeFormat(this);
+
+        try {
+            // Parse the 24-hour time
+            String[] parts = time24.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+
+            if ("civilian".equals(timeFormat)) {
+                // Convert to 12-hour format with AM/PM
+                String period = (hour >= 12) ? "PM" : "AM";
+                int hour12 = (hour == 0) ? 12 : (hour > 12) ? hour - 12 : hour;
+                return String.format(Locale.getDefault(), "%d:%02d %s", hour12, minute, period);
+            } else {
+                // Keep 24-hour format
+                return String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+            }
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error formatting time", e);
+            return time24;
+        }
+    }
+
+    // ✅ REPLACE your existing updateScheduleDisplay() method with this:
     private void updateScheduleDisplay() {
-        // ✅ FIXED: Only display if time is set (even if dates exist)
+        // Only display if time is set
         if (startDate != null && endDate != null && selectedTime != null && !selectedTime.isEmpty()) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
             String displayText = sdf.format(startDate.getTime()) + " - " + sdf.format(endDate.getTime());
-            displayText += ", " + selectedTime;
+
+            // ✅ Format time according to user preference
+            String formattedTime = formatTimeForDisplay(selectedTime);
+            displayText += ", " + formattedTime;
 
             dueDateText.setText(displayText);
             dueDateDisplay.setVisibility(View.VISIBLE);
         } else {
-            // ✅ Hide if no time is set (even if dates exist)
+            // Hide if no time is set
             dueDateDisplay.setVisibility(View.GONE);
         }
     }

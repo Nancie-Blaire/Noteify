@@ -620,16 +620,47 @@ public class TodoActivity extends AppCompatActivity {
                     Log.e(TAG, "Failed to check existing schedule", e);
                 });
     }
-    // ========================================
-    // UPDATE DUE DATE DISPLAY
-    // ========================================
+    // ✅ ADD this helper method to your TodoActivity class (add anywhere in the class)
+
+    private String formatTimeForDisplay(String time24) {
+        if (time24 == null || time24.isEmpty()) {
+            return "";
+        }
+
+        // Get user's time format preference
+        String timeFormat = Settings.getTimeFormat(this);
+
+        try {
+            // Parse the 24-hour time
+            String[] parts = time24.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+
+            if ("civilian".equals(timeFormat)) {
+                // Convert to 12-hour format with AM/PM
+                String period = (hour >= 12) ? "PM" : "AM";
+                int hour12 = (hour == 0) ? 12 : (hour > 12) ? hour - 12 : hour;
+                return String.format(Locale.getDefault(), "%d:%02d %s", hour12, minute, period);
+            } else {
+                // Keep 24-hour format
+                return String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error formatting time", e);
+            return time24;
+        }
+    }
+
+    // ✅ REPLACE your existing updateDueDateDisplay() method with this:
     private void updateDueDateDisplay() {
         if (dueDate != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
             String displayText = "Due: " + sdf.format(dueDate.getTime());
 
             if (dueTime != null && !dueTime.isEmpty()) {
-                displayText += ", " + dueTime;
+                // ✅ Format time according to user preference
+                String formattedTime = formatTimeForDisplay(dueTime);
+                displayText += ", " + formattedTime;
             }
 
             dueDateText.setText(displayText);
@@ -1186,7 +1217,9 @@ public class TodoActivity extends AppCompatActivity {
             String displayText = dateFormat.format(task.getScheduleDate());
 
             if (task.getScheduleTime() != null && !task.getScheduleTime().isEmpty()) {
-                displayText += ", " + task.getScheduleTime();
+                // ✅ Format time according to user preference
+                String formattedTime = formatTimeForDisplay(task.getScheduleTime());
+                displayText += ", " + formattedTime;
             }
 
             scheduleText.setText(displayText);

@@ -13,6 +13,7 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.fragment.app.Fragment;
 
@@ -309,7 +310,10 @@ public class MainActivity extends AppCompatActivity {
         fabTodo.setVisibility(View.GONE);
         fabWeekly.setVisibility(View.GONE);
 
-        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#f6d5b6")));
+        fabMain.setBackgroundTintList(
+                AppCompatResources.getColorStateList(this, R.color.plus_bg)
+        );
+
         fabMain.setImageResource(R.drawable.ic_fab_add);
         fabMain.animate().rotation(0f).setDuration(200).start();
     }

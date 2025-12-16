@@ -65,12 +65,17 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             titleText.setText(item.getTitle());
             taskText.setText(item.getTaskText());
 
+            // ✅ Get user's time format preference
+            String timeFormat = Settings.getTimeFormat(itemView.getContext());
+
             // Format due date
             SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd", Locale.getDefault());
             String dateStr = "Due: " + dateFormat.format(item.getDueDate());
 
             if (item.getDueTime() != null && !item.getDueTime().isEmpty()) {
-                dateStr += ", " + item.getDueTime();
+                // ✅ Convert time to user's preferred format
+                String formattedTime = convertTimeFormat(item.getDueTime(), timeFormat);
+                dateStr += ", " + formattedTime;
             }
 
             dueDateText.setText(dateStr);
@@ -89,6 +94,33 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
                     listener.onItemClick(item);
                 }
             });
+        }
+
+        // ✅ NEW: Convert time format based on user preference
+        private String convertTimeFormat(String time24, String format) {
+            if (time24 == null || time24.isEmpty()) {
+                return "";
+            }
+
+            try {
+                // Parse the 24-hour time (HH:mm format)
+                String[] parts = time24.split(":");
+                int hour = Integer.parseInt(parts[0]);
+                int minute = Integer.parseInt(parts[1]);
+
+                if ("civilian".equals(format)) {
+                    // Convert to 12-hour format
+                    String period = (hour >= 12) ? "PM" : "AM";
+                    int hour12 = (hour == 0) ? 12 : (hour > 12) ? hour - 12 : hour;
+                    return String.format(Locale.getDefault(), "%d:%02d %s", hour12, minute, period);
+                } else {
+                    // Keep 24-hour format
+                    return String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+                }
+            } catch (Exception e) {
+                // If parsing fails, return original
+                return time24;
+            }
         }
     }
 }

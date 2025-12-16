@@ -14,6 +14,19 @@
         <item name="android:navigationBarColor">@color/nav_bg</item>
     </style>
 
+    <!-- FOR note taking ACTIVITY STATUS BAR -->
+    <style name="Theme.MyApp.Note" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/header_note</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/header_note</item>
+
+        <item name="editTextStyle">@style/MyEditText</item>
+    </style>
+    <style name="MyEditText" parent="Widget.AppCompat.EditText">
+        <item name="android:textColor">?attr/colorOnBackground</item>
+        <item name="android:textColorHint">?attr/colorOnBackground</item>
+    </style>
+
     <!-- Dark splash screen -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/background_color</item>

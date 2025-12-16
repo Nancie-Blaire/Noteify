@@ -13,7 +13,6 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.fragment.app.Fragment;
 
@@ -227,10 +226,7 @@ public class MainActivity extends AppCompatActivity {
 
         selectedIcon.setBackgroundResource(R.drawable.circle_bg);
         selectedIcon.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FFFFFF")));
-        selectedIcon.setImageTintList(
-                AppCompatResources.getColorStateList(this, R.color.btn_selected)
-        );
-
+        selectedIcon.setImageTintList(ColorStateList.valueOf(Color.parseColor("#008f84")));
     }
 
     private void setupFAB() {
@@ -313,10 +309,7 @@ public class MainActivity extends AppCompatActivity {
         fabTodo.setVisibility(View.GONE);
         fabWeekly.setVisibility(View.GONE);
 
-        fabMain.setBackgroundTintList(
-                AppCompatResources.getColorStateList(this, R.color.plus_bg)
-        );
-
+        fabMain.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#f6d5b6")));
         fabMain.setImageResource(R.drawable.ic_fab_add);
         fabMain.animate().rotation(0f).setDuration(200).start();
     }

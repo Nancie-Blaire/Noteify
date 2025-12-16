@@ -90,6 +90,19 @@ public class Notes extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        //TOP BAR COLOR
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            requireActivity().getWindow().setStatusBarColor(
+                    Color.parseColor("#f4e8df") // White
+            );
+            // ✅ THIS IS FOR THE ICONS
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                View decorView = requireActivity().getWindow().getDecorView();
+                decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR); // Dark icons
+                // OR remove this line for white icons
+            }
+
+        }
 
 
 

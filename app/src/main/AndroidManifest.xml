@@ -32,7 +32,10 @@
 
         <activity
             android:name=".NoteActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.MyApp.Note"
+           />
+
 
         <!-- Notification Receiver -->
         <receiver
@@ -92,11 +95,11 @@
             android:exported="false" />
         <activity
             android:name=".NoteAdapter"
-            android:exported="false" />
+            android:exported="false"/>
         <activity
             android:name=".NoteActivity_1"
             android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
+         />
         <activity
             android:name=".Notes"
             android:exported="false"

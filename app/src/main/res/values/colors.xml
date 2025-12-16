@@ -64,4 +64,13 @@
     <color name="focus">#FF9376</color>
     <!-- BTN NA NAKA HIGHLIGHT -->
     <color name="btn_highlight">#FF9376</color>
+
+    <!-- MONTH PICKER -->
+    <color name="bg_picker">#f4e8df</color>
+    <color name="arrow_picker">#000000</color>
+    <color name="arrow_picker_2.0">#000000</color>
+    <color name="month_color">#8daaa6</color>
+    <color name="color_text">#000000</color>
+    <color name="cell_color">#8daaa6</color>
+    <color name="color_frag_cal">#f4e8df</color>
 </resources>

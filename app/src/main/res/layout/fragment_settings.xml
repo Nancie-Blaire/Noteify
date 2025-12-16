@@ -11,7 +11,8 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:background="#f4e8df">
 
         <TextView
             android:layout_width="wrap_content"
@@ -20,7 +21,8 @@
             android:textColor="#000000"
             android:textSize="25sp"
             android:textStyle="bold"
-            android:layout_marginStart="3dp"/>
+            android:layout_marginStart="3dp"
+            />
     </LinearLayout>
 
     <ScrollView
@@ -35,7 +37,8 @@
             android:orientation="vertical"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
-            android:paddingBottom="80dp">
+            android:paddingBottom="80dp"
+            android:background="#f4e8df">
 
             <!-- Settings Icon -->
             <ImageView

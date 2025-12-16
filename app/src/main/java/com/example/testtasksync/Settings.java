@@ -18,6 +18,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import android.graphics.Color;
+import android.os.Build;
 
 public class Settings extends Fragment {
 
@@ -40,7 +42,16 @@ public class Settings extends Fragment {
                              @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (getActivity() != null && getActivity().getWindow() != null) {
+                getActivity().getWindow().setStatusBarColor(Color.parseColor("#f4e8df"));
 
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // This makes the status bar icons dark
+                    getActivity().getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                }
+            }
+        }
         // Initialize SharedPreferences
         preferences = requireContext().getSharedPreferences(PREFS_NAME, requireContext().MODE_PRIVATE);
 

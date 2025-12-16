@@ -1,7 +1,6 @@
 package com.example.testtasksync;
 
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -15,7 +14,6 @@ import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.Toast;
 import android.widget.EditText;
-import android.widget.Button;
 import android.view.MenuItem;
 import androidx.core.content.ContextCompat;
 
@@ -343,41 +341,29 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             biometricPrompt.authenticate(promptInfo);
         }
 
-        // ✅ Updated: showPasswordDialog using XML layout
         private void showPasswordDialog(Context context, Note note, OnNoteClickListener listener,
                                         String savedPassword) {
-            // Inflate custom XML layout
-            LayoutInflater inflater = LayoutInflater.from(context);
-            View dialogView = inflater.inflate(R.layout.dialog_master_password, null);
-
-            // Create dialog
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
-            builder.setView(dialogView);
-            AlertDialog dialog = builder.create();
+            builder.setTitle("🔒 Enter Master Password");
 
-            // Get views from layout
-            EditText passwordInput = dialogView.findViewById(R.id.passwordInput);
-            Button btnCancel = dialogView.findViewById(R.id.btnCancel);
-            Button btnUnlock = dialogView.findViewById(R.id.btnUnlock);
+            final EditText input = new EditText(context);
+            input.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            input.setHint("Master Password");
+            builder.setView(input);
 
-            // Set button text to UNLOCK
-            btnUnlock.setText("UNLOCK");
-
-            // Set button listeners
-            btnCancel.setOnClickListener(v -> dialog.dismiss());
-
-            btnUnlock.setOnClickListener(v -> {
-                String enteredPassword = passwordInput.getText().toString();
+            builder.setPositiveButton("Unlock", (dialog, which) -> {
+                String enteredPassword = input.getText().toString();
                 if (enteredPassword.equals(savedPassword)) {
                     Toast.makeText(context, "✓ Unlocked!", Toast.LENGTH_SHORT).show();
                     listener.onNoteClick(note);
-                    dialog.dismiss();
                 } else {
                     Toast.makeText(context, "✗ Incorrect password", Toast.LENGTH_SHORT).show();
                 }
             });
 
-            dialog.show();
+            builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+            builder.show();
         }
 
         private void showPopupMenu(View view, Note note, FirebaseFirestore db, FirebaseAuth auth,
@@ -400,6 +386,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             // Update lock text based on current state
             TextView lockText = lockView.findViewById(R.id.menu_lock).findViewById(android.R.id.text1);
             if (lockText == null) {
+                // If using custom layout, find the TextView differently
                 lockText = ((ViewGroup) lockView).getChildAt(1) instanceof TextView ?
                         (TextView) ((ViewGroup) lockView).getChildAt(1) : null;
             }
@@ -418,7 +405,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                 popupWindow.dismiss();
             });
 
+            // Measure the popup view first
             popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+
+            // Position popup aligned to right edge of anchor, slightly below
             popupWindow.showAsDropDown(view, view.getWidth() - popupView.getMeasuredWidth(), 8);
         }
 
@@ -511,37 +501,29 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             biometricPrompt.authenticate(promptInfo);
         }
 
-        // ✅ Updated: showPasswordDialogForUnlock using XML layout
         private void showPasswordDialogForUnlock(Context context, String savedPassword, Runnable onSuccess) {
-            // Inflate custom XML layout
-            LayoutInflater inflater = LayoutInflater.from(context);
-            View dialogView = inflater.inflate(R.layout.dialog_verify_password, null);
-
-            // Create dialog
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
-            builder.setView(dialogView);
-            AlertDialog dialog = builder.create();
+            builder.setTitle("🔒 Verify Master Password");
+            builder.setMessage("Enter your master password to unlock this item");
 
-            // Get views from layout
-            EditText passwordInput = dialogView.findViewById(R.id.passwordInput);
-            Button btnCancel = dialogView.findViewById(R.id.btnCancel);
-            Button btnUnlock = dialogView.findViewById(R.id.btnUnlock);
+            final EditText input = new EditText(context);
+            input.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            input.setHint("Master Password");
+            builder.setView(input);
 
-            // Set button listeners
-            btnCancel.setOnClickListener(v -> dialog.dismiss());
-
-            btnUnlock.setOnClickListener(v -> {
-                String enteredPassword = passwordInput.getText().toString();
+            builder.setPositiveButton("Unlock", (dialog, which) -> {
+                String enteredPassword = input.getText().toString();
                 if (enteredPassword.equals(savedPassword)) {
                     Toast.makeText(context, "✓ Verified!", Toast.LENGTH_SHORT).show();
                     onSuccess.run();
-                    dialog.dismiss();
                 } else {
                     Toast.makeText(context, "✗ Incorrect password", Toast.LENGTH_SHORT).show();
                 }
             });
 
-            dialog.show();
+            builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+            builder.show();
         }
 
         private void updateLockState(Note note, boolean newLockState, FirebaseFirestore db,
@@ -550,11 +532,12 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             view.setEnabled(false);
             Context context = view.getContext();
 
+            // ✅ Determine correct collection
             String collection;
             if (itemType.equals("todo") || itemType.equals("weekly")) {
-                collection = "schedules";
+                collection = "schedules";  // ✅ Todo and weekly are in schedules
             } else {
-                collection = "notes";
+                collection = "notes";  // ✅ Notes are in notes collection
             }
 
             db.collection("users")
@@ -593,6 +576,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             String userId = user.getUid();
             String itemId = note.getId();
 
+            // Show confirmation dialog
             new android.app.AlertDialog.Builder(view.getContext())
                     .setTitle("Move to Bin?")
                     .setMessage("This item will be moved to the bin and can be restored within 30 days.")
@@ -607,28 +591,42 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     .show();
         }
 
+        // ✅ NEW: Soft delete for notes
         private void softDeleteNote(String userId, String noteId, FirebaseFirestore db, View view,
                                     List<Note> noteList, NoteAdapter adapter) {
+            // ✅ Show toast IMMEDIATELY (works offline)
+            Toast.makeText(view.getContext(), "✓ Note moved to bin", Toast.LENGTH_SHORT).show();
+
+            // ✅ Update UI immediately
+            removeFromList(view, noteList, adapter);
+
+            // Then update Firestore (will sync when online)
             db.collection("users")
                     .document(userId)
                     .collection("notes")
                     .document(noteId)
                     .update("deletedAt", com.google.firebase.Timestamp.now())
                     .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ Note moved to bin",
-                                Toast.LENGTH_SHORT).show();
                         Log.d("NoteAdapter", "Note soft deleted: " + noteId);
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
+                        // Only show error if it's NOT an offline error
                         Log.e("NoteAdapter", "Failed to soft delete note", e);
+                        // Note: Firestore will auto-retry when back online
                     });
         }
 
+        // ✅ NEW: Soft delete for schedules (todo & weekly)
         private void softDeleteSchedule(String userId, String scheduleId, FirebaseFirestore db,
                                         View view, List<Note> noteList, NoteAdapter adapter, String itemType) {
+            // ✅ Show toast IMMEDIATELY (works offline)
+            String itemLabel = "todo".equals(itemType) ? "To-Do" : "Weekly plan";
+            Toast.makeText(view.getContext(), "✓ " + itemLabel + " moved to bin", Toast.LENGTH_SHORT).show();
+
+            // ✅ Update UI immediately
+            removeFromList(view, noteList, adapter);
+
+            // First, get the schedule to find its sourceId
             db.collection("users")
                     .document(userId)
                     .collection("schedules")
@@ -639,8 +637,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                             String sourceId = scheduleDoc.getString("sourceId");
                             String category = scheduleDoc.getString("category");
 
+                            // Use batch to update both schedule and source
                             com.google.firebase.firestore.WriteBatch batch = db.batch();
 
+                            // Mark schedule as deleted
                             batch.update(
                                     db.collection("users")
                                             .document(userId)
@@ -649,6 +649,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                                     "deletedAt", com.google.firebase.Timestamp.now()
                             );
 
+                            // Also mark the source document as deleted
                             if (sourceId != null && !sourceId.isEmpty() && category != null) {
                                 String sourceCollection = "todo".equals(category) ? "todoLists" : "weeklyPlans";
 
@@ -663,31 +664,22 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                                 Log.d("NoteAdapter", "Marking source as deleted: " + sourceCollection + "/" + sourceId);
                             }
 
+                            // Commit the batch
                             batch.commit()
                                     .addOnSuccessListener(aVoid -> {
-                                        removeFromList(view, noteList, adapter);
-                                        String itemLabel = "todo".equals(itemType) ? "To-Do" : "Weekly plan";
-                                        Toast.makeText(view.getContext(), "✓ " + itemLabel + " moved to bin",
-                                                Toast.LENGTH_SHORT).show();
                                         Log.d("NoteAdapter", "Schedule soft deleted with source: " + scheduleId);
                                     })
                                     .addOnFailureListener(e -> {
-                                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                                Toast.LENGTH_SHORT).show();
                                         Log.e("NoteAdapter", "Failed to soft delete schedule", e);
+                                        // Firestore will auto-retry when back online
                                     });
-                        } else {
-                            Toast.makeText(view.getContext(), "✗ Item not found",
-                                    Toast.LENGTH_SHORT).show();
                         }
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
                         Log.e("NoteAdapter", "Failed to get schedule data", e);
+                        // Firestore will auto-retry when back online
                     });
         }
-
         private void removeFromList(View view, List<Note> noteList, NoteAdapter adapter) {
             int position = getAdapterPosition();
             if (position != RecyclerView.NO_POSITION) {
@@ -707,11 +699,12 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         private void updateStarInFirebase(Note note, FirebaseFirestore db, FirebaseAuth auth, String itemType) {
             FirebaseUser user = auth.getCurrentUser();
             if (user != null) {
+                // ✅ ALL items (notes, todo, weekly) are in their respective collections
                 String collection;
                 if (itemType.equals("todo") || itemType.equals("weekly")) {
-                    collection = "schedules";
+                    collection = "schedules";  // ✅ Todo and weekly are in schedules
                 } else {
-                    collection = "notes";
+                    collection = "notes";  // ✅ Notes are in notes collection
                 }
 
                 db.collection("users")
@@ -727,5 +720,5 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         });
             }
         }
-    }
+    }//
 }

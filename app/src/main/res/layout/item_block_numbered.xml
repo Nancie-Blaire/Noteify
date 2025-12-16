@@ -12,7 +12,8 @@
         android:layout_height="wrap_content"
         android:text="1."
         android:textSize="16sp"
-        android:textColor="#666666"
+        android:textColor="?android:attr/textColorPrimary"
+
         android:minWidth="10dp"
         android:layout_marginTop="1dp"
         android:layout_marginEnd="8dp" />
@@ -25,7 +26,8 @@
         android:background="@android:color/transparent"
         android:hint="List item"
         android:textSize="16sp"
-        android:textColor="#333333"
+        android:textColor="?android:attr/textColorPrimary"
+
         android:minHeight="10dp"
         android:gravity="top"
         android:inputType="textMultiLine|textCapSentences" />

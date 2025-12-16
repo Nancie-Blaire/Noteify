@@ -13,7 +13,7 @@
         android:hint="Heading"
         android:textSize="28sp"
         android:textStyle="bold"
-        android:textColor="#000000"
+        android:textColor="?android:attr/textColorPrimary"
         android:minHeight="48dp"
         android:gravity="top"
         android:inputType="textMultiLine|textCapSentences" />

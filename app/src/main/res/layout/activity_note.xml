@@ -4,7 +4,8 @@
     android:id="@+id/noteLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FAFAFA">
+    android:background="@color/note_bg"
+    android:textColor="@color/black">
 
     <!-- Top Bar -->
     <LinearLayout
@@ -14,7 +15,7 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="8dp"
-        android:background="#8DAAA6"
+        android:background="@color/header_note"
         android:elevation="2dp"
         android:layout_marginTop="0dp"
         android:layout_marginBottom="5dp">
@@ -85,12 +86,14 @@
         android:layout_below="@id/colorPickerPanel"
         android:layout_above="@id/keyboardToolbar"
         android:fillViewport="true"
-        android:overScrollMode="never">
+        android:overScrollMode="never"
+        android:textColor="@color/black">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:textColor="@color/black">
 
             <!-- ✅ Note Title - NOW SCROLLS! -->
             <EditText
@@ -103,7 +106,7 @@
                 android:inputType="textCapSentences"
                 android:background="@android:color/transparent"
                 android:padding="20dp"
-                android:textColor="#000000"
+                android:textColor="@color/black"
                 android:maxLines="2"
                 android:layout_marginStart="10dp"
                 android:layout_marginEnd="10dp"
@@ -120,7 +123,8 @@
                 android:overScrollMode="never"
                 android:clipToPadding="false"
                 android:layout_marginStart="10dp"
-                android:layout_marginEnd="10dp"/>
+                android:layout_marginEnd="10dp"
+                android:textColor="@color/black"/>
 
             <!-- ✅ Clickable Empty Space -->
             <View
@@ -141,7 +145,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:background="#8daaa6"
+        android:background="@color/header_note"
         android:elevation="4dp"
         android:scrollbars="none">
 

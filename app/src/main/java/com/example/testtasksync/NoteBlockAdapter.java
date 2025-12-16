@@ -2758,44 +2758,54 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             if (style == null || style.isEmpty()) {
                 style = "solid";
             }
-
+            int themeColor = androidx.core.content.ContextCompat.getColor(
+                    itemView.getContext(), R.color.black);
             // Apply divider style
             switch (style) {
                 case "solid":
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    dividerView.setTextColor(0xFF333333);
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setTextColor(themeColor); // ✅ Use theme color
                     break;
                 case "dashed":
                     dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
-                    dividerView.setTextColor(0xFF333333);
+                    dividerView.setTextColor(themeColor); // ✅ Use theme color
                     break;
                 case "dotted":
                     dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
-                    dividerView.setTextColor(0xFF333333);
+                    dividerView.setTextColor(themeColor); // ✅ Use theme color
                     break;
                 case "double":
-                    dividerView.setText("═══════════════════════════════");
-                    dividerView.setTextColor(0xFF333333);
+                    dividerView.setText("╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘");
+                    dividerView.setTextColor(themeColor); // ✅ Use theme color
                     break;
                 case "arrows":
                     dividerView.setText("→→→→→→→→→→→ ✱ ←←←←←←←←←←←");
-                    dividerView.setTextColor(0xFF666666);
+                    // ✅ Use lighter gray for decorative styles
+                    int grayColor = androidx.core.content.ContextCompat.getColor(
+                            itemView.getContext(), R.color.divider_decorative);
+                    dividerView.setTextColor(grayColor);
                     break;
                 case "stars":
-                    dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ❋ ✦✦✦✦✦✦✦✦✦✦✦✦");
-                    dividerView.setTextColor(0xFF666666);
+                    dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ⋆ ✦✦✦✦✦✦✦✦✦✦✦✦");
+                    int grayColor2 = androidx.core.content.ContextCompat.getColor(
+                            itemView.getContext(), R.color.divider_decorative);
+                    dividerView.setTextColor(grayColor2);
                     break;
                 case "wave":
                     dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
-                    dividerView.setTextColor(0xFF666666);
+                    int grayColor3 = androidx.core.content.ContextCompat.getColor(
+                            itemView.getContext(), R.color.divider_decorative);
+                    dividerView.setTextColor(grayColor3);
                     break;
                 case "diamond":
                     dividerView.setText("◈◈◈◈◈◈◈◈◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈◈◈◈◈◈◈◈◈");
-                    dividerView.setTextColor(0xFF666666);
+                    int grayColor4 = androidx.core.content.ContextCompat.getColor(
+                            itemView.getContext(), R.color.divider_decorative);
+                    dividerView.setTextColor(grayColor4);
                     break;
                 default:
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    dividerView.setTextColor(0xFF333333);
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setTextColor(themeColor); // ✅ Use theme color
                     break;
             }
 
@@ -3281,7 +3291,6 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             bottomSheet.show();
         }
     }
-
     private void applyFontStyle(EditText editText, String fontStyle, String fontColor) {
         // Apply font style (bold, italic, etc.)
         if (fontStyle == null || fontStyle.isEmpty()) {
@@ -3303,19 +3312,24 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             }
         }
 
-        // Apply font color
+        // ✅ Apply font color - use theme default if null
         if (fontColor != null && !fontColor.isEmpty()) {
             try {
                 editText.setTextColor(android.graphics.Color.parseColor(fontColor));
             } catch (Exception e) {
-                editText.setTextColor(android.graphics.Color.parseColor("#333333"));
+                // If parsing fails, use theme color
+                int themeColor = androidx.core.content.ContextCompat.getColor(
+                        editText.getContext(), R.color.black);
+                editText.setTextColor(themeColor);
             }
         } else {
-            editText.setTextColor(android.graphics.Color.parseColor("#333333"));
+            // ✅ Use theme color from resources
+            int themeColor = androidx.core.content.ContextCompat.getColor(
+                    editText.getContext(), R.color.black);
+            editText.setTextColor(themeColor);
         }
     }
-    // Add this method sa NoteBlockAdapter class (before the ViewHolder classes)
-    private void showBookmarkContextMenu(View anchorView, String selectedText,
+ private void showBookmarkContextMenu(View anchorView, String selectedText,
                                          String blockId, int startIndex, int endIndex) {
         android.widget.PopupMenu popup = new android.widget.PopupMenu(anchorView.getContext(), anchorView);
         popup.getMenu().add("📌 Bookmark this");
@@ -3562,4 +3576,5 @@ class LinkToPageViewHolder extends RecyclerView.ViewHolder {
         popup.show();
     }
 }
+
 }

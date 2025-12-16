@@ -21,7 +21,7 @@ import androidx.fragment.app.Fragment;
 
 public class Settings extends Fragment {
 
-    private LinearLayout userProfileIcon, btnTheme, btnSecurity, btnBin;
+    private LinearLayout userProfileIcon, btnSecurity, btnBin;
     private LinearLayout timeFormatSection, notificationSection;
     private LinearLayout timeFormatContent, notificationContent;
     private ImageView timeFormatArrow, notificationArrow;
@@ -78,7 +78,6 @@ public class Settings extends Fragment {
 
         // Navigation sections
         userProfileIcon = view.findViewById(R.id.userProfileIcon);
-        btnTheme = view.findViewById(R.id.btnTheme);
         btnBin = view.findViewById(R.id.btnBin);
         btnSecurity = view.findViewById(R.id.btnSecurity);
     }
@@ -118,19 +117,19 @@ public class Settings extends Fragment {
             });
         }
 
-        // ✅ UPDATED: Notification Radio Group Listener
+        // Notification Radio Group Listener
         if (notificationRadioGroup != null) {
             notificationRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
                 if (checkedId == R.id.rbNotificationOn) {
                     saveNotificationSetting(true);
-                    // ✅ NEW: Re-schedule all existing tasks when enabling notifications
+                    // Re-schedule all existing tasks when enabling notifications
                     rescheduleAllNotifications();
                     Toast.makeText(requireContext(),
                             "Notifications enabled. Scheduling reminders...",
                             Toast.LENGTH_SHORT).show();
                 } else if (checkedId == R.id.rbNotificationOff) {
                     saveNotificationSetting(false);
-                    // ✅ Cancel all existing notifications when disabled
+                    // Cancel all existing notifications when disabled
                     NotificationHelper.cancelAllNotifications(requireContext());
                     Toast.makeText(requireContext(),
                             "Notifications disabled. All scheduled reminders cancelled.",
@@ -154,15 +153,6 @@ public class Settings extends Fragment {
             userProfileIcon.setOnClickListener(v -> {
                 Intent intent = new Intent(requireContext(), Account.class);
                 startActivity(intent);
-            });
-        }
-
-        // Theme
-        if (btnTheme != null) {
-            btnTheme.setOnClickListener(v -> {
-                // TODO: Open theme selection activity or dialog
-                // Intent intent = new Intent(requireContext(), ThemeActivity.class);
-                // startActivity(intent);
             });
         }
 
@@ -218,8 +208,6 @@ public class Settings extends Fragment {
 
     private void saveTimeFormat(String format) {
         preferences.edit().putString(KEY_TIME_FORMAT, format).apply();
-        // TODO: Apply time format change throughout the app
-        // You might want to broadcast this change or use LiveData/ViewModel
     }
 
     private void saveNotificationSetting(boolean enabled) {
@@ -227,7 +215,7 @@ public class Settings extends Fragment {
     }
 
     /**
-     * ✅ NEW: Re-schedule all notifications for existing tasks when notifications are enabled
+     * Re-schedule all notifications for existing tasks when notifications are enabled
      */
     private void rescheduleAllNotifications() {
         NotificationScheduler.rescheduleAllNotifications(requireContext());

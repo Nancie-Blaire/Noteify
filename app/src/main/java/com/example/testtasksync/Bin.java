@@ -57,6 +57,14 @@ public class Bin extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bin);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(Color.parseColor("#f4e8df"));
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // This makes the status bar icons dark
+                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
 
         // Initialize Firebase
         auth = FirebaseAuth.getInstance();
@@ -527,7 +535,7 @@ public class Bin extends AppCompatActivity {
                     if (onComplete != null) onComplete.run();
                 });
     }
-private void performBatchDeleteWithSource(String userId, List<ScheduleSourcePair> pairs, int totalCount) {
+    private void performBatchDeleteWithSource(String userId, List<ScheduleSourcePair> pairs, int totalCount) {
         WriteBatch batch = db.batch();
 
         for (ScheduleSourcePair pair : pairs) {

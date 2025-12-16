@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Shadow Layer (offset to bottom-right) -->
+    <item
+        android:left="9dp"
+        android:top="9dp"
+      >
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="@color/card_two" />
+        </shape>
+    </item>
+
+    <!-- Main Background -->
+    <item
+        android:right="9dp"
+        android:bottom="9dp"
+        android:top="0dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="@color/card_main" />
+        </shape>
+    </item>
+
+
+
+
+</layer-list>

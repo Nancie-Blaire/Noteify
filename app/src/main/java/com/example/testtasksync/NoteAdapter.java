@@ -594,27 +594,38 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         // ✅ NEW: Soft delete for notes
         private void softDeleteNote(String userId, String noteId, FirebaseFirestore db, View view,
                                     List<Note> noteList, NoteAdapter adapter) {
+            // ✅ Show toast IMMEDIATELY (works offline)
+            Toast.makeText(view.getContext(), "✓ Note moved to bin", Toast.LENGTH_SHORT).show();
+
+            // ✅ Update UI immediately
+            removeFromList(view, noteList, adapter);
+
+            // Then update Firestore (will sync when online)
             db.collection("users")
                     .document(userId)
                     .collection("notes")
                     .document(noteId)
                     .update("deletedAt", com.google.firebase.Timestamp.now())
                     .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ Note moved to bin",
-                                Toast.LENGTH_SHORT).show();
                         Log.d("NoteAdapter", "Note soft deleted: " + noteId);
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
+                        // Only show error if it's NOT an offline error
                         Log.e("NoteAdapter", "Failed to soft delete note", e);
+                        // Note: Firestore will auto-retry when back online
                     });
         }
 
         // ✅ NEW: Soft delete for schedules (todo & weekly)
         private void softDeleteSchedule(String userId, String scheduleId, FirebaseFirestore db,
                                         View view, List<Note> noteList, NoteAdapter adapter, String itemType) {
+            // ✅ Show toast IMMEDIATELY (works offline)
+            String itemLabel = "todo".equals(itemType) ? "To-Do" : "Weekly plan";
+            Toast.makeText(view.getContext(), "✓ " + itemLabel + " moved to bin", Toast.LENGTH_SHORT).show();
+
+            // ✅ Update UI immediately
+            removeFromList(view, noteList, adapter);
+
             // First, get the schedule to find its sourceId
             db.collection("users")
                     .document(userId)
@@ -656,26 +667,17 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                             // Commit the batch
                             batch.commit()
                                     .addOnSuccessListener(aVoid -> {
-                                        removeFromList(view, noteList, adapter);
-                                        String itemLabel = "todo".equals(itemType) ? "To-Do" : "Weekly plan";
-                                        Toast.makeText(view.getContext(), "✓ " + itemLabel + " moved to bin",
-                                                Toast.LENGTH_SHORT).show();
                                         Log.d("NoteAdapter", "Schedule soft deleted with source: " + scheduleId);
                                     })
                                     .addOnFailureListener(e -> {
-                                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                                Toast.LENGTH_SHORT).show();
                                         Log.e("NoteAdapter", "Failed to soft delete schedule", e);
+                                        // Firestore will auto-retry when back online
                                     });
-                        } else {
-                            Toast.makeText(view.getContext(), "✗ Item not found",
-                                    Toast.LENGTH_SHORT).show();
                         }
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
                         Log.e("NoteAdapter", "Failed to get schedule data", e);
+                        // Firestore will auto-retry when back online
                     });
         }
         private void removeFromList(View view, List<Note> noteList, NoteAdapter adapter) {

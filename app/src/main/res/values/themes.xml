@@ -7,6 +7,27 @@
         <item name="android:navigationBarColor">@color/background_color</item>
     </style>
 
+    <!-- FOR MAIN ACTIVITY STATUS BAR -->
+    <style name="Theme.MyApp.DarkBars" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/bg_bgcolor</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/nav_bg</item>
+    </style>
+
+    <!-- FOR note taking ACTIVITY STATUS BAR -->
+    <style name="Theme.MyApp.Note" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/header_note</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/header_note</item>
+
+        <item name="editTextStyle">@style/MyEditText</item>
+    </style>
+    <style name="MyEditText" parent="Widget.AppCompat.EditText">
+        <item name="android:textColor">?attr/colorOnBackground</item>
+        <item name="android:textColorHint">?attr/colorOnBackground</item>
+    </style>
+
+
     <style name="Theme.TESTtaskSync" parent="Base.Theme.TESTtaskSync">
         <item name="popupMenuStyle">@style/CustomPopupMenu</item>
         <item name="android:textAppearanceLargePopupMenu">@style/CustomMenuTextAppearance</item>

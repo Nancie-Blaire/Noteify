@@ -123,10 +123,6 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        //TOP BAR COLOR THEME
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().setStatusBarColor(Color.parseColor("#8daaa6")); // Same as your top bar
-        }
 
         // ✅ MODERN: Handle Android back button/gesture
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -198,7 +194,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             scrollToTextPosition = getIntent().getIntExtra("scrollToTextPosition", -1);
             loadNote();
             loadNoteColor();
-            loadBookmarksForNote();// ✅ Load saved color
+            loadBookmarksForNote();
+            migrateOldBlockColors();
+            migrateOldBlockColors();// ✅ Load saved color
         } else {
             createNewNote();
         }
@@ -560,9 +558,9 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", NoteBlock.BlockType.TEXT);
         block.setPosition(blocks.size());
 
-        // ✅ Set default style - no special formatting
+        // ✅ Set default style with theme color
         block.setFontStyle(null);
-        block.setFontColor("#333333");
+        block.setFontColor(getDefaultTextColor()); // Use theme-aware color
 
         blocks.add(block);
         adapter.notifyItemInserted(blocks.size() - 1);
@@ -586,6 +584,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         if (!replacedEmptyBlock) {
             NoteBlock block = new NoteBlock(System.currentTimeMillis() + "", headingType);
             block.setPosition(blocks.size());
+            block.setFontColor(getDefaultTextColor()); // ✅ Add this
             blocks.add(block);
             adapter.notifyItemInserted(blocks.size() - 1);
             saveBlock(block);
@@ -2167,7 +2166,20 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         bottomSheet.show();
     }
+    private void migrateOldBlockColors() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
 
+        String defaultColor = getDefaultTextColor();
+
+        for (NoteBlock block : blocks) {
+            // If block has hardcoded #333333, update to null (will use theme)
+            if ("#333333".equals(block.getFontColor())) {
+                block.setFontColor(null);
+                saveBlock(block);
+            }
+        }
+    }
     // ✅ NEW METHOD: Apply font color to current block
     private void applyFontColor(String color) {
         View focusedView = getCurrentFocus();
@@ -2281,17 +2293,31 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Clear font style and reset color
         block.setFontStyle(null);
-        block.setFontColor("#333333");
+        block.setFontColor(getDefaultTextColor()); // ✅ Use theme color
 
         adapter.notifyItemChanged(position);
         saveBlock(block);
 
-        CustomToast.show(this, "Converted to normal text", R.drawable.logo_noteify);
 
         // ✅ USE focusBlock with content length
         focusBlock(position, block.getContent() != null ? block.getContent().length() : 0);
     }
+    private String getDefaultTextColor() {
+        // ✅ Get text color based on current theme background
+        if (currentNoteColor == null) currentNoteColor = "#FAFAFA";
 
+        // Calculate brightness of background
+        int color = Color.parseColor(currentNoteColor);
+        int red = Color.red(color);
+        int green = Color.green(color);
+        int blue = Color.blue(color);
+
+        // Calculate luminance (brightness)
+        double luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+
+        // If background is dark, use white text. Otherwise black text.
+        return luminance > 0.7 ? "#333333" : "#FFFFFF";
+    }
     // ====================================================
 // BOOKMARK FEATURE
 // ====================================================
@@ -2877,62 +2903,62 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .show();
     }
 
-//LINK TO PAGE
-private void showLinkToPageBottomSheet() {
-    BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
-    View sheetView = getLayoutInflater().inflate(R.layout.link_to_page_bottom_sheet, null);
-    bottomSheet.setContentView(sheetView);
+    //LINK TO PAGE
+    private void showLinkToPageBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View sheetView = getLayoutInflater().inflate(R.layout.link_to_page_bottom_sheet, null);
+        bottomSheet.setContentView(sheetView);
 
-    com.google.android.material.textfield.TextInputEditText searchInput =
-            sheetView.findViewById(R.id.searchInput);
-    RecyclerView resultsRecycler = sheetView.findViewById(R.id.resultsRecycler);
-    View emptyState = sheetView.findViewById(R.id.emptyState);
+        com.google.android.material.textfield.TextInputEditText searchInput =
+                sheetView.findViewById(R.id.searchInput);
+        RecyclerView resultsRecycler = sheetView.findViewById(R.id.resultsRecycler);
+        View emptyState = sheetView.findViewById(R.id.emptyState);
 
-    List<LinkableItem> allItems = new ArrayList<>();
-    List<LinkableItem> filteredItems = new ArrayList<>();
+        List<LinkableItem> allItems = new ArrayList<>();
+        List<LinkableItem> filteredItems = new ArrayList<>();
 
-    LinkToPageAdapter adapter = new LinkToPageAdapter(item -> {
-        // Insert link block
-        insertLinkToPageBlock(item);
-        bottomSheet.dismiss();
-    });
+        LinkToPageAdapter adapter = new LinkToPageAdapter(item -> {
+            // Insert link block
+            insertLinkToPageBlock(item);
+            bottomSheet.dismiss();
+        });
 
-    resultsRecycler.setLayoutManager(new LinearLayoutManager(this));
-    resultsRecycler.setAdapter(adapter);
+        resultsRecycler.setLayoutManager(new LinearLayoutManager(this));
+        resultsRecycler.setAdapter(adapter);
 
-    // Load all items from Firestore
-    loadLinkableItems(allItems, adapter, emptyState);
+        // Load all items from Firestore
+        loadLinkableItems(allItems, adapter, emptyState);
 
-    // Search functionality
-    searchInput.addTextChangedListener(new android.text.TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+        // Search functionality
+        searchInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            String query = s.toString().toLowerCase().trim();
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().toLowerCase().trim();
 
-            if (query.isEmpty()) {
-                adapter.updateItems(allItems);
-                emptyState.setVisibility(allItems.isEmpty() ? View.VISIBLE : View.GONE);
-            } else {
-                filteredItems.clear();
-                for (LinkableItem item : allItems) {
-                    if (item.getTitle().toLowerCase().contains(query)) {
-                        filteredItems.add(item);
+                if (query.isEmpty()) {
+                    adapter.updateItems(allItems);
+                    emptyState.setVisibility(allItems.isEmpty() ? View.VISIBLE : View.GONE);
+                } else {
+                    filteredItems.clear();
+                    for (LinkableItem item : allItems) {
+                        if (item.getTitle().toLowerCase().contains(query)) {
+                            filteredItems.add(item);
+                        }
                     }
+                    adapter.updateItems(filteredItems);
+                    emptyState.setVisibility(filteredItems.isEmpty() ? View.VISIBLE : View.GONE);
                 }
-                adapter.updateItems(filteredItems);
-                emptyState.setVisibility(filteredItems.isEmpty() ? View.VISIBLE : View.GONE);
             }
-        }
 
-        @Override
-        public void afterTextChanged(android.text.Editable s) {}
-    });
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
 
-    bottomSheet.show();
-}
+        bottomSheet.show();
+    }
 
     private void loadLinkableItems(List<LinkableItem> items, LinkToPageAdapter adapter, View emptyState) {
         FirebaseUser user = auth.getCurrentUser();
@@ -3103,5 +3129,7 @@ private void showLinkToPageBottomSheet() {
                         });
             }
         }
+
     }
+
 }

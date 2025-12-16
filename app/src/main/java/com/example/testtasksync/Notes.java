@@ -90,6 +90,19 @@ public class Notes extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        //TOP BAR COLOR
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            requireActivity().getWindow().setStatusBarColor(
+                    Color.parseColor("#f4e8df") // White
+            );
+            // ✅ THIS IS FOR THE ICONS
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                View decorView = requireActivity().getWindow().getDecorView();
+                decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR); // Dark icons
+                // OR remove this line for white icons
+            }
+
+        }
 
 
 
@@ -266,7 +279,8 @@ public class Notes extends Fragment {
 
         View gridView = popupView.findViewById(R.id.menu_grid_view);
         View listView = popupView.findViewById(R.id.menu_list_view);
-        View sortDate = popupView.findViewById(R.id.menu_sort_date);
+        View sortNewest = popupView.findViewById(R.id.menu_sort_newest);
+        View sortOldest = popupView.findViewById(R.id.menu_sort_oldest);
 
         gridView.setOnClickListener(v -> {
             prioLayoutMode = LayoutMode.GRID;
@@ -284,16 +298,17 @@ public class Notes extends Fragment {
             popupWindow.dismiss();
         });
 
-        sortDate.setOnClickListener(v -> {
-            sortPriosByDate();
-            Toast.makeText(getContext(), "Sorted by date", Toast.LENGTH_SHORT).show();
+        sortNewest.setOnClickListener(v -> {
+            sortPriosByNewest();
+            Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
-        // Calculate position to align popup to the right edge of anchor
-        int[] location = new int[2];
-        anchor.getLocationOnScreen(location);
-        int xOffset = anchor.getWidth() - popupView.getMeasuredWidth();
+        sortOldest.setOnClickListener(v -> {
+            sortPriosByOldest();
+            Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
 
         // Measure the popup view first
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
@@ -318,7 +333,8 @@ public class Notes extends Fragment {
 
         View gridView = popupView.findViewById(R.id.menu_grid_view);
         View listView = popupView.findViewById(R.id.menu_list_view);
-        View sortDate = popupView.findViewById(R.id.menu_sort_date);
+        View sortNewest = popupView.findViewById(R.id.menu_sort_newest);
+        View sortOldest = popupView.findViewById(R.id.menu_sort_oldest);
 
         gridView.setOnClickListener(v -> {
             recentsLayoutMode = LayoutMode.GRID;
@@ -336,22 +352,76 @@ public class Notes extends Fragment {
             popupWindow.dismiss();
         });
 
-        sortDate.setOnClickListener(v -> {
-            sortRecentsByDate();
-            Toast.makeText(getContext(), "Sorted by date", Toast.LENGTH_SHORT).show();
+        sortNewest.setOnClickListener(v -> {
+            sortRecentsByNewest();
+            Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
-        // Calculate position to align popup to the right edge of anchor
-        int[] location = new int[2];
-        anchor.getLocationOnScreen(location);
-        int xOffset = anchor.getWidth() - popupView.getMeasuredWidth();
+        sortOldest.setOnClickListener(v -> {
+            sortRecentsByOldest();
+            Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
+            popupWindow.dismiss();
+        });
 
         // Measure the popup view first
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
 
         // Position popup aligned to right edge of anchor, slightly below
         popupWindow.showAsDropDown(anchor, anchor.getWidth() - popupView.getMeasuredWidth(), 8);
+    }
+
+    private void sortPriosByNewest() {
+        Collections.sort(starredList, new Comparator<Note>() {
+            @Override
+            public int compare(Note n1, Note n2) {
+                return Long.compare(n2.getTimestamp(), n1.getTimestamp()); // Newest first
+            }
+        });
+        starredAdapter.notifyDataSetChanged();
+        Log.d(TAG, "Prios sorted by newest");
+    }
+    private void sortPriosByOldest() {
+        Collections.sort(starredList, new Comparator<Note>() {
+            @Override
+            public int compare(Note n1, Note n2) {
+                return Long.compare(n1.getTimestamp(), n2.getTimestamp()); // Oldest first
+            }
+        });
+        starredAdapter.notifyDataSetChanged();
+        Log.d(TAG, "Prios sorted by oldest");
+    }
+
+    // ✅ NEW: Sort Recents by Newest (Descending - newest first)
+    private void sortRecentsByNewest() {
+        Collections.sort(combinedList, new Comparator<Note>() {
+            @Override
+            public int compare(Note n1, Note n2) {
+                return Long.compare(n2.getTimestamp(), n1.getTimestamp()); // Newest first
+            }
+        });
+
+        NoteAdapter currentAdapter = (NoteAdapter) notesRecyclerView.getAdapter();
+        if (currentAdapter != null) {
+            currentAdapter.notifyDataSetChanged();
+        }
+        Log.d(TAG, "Recents sorted by newest");
+    }
+
+    // ✅ NEW: Sort Recents by Oldest (Ascending - oldest first)
+    private void sortRecentsByOldest() {
+        Collections.sort(combinedList, new Comparator<Note>() {
+            @Override
+            public int compare(Note n1, Note n2) {
+                return Long.compare(n1.getTimestamp(), n2.getTimestamp()); // Oldest first
+            }
+        });
+
+        NoteAdapter currentAdapter = (NoteAdapter) notesRecyclerView.getAdapter();
+        if (currentAdapter != null) {
+            currentAdapter.notifyDataSetChanged();
+        }
+        Log.d(TAG, "Recents sorted by oldest");
     }
 
     private void updatePrioLayout() {

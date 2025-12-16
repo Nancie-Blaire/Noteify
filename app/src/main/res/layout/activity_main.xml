@@ -117,7 +117,7 @@
                 android:layout_width="45dp"
                 android:layout_height="45dp"
                 android:layout_gravity="center"
-                android:background="@drawable/circle_bg"
+                android:background="@drawable/circle_bg_main"
                 android:contentDescription="Nav Home"
                 android:padding="10dp"
                 android:src="@drawable/ic_navbar_home"
@@ -154,10 +154,10 @@
                 android:contentDescription="Add Note"
                 android:elevation="12dp"
                 android:src="@drawable/ic_fab_add"
-                app:backgroundTint="#f6d5b6"
+                app:backgroundTint="@color/plus_bg"
                 app:fabCustomSize="40dp"
                 app:maxImageSize="30dp"
-                app:tint="#000000" />
+                app:tint="@color/black" />
         </FrameLayout>
 
         <!-- Notifs -->

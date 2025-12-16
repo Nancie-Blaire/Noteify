@@ -4,39 +4,37 @@
     <!-- Background color -->
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="@color/autumn"/>
+            <solid android:color="@color/bg_bgcolor"/>
         </shape>
     </item>
 
     <!-- Peach/Orange Circle (Left/Top) -->
     <item
-        android:width="360dp"
-        android:height="340dp"
-        android:top="-90dp"
-        android:left="-100dp">
+        android:width="250dp"
+        android:height="230dp"
+        android:top="220dp"
+        android:left="-50dp">
         <shape android:shape="oval">
             <stroke
-                android:width="11dp"
+                android:width="10dp"
                 android:color="@color/small_circle"/>
-            <size
-                android:width="300dp"
-                android:height="280dp"/>
+
         </shape>
     </item>
 
     <!-- Sage Green Circle (Right/Bottom) -->
     <item
-        android:width="450dp"
-        android:height="430dp"
-        android:top="40dp"
-        android:left="100dp">
+        android:width="340dp"
+        android:height="320dp"
+        android:top="320dp"
+        android:bottom="-80dp"
+        android:left="100dp"
+        android:right="-20dp">
         <shape android:shape="oval">
             <stroke
-                android:width="12dp"
+                android:width="10dp"
                 android:color="@color/big_circle"/>
-            <size
-                android:width="220dp"
-                android:height="220dp"/>
+
         </shape>
     </item>
 

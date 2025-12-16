@@ -5,7 +5,7 @@
     android:id="@+id/notesMainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/autumn"
+    android:background="@color/notes_bg"
     tools:context=".Notes">
 
     <!-- Main Content (can be dimmed) -->

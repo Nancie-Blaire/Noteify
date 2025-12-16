@@ -2,7 +2,7 @@
     <!-- Base application theme. -->
     <style name="Base.Theme.TESTtaskSync" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Status bar color -->
-        <item name="android:statusBarColor">@color/background_color</item>
+        <item name="android:statusBarColor">@color/bg_bgcolor</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@color/background_color</item>
     </style>

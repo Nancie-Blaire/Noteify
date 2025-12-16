@@ -1,5 +1,6 @@
 package com.example.testtasksync;
 
+import android.content.Context;
 import android.graphics.Paint;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -19,14 +20,12 @@ import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.recyclerview.widget.ItemTouchHelper;
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 public class TodoTaskAdapter extends RecyclerView.Adapter<TodoTaskAdapter.TaskViewHolder> {
 
     private List<TodoTask> tasks;
     private TaskActionListener listener;
+    private Context context; // ✅ NEW: Store context
 
     public interface TaskActionListener {
         void onTaskTextChanged(TodoTask task, String newText);
@@ -45,7 +44,9 @@ public class TodoTaskAdapter extends RecyclerView.Adapter<TodoTaskAdapter.TaskVi
     @NonNull
     @Override
     public TaskViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
+        // ✅ Store context
+        context = parent.getContext();
+        View view = LayoutInflater.from(context)
                 .inflate(R.layout.item_todo, parent, false);
         return new TaskViewHolder(view);
     }
@@ -72,6 +73,35 @@ public class TodoTaskAdapter extends RecyclerView.Adapter<TodoTaskAdapter.TaskVi
 
         if (listener != null) {
             listener.onTaskMoved(fromPosition, toPosition);
+        }
+    }
+
+    // ✅ NEW: Helper method to format time based on user preference
+    private String formatTimeForDisplay(String time24) {
+        if (time24 == null || time24.isEmpty()) {
+            return "";
+        }
+
+        // Get user's time format preference
+        String timeFormat = Settings.getTimeFormat(context);
+
+        try {
+            // Parse the 24-hour time
+            String[] parts = time24.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+
+            if ("civilian".equals(timeFormat)) {
+                // Convert to 12-hour format with AM/PM
+                String period = (hour >= 12) ? "PM" : "AM";
+                int hour12 = (hour == 0) ? 12 : (hour > 12) ? hour - 12 : hour;
+                return String.format(Locale.getDefault(), "%d:%02d %s", hour12, minute, period);
+            } else {
+                // Keep 24-hour format
+                return String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+            }
+        } catch (Exception e) {
+            return time24;
         }
     }
 
@@ -123,7 +153,7 @@ public class TodoTaskAdapter extends RecyclerView.Adapter<TodoTaskAdapter.TaskVi
                 taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             }
 
-            // Update schedule display
+            // ✅ UPDATED: Update schedule display with formatted time
             updateScheduleDisplay(task);
 
             // Checkbox listener
@@ -187,6 +217,7 @@ public class TodoTaskAdapter extends RecyclerView.Adapter<TodoTaskAdapter.TaskVi
             });
         }
 
+        // ✅ UPDATED: Schedule display method with time formatting
         private void updateScheduleDisplay(TodoTask task) {
             if (task.getScheduleDate() != null) {
                 scheduleDisplay.setVisibility(View.VISIBLE);
@@ -195,7 +226,9 @@ public class TodoTaskAdapter extends RecyclerView.Adapter<TodoTaskAdapter.TaskVi
                 String displayText = dateFormat.format(task.getScheduleDate());
 
                 if (task.getScheduleTime() != null && !task.getScheduleTime().isEmpty()) {
-                    displayText += ", " + task.getScheduleTime();
+                    // ✅ Format time according to user preference
+                    String formattedTime = formatTimeForDisplay(task.getScheduleTime());
+                    displayText += ", " + formattedTime;
                 }
 
                 scheduleText.setText(displayText);

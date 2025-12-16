@@ -1,5 +1,6 @@
 package com.example.testtasksync;
 
+import android.content.Context;
 import android.graphics.Paint;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -24,14 +25,15 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
     private List<WeeklyTask> tasks;
     private String day;
     private TaskActionListener listener;
+    private Context context; // ✅ NEW: Store context
 
     public interface TaskActionListener {
         void onTaskTextChanged(WeeklyTask task, String newText);
         void onTaskCompletionChanged(WeeklyTask task, boolean isCompleted);
         void onDeleteClicked(WeeklyTask task, int position);
         void onTaskMoved(int fromPosition, int toPosition);
-        void onScheduleClicked(WeeklyTask task, int position); // ✅ NEW
-        void onClearScheduleClicked(WeeklyTask task); // ✅ NEW
+        void onScheduleClicked(WeeklyTask task, int position);
+        void onClearScheduleClicked(WeeklyTask task);
     }
 
     public WeeklyTaskAdapter(String day, List<WeeklyTask> tasks, TaskActionListener listener) {
@@ -43,7 +45,9 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
     @NonNull
     @Override
     public TaskViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
+        // ✅ Store context
+        context = parent.getContext();
+        View view = LayoutInflater.from(context)
                 .inflate(R.layout.item_weekly_task, parent, false);
         return new TaskViewHolder(view);
     }
@@ -86,11 +90,39 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
         }
     }
 
+    // ✅ NEW: Helper method to format time based on user preference
+    private String formatTimeForDisplay(String time24) {
+        if (time24 == null || time24.isEmpty()) {
+            return "";
+        }
+
+        // Get user's time format preference
+        String timeFormat = Settings.getTimeFormat(context);
+
+        try {
+            // Parse the 24-hour time
+            String[] parts = time24.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+
+            if ("civilian".equals(timeFormat)) {
+                // Convert to 12-hour format with AM/PM
+                String period = (hour >= 12) ? "PM" : "AM";
+                int hour12 = (hour == 0) ? 12 : (hour > 12) ? hour - 12 : hour;
+                return String.format(Locale.getDefault(), "%d:%02d %s", hour12, minute, period);
+            } else {
+                // Keep 24-hour format
+                return String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+            }
+        } catch (Exception e) {
+            return time24;
+        }
+    }
+
     class TaskViewHolder extends RecyclerView.ViewHolder {
         public CheckBox checkbox;
         public EditText taskText;
         public ImageView deleteButton;
-        // ✅ NEW: Schedule UI elements
         public ImageView scheduleButton;
         public LinearLayout scheduleDisplay;
         public TextView scheduleText;
@@ -102,7 +134,6 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
             checkbox = itemView.findViewById(R.id.taskCheckbox);
             taskText = itemView.findViewById(R.id.taskEditText);
             deleteButton = itemView.findViewById(R.id.deleteTaskButton);
-            // ✅ NEW: Initialize schedule views
             scheduleButton = itemView.findViewById(R.id.scheduleButton);
             scheduleDisplay = itemView.findViewById(R.id.scheduleDisplay);
             scheduleText = itemView.findViewById(R.id.scheduleText);
@@ -135,7 +166,7 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
                 taskText.setPaintFlags(taskText.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             }
 
-            // ✅ NEW: Update schedule display
+            // ✅ UPDATED: Update schedule display with formatted time
             updateScheduleDisplay(task);
 
             // Checkbox listener
@@ -172,14 +203,14 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
                 public void afterTextChanged(Editable s) {}
             });
 
-            // ✅ NEW: Schedule button listener
+            // Schedule button listener
             scheduleButton.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onScheduleClicked(task, getAdapterPosition());
                 }
             });
 
-            // ✅ NEW: Clear schedule button listener
+            // Clear schedule button listener
             clearScheduleButton.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onClearScheduleClicked(task);
@@ -199,7 +230,7 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
             });
         }
 
-        // ✅ NEW: Schedule display method
+        // ✅ UPDATED: Schedule display method with time formatting
         private void updateScheduleDisplay(WeeklyTask task) {
             if (task.getScheduleDate() != null) {
                 scheduleDisplay.setVisibility(View.VISIBLE);
@@ -208,7 +239,9 @@ public class WeeklyTaskAdapter extends RecyclerView.Adapter<WeeklyTaskAdapter.Ta
                 String displayText = dateFormat.format(task.getScheduleDate());
 
                 if (task.getScheduleTime() != null && !task.getScheduleTime().isEmpty()) {
-                    displayText += ", " + task.getScheduleTime();
+                    // ✅ Format time according to user preference
+                    String formattedTime = formatTimeForDisplay(task.getScheduleTime());
+                    displayText += ", " + formattedTime;
                 }
 
                 scheduleText.setText(displayText);

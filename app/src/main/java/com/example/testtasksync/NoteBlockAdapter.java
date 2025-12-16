@@ -3496,7 +3496,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     case "note":
                         pageIcon.setImageResource(R.drawable.ic_fab_notes);
                         pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                                android.graphics.Color.parseColor("#8daaa6")));
+                                android.graphics.Color.parseColor("#E3F2FD")));
                         break;
                     case "todo":
                         pageIcon.setImageResource(R.drawable.ic_fab_todo);

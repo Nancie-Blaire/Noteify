@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.INTERNET" /> <!-- ✅ NEW: Notification permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
@@ -10,20 +10,17 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
 
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.CAMERA" />
 
     <uses-feature
         android:name="android.hardware.camera"
-        android:required="false" /> <!-- ✅ Already in your manifest - no changes needed! -->
-    <uses-permission android:name="android:permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android:permission.CAMERA" />
+        android:required="false" />
 
     <application
+        android:name=".MyApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -32,10 +29,15 @@
         android:roundIcon="@drawable/ic_app_logo"
         android:supportsRtl="true"
         android:theme="@style/Theme.TESTtaskSync">
+
         <activity
             android:name=".NoteActivity"
-            android:exported="false" />
-        <!-- ✅ NEW: Notification Receiver -->
+            android:exported="false"
+            android:theme="@style/Theme.MyApp.Note"
+            />
+
+
+        <!-- Notification Receiver -->
         <receiver
             android:name=".NotificationReceiver"
             android:enabled="true"
@@ -93,11 +95,11 @@
             android:exported="false" />
         <activity
             android:name=".NoteAdapter"
-            android:exported="false" />
+            android:exported="false"/>
         <activity
             android:name=".NoteActivity_1"
             android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
+            />
         <activity
             android:name=".Notes"
             android:exported="false"
@@ -105,7 +107,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
-            android:theme="@style/Theme.App.Starting"/>
+            android:theme="@style/Theme.MyApp.DarkBars"/>
         <activity
             android:name=".WeeklyActivity"
             android:exported="false"
@@ -147,15 +149,7 @@
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
-        </provider><provider
-        android:name="androidx.core.content.FileProvider"
-        android:authorities="${applicationId}.fileprovider"
-        android:exported="false"
-        android:grantUriPermissions="true">
-        <meta-data
-            android:name="android.support.FILE_PROVIDER_PATHS"
-            android:resource="@xml/file_paths" />
-    </provider>
+        </provider>
 
     </application>
 

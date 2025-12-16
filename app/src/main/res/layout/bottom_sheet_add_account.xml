@@ -53,7 +53,7 @@
             android:layout_height="120dp"
             android:layout_marginBottom="40dp"
             android:contentDescription="Noteify Logo"
-            android:src="@drawable/logo_noteify" />
+            android:src="@drawable/final_light" />
 
         <!-- Email Input -->
         <LinearLayout

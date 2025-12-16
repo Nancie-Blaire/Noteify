@@ -1123,7 +1123,7 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                 case "note":
                     pageIcon.setImageResource(R.drawable.ic_fab_notes);
                     pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                            android.graphics.Color.parseColor("#E3F2FD")));
+                            android.graphics.Color.parseColor("#8daaa6")));
                     break;
                 case "todo":
                     pageIcon.setImageResource(R.drawable.ic_fab_todo);

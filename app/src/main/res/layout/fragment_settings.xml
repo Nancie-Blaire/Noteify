@@ -3,9 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/background"
-
-    >
+    android:background="#f4e8df">
     <!--COMMENT-->
     <!-- Header with Back Button -->
     <LinearLayout
@@ -273,8 +271,7 @@
                 android:padding="16dp"
                 android:layout_marginBottom="2dp"
                 android:clickable="true"
-                android:focusable="true"
-                android:visibility="gone">
+                android:focusable="true">
 
                 <LinearLayout
                     android:id="@+id/themeHeader"

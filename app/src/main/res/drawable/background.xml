@@ -4,7 +4,7 @@
     <!-- Background color -->
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="@color/bg_bgcolor"/>
+            <solid android:color="#f4e8df"/>
         </shape>
     </item>
 
@@ -17,7 +17,7 @@
         <shape android:shape="oval">
             <stroke
                 android:width="10dp"
-                android:color="@color/small_circle"/>
+                android:color="#f6d5b6"/>
 
         </shape>
     </item>
@@ -33,7 +33,7 @@
         <shape android:shape="oval">
             <stroke
                 android:width="10dp"
-                android:color="@color/big_circle"/>
+                android:color="#8daaa6"/>
 
         </shape>
     </item>

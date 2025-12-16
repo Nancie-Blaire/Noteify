@@ -5,7 +5,7 @@
     android:id="@+id/notesMainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_bgcolor"
+    android:background="#f4e8df"
     tools:context=".Notes">
 
     <!-- Main Content (can be dimmed) -->
@@ -77,12 +77,12 @@
 
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="120dp"
+                android:layout_height="130dp"
                 android:layout_marginBottom="24dp"
                 android:layout_marginStart="10dp"
                 android:layout_marginEnd="10dp"
                 app:cardBackgroundColor="@android:color/transparent"
-                android:background="@drawable/card_background">
+                android:background="@drawable/disp">
                 <!-- Time and Date Text -->
                 <LinearLayout
                     android:layout_width="wrap_content"

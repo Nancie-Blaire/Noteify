@@ -83,64 +83,200 @@
                 android:layout_marginEnd="10dp"
                 app:cardBackgroundColor="@android:color/transparent"
                 android:background="@drawable/disp">
-                <!-- Time and Date Text -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_gravity="center_vertical"
-                    android:layout_marginStart="24dp"
-                    android:layout_marginBottom="6dp"
-                    android:baselineAligned="false">
 
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
+                        android:orientation="horizontal"
+                        android:padding="20dp"
+                        android:gravity="center_vertical">
 
-                        <!-- Time -->
-                        <TextView
-                            android:id="@+id/timeText"
+                        <!-- Left side: Greeting text -->
+                        <LinearLayout
+                            android:layout_width="186dp"
+                            android:layout_height="74dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/greetingText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="@font/syne"
+                                android:letterSpacing="-0.02"
+                                android:text="Hi,"
+                                android:textColor="#000000"
+                                android:textSize="20sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/userNameText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="-10dp"
+                                android:fontFamily="@font/syne"
+                                android:letterSpacing="-0.02"
+                                android:text="Nancie!"
+                                android:textColor="#000000"
+                                android:textSize="20sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/quoteText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:fontFamily="@font/syne"
+                                android:lineSpacingExtra="2dp"
+                                android:text="&quot;You don't have to see the whole staircase, just take the first step.&quot;"
+                                android:textColor="#000000"
+                                android:textSize="8sp" />
+                        </LinearLayout>
+
+                        <!-- Vertical divider -->
+                        <View
+                            android:layout_width="2dp"
+                            android:layout_height="match_parent"
+                            android:background="#ffffff"
+                            android:layout_marginStart="6dp"
+                            android:layout_marginEnd="6dp"/>
+
+                        <!-- Right side: Time and Date (vertical) -->
+                        <LinearLayout
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:letterSpacing="-0.02"
-                            android:layout_marginTop="-10dp"
-                            android:text=" "
-                            android:fontFamily="@font/syne"
-                            android:textColor="#000000"
-                            android:textSize="48sp" />
+                            android:orientation="vertical"
+                            android:gravity="center">
 
-                        <!-- AM/PM -->
-                        <TextView
-                            android:id="@+id/amPmText"
+                            <TextView
+                                android:id="@+id/timeText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="08"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:layout_marginBottom="2dp"/>
+
+                            <TextView
+                                android:id="@+id/minuteText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="00"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="13sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/amPmText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="AM"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="11sp"
+                                android:layout_marginTop="4dp"/>
+                        </LinearLayout>
+
+                        <LinearLayout
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginTop="-25dp"
-                            android:letterSpacing="0.1"
-                            android:text=" "
-                            android:fontFamily="@font/syne"
-                            android:textColor="#000000"
-                            android:textSize="12sp"
-                            android:textStyle="normal" />
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:id="@+id/dayText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="W"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/dayText2"
+                                android:layout_width="13dp"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="@font/syne"
+                                android:text="E"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/dayText3"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="D"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/dayText4"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="N"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/dayText5"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="E"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/dayText6"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="S"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/dayText7"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="D"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/dayText8"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="A"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:id="@+id/dayText9"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Y"
+                                android:fontFamily="@font/syne"
+                                android:textColor="#000000"
+                                android:textSize="10sp"
+                                android:textStyle="bold"/>
+                        </LinearLayout>
+
                     </LinearLayout>
-
-                    <!-- Date -->
-                    <TextView
-                        android:id="@+id/dateText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text=" "
-                        android:layout_marginTop="5dp"
-                        android:fontFamily="@font/syne"
-                        android:textSize="14sp"
-                        android:textStyle="normal"
-                        android:textColor="#000000"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="2dp"/>
-
-                </LinearLayout>
-
             </FrameLayout>
 
             <LinearLayout
@@ -281,5 +417,53 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </FrameLayout>
+    <!-- Multi-select action bar (hidden by default) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/multiSelectActionBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_margin="16dp"
+        android:visibility="gone"
+        app:cardCornerRadius="24dp"
+        app:cardElevation="8dp"
+        app:cardBackgroundColor="#ff9376 ">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/selectedCountText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="0 selected"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:fontFamily="@font/syne"
+                android:textStyle="bold"/>
+
+            <Button
+                android:id="@+id/btnCancelSelection"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cancel"
+                android:textColor="#ffffff "
+                android:backgroundTint="#f6d5b6"
+                android:layout_marginEnd="8dp"/>
+
+            <Button
+                android:id="@+id/btnDeleteSelected"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Delete"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#e9ae8c "/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

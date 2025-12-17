@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.ImageView;
@@ -41,6 +42,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
     private List<Note> noteList;
     private OnNoteClickListener listener;
+    private MultiSelectListener multiSelectListener;
     private FirebaseFirestore db;
     private FirebaseAuth auth;
     private boolean isGridLayout;
@@ -61,6 +63,13 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
     public interface OnNoteClickListener {
         void onNoteClick(Note note);
+    }
+
+    public interface MultiSelectListener {
+        void onLongPress(Note note);
+        void onItemClick(Note note);
+        boolean isMultiSelectMode();
+        boolean isSelected(Note note);
     }
 
     public NoteAdapter(List<Note> noteList, OnNoteClickListener listener, boolean isGridLayout) {
@@ -85,6 +94,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
         this.typeDetector = typeDetector;
     }
 
+    public void setMultiSelectListener(MultiSelectListener listener) {
+        this.multiSelectListener = listener;
+    }
+
     public void updateNote(Note note) {
         for (int i = 0; i < noteList.size(); i++) {
             if (noteList.get(i).getId().equals(note.getId())) {
@@ -107,7 +120,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     @Override
     public void onBindViewHolder(@NonNull NoteViewHolder holder, int position) {
         Note note = noteList.get(position);
-        holder.bind(note, listener, db, auth, isGridLayout, noteList, this, typeDetector);
+        holder.bind(note, listener, db, auth, isGridLayout, noteList, this, typeDetector, multiSelectListener);
     }
 
     @Override
@@ -118,6 +131,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     public static class NoteViewHolder extends RecyclerView.ViewHolder {
         TextView noteTitle, noteContent;
         ImageView starIcon, menuButton, lockIcon;
+        CheckBox selectCheckBox;
 
         public NoteViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -126,11 +140,13 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             starIcon = itemView.findViewById(R.id.starIcon);
             menuButton = itemView.findViewById(R.id.noteMenuButton);
             lockIcon = itemView.findViewById(R.id.lockIcon);
+            selectCheckBox = itemView.findViewById(R.id.selectCheckBox);
         }
 
         public void bind(Note note, OnNoteClickListener listener, FirebaseFirestore db,
                          FirebaseAuth auth, boolean isGridLayout, List<Note> noteList,
-                         NoteAdapter adapter, ItemTypeDetector typeDetector) {
+                         NoteAdapter adapter, ItemTypeDetector typeDetector,
+                         MultiSelectListener multiSelectListener) {
 
             if (note == null) {
                 Log.e("NoteAdapter", "Note is null in bind()");
@@ -153,21 +169,52 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
             String itemType = typeDetector != null ? typeDetector.getItemType(note) : "note";
 
+            // Multi-select checkbox visibility
+            if (selectCheckBox != null && multiSelectListener != null) {
+                if (multiSelectListener.isMultiSelectMode()) {
+                    selectCheckBox.setVisibility(View.VISIBLE);
+                    selectCheckBox.setChecked(multiSelectListener.isSelected(note));
+                } else {
+                    selectCheckBox.setVisibility(View.GONE);
+                    selectCheckBox.setChecked(false);
+                }
+            }
+
             starIcon.setOnClickListener(v -> {
-                boolean newStarState = !note.isStarred();
-                note.setStarred(newStarState);
-                updateStarIcon(newStarState);
-                updateStarInFirebase(note, db, auth, itemType);
+                if (multiSelectListener != null && multiSelectListener.isMultiSelectMode()) {
+                    multiSelectListener.onItemClick(note);
+                } else {
+                    boolean newStarState = !note.isStarred();
+                    note.setStarred(newStarState);
+                    updateStarIcon(newStarState);
+                    updateStarInFirebase(note, db, auth, itemType);
+                }
             });
 
             if (menuButton != null) {
                 menuButton.setOnClickListener(v -> {
-                    showPopupMenu(v, note, db, auth, noteList, adapter, itemType);
+                    if (multiSelectListener != null && multiSelectListener.isMultiSelectMode()) {
+                        multiSelectListener.onItemClick(note);
+                    } else {
+                        showPopupMenu(v, note, db, auth, noteList, adapter, itemType);
+                    }
                 });
             }
 
+            // Long press to enter multi-select mode
+            itemView.setOnLongClickListener(v -> {
+                if (multiSelectListener != null) {
+                    multiSelectListener.onLongPress(note);
+                    return true;
+                }
+                return false;
+            });
+
+            // Regular click
             itemView.setOnClickListener(v -> {
-                if (note.isLocked()) {
+                if (multiSelectListener != null && multiSelectListener.isMultiSelectMode()) {
+                    multiSelectListener.onItemClick(note);
+                } else if (note.isLocked()) {
                     authenticateAndOpen(v.getContext(), note, listener, auth, itemType);
                 } else {
                     listener.onNoteClick(note);
@@ -187,7 +234,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                                              SecurityCheckCallback callback) {
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) {
-                Log.d("NoteAdapter", "No user logged in");
                 callback.onResult(false);
                 return;
             }
@@ -200,12 +246,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             String localPassword = prefs.getString(passwordKey, null);
 
             if (localSetup && localPassword != null && !localPassword.isEmpty()) {
-                Log.d("NoteAdapter", "✓ Security setup found locally");
                 callback.onResult(true);
                 return;
             }
 
-            Log.d("NoteAdapter", "Checking Firestore for security settings...");
             FirebaseFirestore db = FirebaseFirestore.getInstance();
             db.collection("users")
                     .document(user.getUid())
@@ -222,22 +266,15 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                                         .putString(passwordKey, masterPassword)
                                         .putBoolean(userKey, true)
                                         .apply();
-
-                                Log.d("NoteAdapter", "✓ Security settings synced from Firestore");
                                 callback.onResult(true);
                             } else {
-                                Log.d("NoteAdapter", "✗ Firestore data incomplete");
                                 callback.onResult(false);
                             }
                         } else {
-                            Log.d("NoteAdapter", "✗ No Firestore security data");
                             callback.onResult(false);
                         }
                     })
-                    .addOnFailureListener(e -> {
-                        Log.e("NoteAdapter", "Failed to check Firestore", e);
-                        callback.onResult(false);
-                    });
+                    .addOnFailureListener(e -> callback.onResult(false));
         }
 
         private void redirectToSecuritySetup(Context context) {
@@ -253,7 +290,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             boolean enabledInApp = prefs.getBoolean(biometricKey, false);
 
             if (!enabledInApp) {
-                Log.d("NoteAdapter", "✗ Biometric NOT enabled for this device - using password");
                 return false;
             }
 
@@ -261,13 +297,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             int canAuthenticate = biometricManager.canAuthenticate(
                     BiometricManager.Authenticators.BIOMETRIC_STRONG);
 
-            if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
-                Log.d("NoteAdapter", "✗ Device has no enrolled fingerprints - biometric status: " + canAuthenticate);
-                return false;
-            }
-
-            Log.d("NoteAdapter", "✓ Biometric enabled AND device has fingerprints - using biometric");
-            return true;
+            return canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS;
         }
 
         private void authenticateAndOpen(Context context, Note note, OnNoteClickListener listener,
@@ -342,7 +372,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             biometricPrompt.authenticate(promptInfo);
         }
 
-        // ✅ Updated: Use XML layout for "Verify Master Password" dialog
         private void showPasswordDialog(Context context, Note note, OnNoteClickListener listener,
                                         String savedPassword) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
@@ -501,7 +530,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             biometricPrompt.authenticate(promptInfo);
         }
 
-        // ✅ Updated: Use XML layout for "Verify Master Password" dialog (for unlocking)
         private void showPasswordDialogForUnlock(Context context, String savedPassword, Runnable onSuccess) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             View dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_verify_password, null);
@@ -560,11 +588,9 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
                         String message = newLockState ? "Item locked 🔒" : "Item unlocked 🔓";
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-                        Log.d("NoteAdapter", "Lock state updated for " + itemType + ": " + note.getId());
                     })
                     .addOnFailureListener(e -> {
                         view.setEnabled(true);
-                        Log.e("NoteAdapter", "Failed to update lock state", e);
                         Toast.makeText(context, "✗ Failed to update lock state",
                                 Toast.LENGTH_SHORT).show();
                     });
@@ -646,21 +672,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                                                 .document(sourceId),
                                         "deletedAt", com.google.firebase.Timestamp.now()
                                 );
-
-                                Log.d("NoteAdapter", "Marking source as deleted: " + sourceCollection + "/" + sourceId);
                             }
 
-                            batch.commit()
-                                    .addOnSuccessListener(aVoid -> {
-                                        Log.d("NoteAdapter", "Schedule soft deleted with source: " + scheduleId);
-                                    })
-                                    .addOnFailureListener(e -> {
-                                        Log.e("NoteAdapter", "Failed to soft delete schedule", e);
-                                    });
+                            batch.commit();
                         }
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e("NoteAdapter", "Failed to get schedule data", e);
                     });
         }
 
@@ -694,13 +709,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                         .document(user.getUid())
                         .collection(collection)
                         .document(note.getId())
-                        .update("isStarred", note.isStarred())
-                        .addOnSuccessListener(aVoid -> {
-                            Log.d("NoteAdapter", "Star state updated for " + itemType);
-                        })
-                        .addOnFailureListener(e -> {
-                            Log.e("NoteAdapter", "Failed to update star state", e);
-                        });
+                        .update("isStarred", note.isStarred());
             }
         }
     }

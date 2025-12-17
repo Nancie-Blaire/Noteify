@@ -13,11 +13,12 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <CheckBox
+        <!-- Checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/taskCheckbox"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:buttonTint="#000000" />
+            app:buttonTint="@color/black" />
 
         <EditText
             android:id="@+id/taskEditText"

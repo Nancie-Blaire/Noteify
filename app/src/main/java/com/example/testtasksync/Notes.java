@@ -13,6 +13,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -33,10 +34,15 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.Timestamp;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import static android.content.Context.INPUT_METHOD_SERVICE;
 
@@ -53,6 +59,7 @@ public class Notes extends Fragment {
     private List<Note> searchResults;
 
     private NoteAdapter starredAdapter;
+    private NoteAdapter recentAdapter;
     private NoteAdapter searchAdapter;
     private RecyclerView prioNotesRecyclerView;
     private RecyclerView notesRecyclerView;
@@ -64,6 +71,16 @@ public class Notes extends Fragment {
     private View blurOverlay;
     private View searchContainer;
     private View mainContent;
+
+    // Multi-select UI components
+    private View multiSelectActionBar;
+    private TextView selectedCountText;
+    private Button btnCancelSelection;
+    private Button btnDeleteSelected;
+
+    // Multi-select state
+    private boolean isMultiSelectMode = false;
+    private Set<String> selectedItemIds = new HashSet<>();
 
     private NoteAdapter.ItemTypeDetector typeDetector;
 
@@ -90,9 +107,6 @@ public class Notes extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-
-
-
         Log.d(TAG, "onViewCreated started");
 
         // Initialize views
@@ -106,6 +120,12 @@ public class Notes extends Fragment {
         blurOverlay = view.findViewById(R.id.blurOverlay);
         searchContainer = view.findViewById(R.id.searchContainer);
         mainContent = view.findViewById(R.id.mainContent);
+
+        // Initialize multi-select views
+        multiSelectActionBar = view.findViewById(R.id.multiSelectActionBar);
+        selectedCountText = view.findViewById(R.id.selectedCountText);
+        btnCancelSelection = view.findViewById(R.id.btnCancelSelection);
+        btnDeleteSelected = view.findViewById(R.id.btnDeleteSelected);
 
         // Set layout managers
         prioNotesRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
@@ -132,24 +152,21 @@ public class Notes extends Fragment {
         prioToolbar.setOnClickListener(v -> showPrioToolbarMenu(v));
         recentsToolbar.setOnClickListener(v -> showRecentsToolbarMenu(v));
 
-        // Setup search bar - NOT focused by default
-        searchBar.setFocusable(false);
-        searchBar.setFocusableInTouchMode(false);
-        searchBar.post(() -> {
-            searchBar.clearFocus();
-            hideKeyboard();
+        // Setup search bar - hide icon when focused
+        searchBar.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                searchIcon.setVisibility(View.GONE);
+            } else if (searchBar.getText().toString().isEmpty()) {
+                searchIcon.setVisibility(View.VISIBLE);
+                hideSearchOverlay();
+            }
         });
 
-        // Click on search icon or search bar to activate search
-        View.OnClickListener activateSearch = v -> {
-            searchBar.setFocusable(true);
-            searchBar.setFocusableInTouchMode(true);
+        // Click on search icon to focus
+        searchIcon.setOnClickListener(v -> {
             searchBar.requestFocus();
             showKeyboard();
-        };
-
-        searchIcon.setOnClickListener(activateSearch);
-        searchBar.setOnClickListener(activateSearch);
+        });
 
         // Setup search text watcher
         searchBar.addTextChangedListener(new TextWatcher() {
@@ -160,11 +177,9 @@ public class Notes extends Fragment {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (s.length() > 0) {
-                    searchIcon.setVisibility(View.GONE);
                     showSearchOverlay();
                     performSearch(s.toString());
                 } else {
-                    searchIcon.setVisibility(View.VISIBLE);
                     hideSearchOverlay();
                 }
             }
@@ -174,18 +189,12 @@ public class Notes extends Fragment {
             }
         });
 
-        // Setup search bar focus listener
-        searchBar.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus && searchBar.getText().toString().isEmpty()) {
-                searchIcon.setVisibility(View.VISIBLE);
-                hideSearchOverlay();
-                searchBar.setFocusable(false);
-                searchBar.setFocusableInTouchMode(false);
-            }
-        });
-
         // Click on blur overlay to close search
         blurOverlay.setOnClickListener(v -> clearSearch());
+
+        // Setup multi-select action buttons
+        btnCancelSelection.setOnClickListener(v -> exitMultiSelectMode());
+        btnDeleteSelected.setOnClickListener(v -> deleteSelectedItems());
 
         // Initialize lists
         noteList = new ArrayList<>();
@@ -204,8 +213,34 @@ public class Notes extends Fragment {
 
         // Adapter for starred items (grid)
         starredAdapter = new NoteAdapter(starredList, note -> {
-            openItem(note);
+            handleNoteClick(note);
         }, true, typeDetector);
+        starredAdapter.setMultiSelectListener(new NoteAdapter.MultiSelectListener() {
+            @Override
+            public void onLongPress(Note note) {
+                enterMultiSelectMode();
+                toggleSelection(note);
+            }
+
+            @Override
+            public void onItemClick(Note note) {
+                if (isMultiSelectMode) {
+                    toggleSelection(note);
+                } else {
+                    openItem(note);
+                }
+            }
+
+            @Override
+            public boolean isMultiSelectMode() {
+                return isMultiSelectMode;
+            }
+
+            @Override
+            public boolean isSelected(Note note) {
+                return selectedItemIds.contains(note.getId());
+            }
+        });
 
         // Adapter for search results
         searchAdapter = new NoteAdapter(searchResults, note -> {
@@ -218,13 +253,179 @@ public class Notes extends Fragment {
         loadNotes(user);
         loadSchedules(user);
 
-        // Initialize time card views
-        TextView timeText = view.findViewById(R.id.timeText);
-        TextView amPmText = view.findViewById(R.id.amPmText);
-        TextView dateText = view.findViewById(R.id.dateText);
+        // Update greeting card
+        updateGreetingCard(view, user);
+    }
 
-        // Update time and date
-        updateTimeAndDate(timeText, amPmText, dateText);
+    // Multi-select methods
+    private void enterMultiSelectMode() {
+        isMultiSelectMode = true;
+        multiSelectActionBar.setVisibility(View.VISIBLE);
+        updateMultiSelectUI();
+
+        // Notify adapters
+        if (starredAdapter != null) starredAdapter.notifyDataSetChanged();
+        if (recentAdapter != null) recentAdapter.notifyDataSetChanged();
+    }
+
+    private void exitMultiSelectMode() {
+        isMultiSelectMode = false;
+        selectedItemIds.clear();
+        multiSelectActionBar.setVisibility(View.GONE);
+
+        // Notify adapters
+        if (starredAdapter != null) starredAdapter.notifyDataSetChanged();
+        if (recentAdapter != null) recentAdapter.notifyDataSetChanged();
+    }
+
+    private void toggleSelection(Note note) {
+        if (selectedItemIds.contains(note.getId())) {
+            selectedItemIds.remove(note.getId());
+        } else {
+            selectedItemIds.add(note.getId());
+        }
+
+        updateMultiSelectUI();
+
+        // Notify adapters
+        if (starredAdapter != null) starredAdapter.notifyDataSetChanged();
+        if (recentAdapter != null) recentAdapter.notifyDataSetChanged();
+
+        if (selectedItemIds.isEmpty()) {
+            exitMultiSelectMode();
+        }
+    }
+
+    private void updateMultiSelectUI() {
+        selectedCountText.setText(selectedItemIds.size() + " selected");
+    }
+
+    private void deleteSelectedItems() {
+        if (selectedItemIds.isEmpty()) return;
+
+        new android.app.AlertDialog.Builder(getContext())
+                .setTitle("Delete " + selectedItemIds.size() + " items?")
+                .setMessage("These items will be moved to the bin and can be restored within 30 days.")
+                .setPositiveButton("Move to Bin", (dialog, which) -> {
+                    FirebaseUser user = auth.getCurrentUser();
+                    if (user == null) return;
+
+                    for (String itemId : selectedItemIds) {
+                        Note note = findNoteById(itemId);
+                        if (note != null) {
+                            String itemType = typeDetector.getItemType(note);
+                            if (itemType.equals("todo") || itemType.equals("weekly")) {
+                                softDeleteSchedule(user.getUid(), itemId, itemType);
+                            } else {
+                                softDeleteNote(user.getUid(), itemId);
+                            }
+                        }
+                    }
+
+                    Toast.makeText(getContext(), "✓ Items moved to bin", Toast.LENGTH_SHORT).show();
+                    exitMultiSelectMode();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private Note findNoteById(String id) {
+        for (Note note : noteList) {
+            if (note.getId().equals(id)) return note;
+        }
+        for (Note todo : todoList) {
+            if (todo.getId().equals(id)) return todo;
+        }
+        for (Note weekly : weeklyList) {
+            if (weekly.getId().equals(id)) return weekly;
+        }
+        return null;
+    }
+
+    private void softDeleteNote(String userId, String noteId) {
+        db.collection("users")
+                .document(userId)
+                .collection("notes")
+                .document(noteId)
+                .update("deletedAt", com.google.firebase.Timestamp.now())
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Note soft deleted: " + noteId);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to soft delete note", e);
+                });
+    }
+
+    private void softDeleteSchedule(String userId, String scheduleId, String itemType) {
+        db.collection("users")
+                .document(userId)
+                .collection("schedules")
+                .document(scheduleId)
+                .get()
+                .addOnSuccessListener(scheduleDoc -> {
+                    if (scheduleDoc.exists()) {
+                        String sourceId = scheduleDoc.getString("sourceId");
+                        String category = scheduleDoc.getString("category");
+
+                        com.google.firebase.firestore.WriteBatch batch = db.batch();
+
+                        batch.update(
+                                db.collection("users")
+                                        .document(userId)
+                                        .collection("schedules")
+                                        .document(scheduleId),
+                                "deletedAt", com.google.firebase.Timestamp.now()
+                        );
+
+                        if (sourceId != null && !sourceId.isEmpty() && category != null) {
+                            String sourceCollection = "todo".equals(category) ? "todoLists" : "weeklyPlans";
+
+                            batch.update(
+                                    db.collection("users")
+                                            .document(userId)
+                                            .collection(sourceCollection)
+                                            .document(sourceId),
+                                    "deletedAt", com.google.firebase.Timestamp.now()
+                            );
+                        }
+
+                        batch.commit()
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "Schedule soft deleted: " + scheduleId);
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to soft delete schedule", e);
+                                });
+                    }
+                });
+    }
+
+    private void handleNoteClick(Note note) {
+        if (isMultiSelectMode) {
+            toggleSelection(note);
+        } else {
+            openItem(note);
+        }
+    }
+
+    private void updateGreetingCard(View view, FirebaseUser user) {
+        TextView greetingText = view.findViewById(R.id.greetingText);
+        TextView userNameText = view.findViewById(R.id.userNameText);
+        TextView timeText = view.findViewById(R.id.timeText);
+        TextView minuteText = view.findViewById(R.id.minuteText);
+        TextView amPmText = view.findViewById(R.id.amPmText);
+
+        // Set user name
+        String displayName = user.getDisplayName();
+        if (displayName != null && !displayName.isEmpty()) {
+            userNameText.setText(displayName + "!");
+        } else {
+            userNameText.setText("User!");
+        }
+
+        // Update time
+        java.util.Calendar calendar = java.util.Calendar.getInstance();
+        // ... rest of the code
     }
 
     // Add this method to load saved preferences
@@ -297,14 +498,10 @@ public class Notes extends Fragment {
             popupWindow.dismiss();
         });
 
-        // Measure the popup view first
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-
-        // Position popup aligned to right edge of anchor, slightly below
         popupWindow.showAsDropDown(anchor, anchor.getWidth() - popupView.getMeasuredWidth(), 8);
     }
 
-    // Replace the showRecentsToolbarMenu method with this:
     private void showRecentsToolbarMenu(View anchor) {
         LayoutInflater inflater = LayoutInflater.from(getContext());
         View popupView = inflater.inflate(R.layout.menu_toolbar_layout, null);
@@ -351,10 +548,7 @@ public class Notes extends Fragment {
             popupWindow.dismiss();
         });
 
-        // Measure the popup view first
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-
-        // Position popup aligned to right edge of anchor, slightly below
         popupWindow.showAsDropDown(anchor, anchor.getWidth() - popupView.getMeasuredWidth(), 8);
     }
 
@@ -362,53 +556,46 @@ public class Notes extends Fragment {
         Collections.sort(starredList, new Comparator<Note>() {
             @Override
             public int compare(Note n1, Note n2) {
-                return Long.compare(n2.getTimestamp(), n1.getTimestamp()); // Newest first
+                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
             }
         });
         starredAdapter.notifyDataSetChanged();
-        Log.d(TAG, "Prios sorted by newest");
     }
+
     private void sortPriosByOldest() {
         Collections.sort(starredList, new Comparator<Note>() {
             @Override
             public int compare(Note n1, Note n2) {
-                return Long.compare(n1.getTimestamp(), n2.getTimestamp()); // Oldest first
+                return Long.compare(n1.getTimestamp(), n2.getTimestamp());
             }
         });
         starredAdapter.notifyDataSetChanged();
-        Log.d(TAG, "Prios sorted by oldest");
     }
 
-    // ✅ NEW: Sort Recents by Newest (Descending - newest first)
     private void sortRecentsByNewest() {
         Collections.sort(combinedList, new Comparator<Note>() {
             @Override
             public int compare(Note n1, Note n2) {
-                return Long.compare(n2.getTimestamp(), n1.getTimestamp()); // Newest first
+                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
             }
         });
 
-        NoteAdapter currentAdapter = (NoteAdapter) notesRecyclerView.getAdapter();
-        if (currentAdapter != null) {
-            currentAdapter.notifyDataSetChanged();
+        if (recentAdapter != null) {
+            recentAdapter.notifyDataSetChanged();
         }
-        Log.d(TAG, "Recents sorted by newest");
     }
 
-    // ✅ NEW: Sort Recents by Oldest (Ascending - oldest first)
     private void sortRecentsByOldest() {
         Collections.sort(combinedList, new Comparator<Note>() {
             @Override
             public int compare(Note n1, Note n2) {
-                return Long.compare(n1.getTimestamp(), n2.getTimestamp()); // Oldest first
+                return Long.compare(n1.getTimestamp(), n2.getTimestamp());
             }
         });
 
-        NoteAdapter currentAdapter = (NoteAdapter) notesRecyclerView.getAdapter();
-        if (currentAdapter != null) {
-            currentAdapter.notifyDataSetChanged();
+        if (recentAdapter != null) {
+            recentAdapter.notifyDataSetChanged();
         }
-        Log.d(TAG, "Recents sorted by oldest");
     }
 
     private void updatePrioLayout() {
@@ -418,12 +605,13 @@ public class Notes extends Fragment {
 
         if (prioLayoutMode == LayoutMode.GRID) {
             prioNotesRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
-            starredAdapter = new NoteAdapter(starredList, note -> openItem(note), true, typeDetector);
+            starredAdapter = new NoteAdapter(starredList, note -> handleNoteClick(note), true, typeDetector);
         } else {
             prioNotesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-            starredAdapter = new NoteAdapter(starredList, note -> openItem(note), false, typeDetector);
+            starredAdapter = new NoteAdapter(starredList, note -> handleNoteClick(note), false, typeDetector);
         }
 
+        setupAdapterMultiSelect(starredAdapter);
         prioNotesRecyclerView.setAdapter(starredAdapter);
         starredAdapter.notifyDataSetChanged();
     }
@@ -439,86 +627,52 @@ public class Notes extends Fragment {
             notesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         }
 
-        NoteAdapter unifiedAdapter = new NoteAdapter(combinedList, note -> openItem(note),
+        recentAdapter = new NoteAdapter(combinedList, note -> handleNoteClick(note),
                 recentsLayoutMode == LayoutMode.GRID, typeDetector);
-        notesRecyclerView.setAdapter(unifiedAdapter);
-        unifiedAdapter.notifyDataSetChanged();
+        setupAdapterMultiSelect(recentAdapter);
+        notesRecyclerView.setAdapter(recentAdapter);
+        recentAdapter.notifyDataSetChanged();
     }
 
-    private void sortPriosByDate() {
-        Collections.sort(starredList, new Comparator<Note>() {
+    private void setupAdapterMultiSelect(NoteAdapter adapter) {
+        adapter.setMultiSelectListener(new NoteAdapter.MultiSelectListener() {
             @Override
-            public int compare(Note n1, Note n2) {
-                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
+            public void onLongPress(Note note) {
+                enterMultiSelectMode();
+                toggleSelection(note);
+            }
+
+            @Override
+            public void onItemClick(Note note) {
+                if (isMultiSelectMode) {
+                    toggleSelection(note);
+                } else {
+                    openItem(note);
+                }
+            }
+
+            @Override
+            public boolean isMultiSelectMode() {
+                return isMultiSelectMode;
+            }
+
+            @Override
+            public boolean isSelected(Note note) {
+                return selectedItemIds.contains(note.getId());
             }
         });
-        starredAdapter.notifyDataSetChanged();
-    }
-
-    private void sortRecentsByDate() {
-        Collections.sort(combinedList, new Comparator<Note>() {
-            @Override
-            public int compare(Note n1, Note n2) {
-                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
-            }
-        });
-
-        NoteAdapter currentAdapter = (NoteAdapter) notesRecyclerView.getAdapter();
-        if (currentAdapter != null) {
-            currentAdapter.notifyDataSetChanged();
-        }
-    }
-
-    private void updateTimeAndDate(TextView timeText, TextView amPmText, TextView dateText) {
-        java.util.Calendar calendar = java.util.Calendar.getInstance();
-
-        // Get time format preference
-        String timeFormat = Settings.getTimeFormat(requireContext());
-
-        // Format time based on preference
-        if (timeFormat.equals("military")) {
-            // Military time (24-hour format)
-            int hour = calendar.get(java.util.Calendar.HOUR_OF_DAY);
-            int minute = calendar.get(java.util.Calendar.MINUTE);
-            String time = String.format("%02d:%02d", hour, minute);
-            timeText.setText(time);
-            amPmText.setVisibility(View.GONE); // Hide AM/PM in military time
-        } else {
-            // Civilian time (12-hour format)
-            int hour = calendar.get(java.util.Calendar.HOUR);
-            if (hour == 0) hour = 12;
-            int minute = calendar.get(java.util.Calendar.MINUTE);
-            String time = String.format("%d:%02d", hour, minute);
-            timeText.setText(time);
-
-            // Format AM/PM
-            int hourOfDay = calendar.get(java.util.Calendar.HOUR_OF_DAY);
-            String amPm = hourOfDay < 12 ? "A.M." : "P.M.";
-            amPmText.setText(amPm);
-            amPmText.setVisibility(View.VISIBLE); // Show AM/PM in civilian time
-        }
-
-        // Format date
-        String[] months = {"JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
-                "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"};
-        int month = calendar.get(java.util.Calendar.MONTH);
-        int day = calendar.get(java.util.Calendar.DAY_OF_MONTH);
-        String date = months[month] + " " + day;
-        dateText.setText(date);
     }
 
     private void showSearchOverlay() {
         blurOverlay.setVisibility(View.VISIBLE);
         searchContainer.setVisibility(View.VISIBLE);
         mainContent.setAlpha(0.3f);
-        Log.d(TAG, "Search overlay shown");
     }
 
     private void hideSearchOverlay() {
         blurOverlay.setVisibility(View.GONE);
         searchContainer.setVisibility(View.GONE);
         mainContent.setAlpha(1.0f);
-        Log.d(TAG, "Search overlay hidden");
     }
 
     private void clearSearch() {
@@ -527,8 +681,6 @@ public class Notes extends Fragment {
         hideKeyboard();
         hideSearchOverlay();
         searchIcon.setVisibility(View.VISIBLE);
-        searchBar.setFocusable(false);
-        searchBar.setFocusableInTouchMode(false);
     }
 
     private void performSearch(String query) {
@@ -557,7 +709,6 @@ public class Notes extends Fragment {
                 Long.compare(n2.getTimestamp(), n1.getTimestamp()));
 
         searchAdapter.notifyDataSetChanged();
-        Log.d(TAG, "Search results: " + searchResults.size() + " items for query: " + query);
     }
 
     private boolean matchesQuery(Note note, String query) {
@@ -625,8 +776,6 @@ public class Notes extends Fragment {
         }
     }
 
-// Replace the loadNotes method in Notes.java - BALIK SA ORIGINAL NA MAY MANUAL CHECK
-
     private void loadNotes(FirebaseUser user) {
         db.collection("users")
                 .document(user.getUid())
@@ -643,9 +792,7 @@ public class Notes extends Fragment {
 
                     if (snapshots != null) {
                         for (QueryDocumentSnapshot doc : snapshots) {
-                            // ✅ MANUAL CHECK: Skip deleted items
                             if (doc.get("deletedAt") != null) {
-                                Log.d(TAG, "Skipping deleted note: " + doc.getId());
                                 continue;
                             }
 
@@ -667,13 +814,10 @@ public class Notes extends Fragment {
                                 } else {
                                     note.setTimestamp(System.currentTimeMillis());
                                 }
-                                Log.w(TAG, "Timestamp not in Firestore format, using fallback", ex);
                             }
 
                             Boolean isStarred = doc.getBoolean("isStarred");
                             note.setStarred(isStarred != null && isStarred);
-
-                            Log.d(TAG, "📄 Loaded note: " + note.getTitle() + " | starred=" + note.isStarred());
 
                             Boolean isLocked = doc.getBoolean("isLocked");
                             note.setLocked(isLocked != null && isLocked);
@@ -689,23 +833,17 @@ public class Notes extends Fragment {
                         });
                     }
 
-                    Log.d(TAG, "✅ Notes loaded: " + noteList.size());
                     notesLoaded = true;
                     updateUI();
                 });
     }
 
-// Replace the loadSchedules method in Notes.java - BALIK SA ORIGINAL NA MAY MANUAL CHECK
-
     private void loadSchedules(FirebaseUser user) {
-        Log.d(TAG, "Loading schedules (todo & weekly)...");
-
         db.collection("users")
                 .document(user.getUid())
                 .collection("schedules")
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) {
-                        Log.e(TAG, "Schedules listen failed: " + e.getMessage());
                         schedulesLoaded = true;
                         updateUI();
                         return;
@@ -715,12 +853,8 @@ public class Notes extends Fragment {
                     weeklyList.clear();
 
                     if (snapshots != null && !snapshots.isEmpty()) {
-                        Log.d(TAG, "Found " + snapshots.size() + " schedule items");
-
                         for (QueryDocumentSnapshot doc : snapshots) {
-                            // ✅ MANUAL CHECK: Skip deleted items
                             if (doc.get("deletedAt") != null) {
-                                Log.d(TAG, "Skipping deleted schedule: " + doc.getId());
                                 continue;
                             }
 
@@ -729,12 +863,9 @@ public class Notes extends Fragment {
                             if ("todo".equals(category)) {
                                 Note todoNote = createNoteFromSchedule(doc, "To-Do List");
                                 todoList.add(todoNote);
-                                Log.d(TAG, "  Added todo: " + todoNote.getTitle());
-
                             } else if ("weekly".equals(category)) {
                                 Note weeklyNote = createNoteFromSchedule(doc, "Weekly Plan");
                                 weeklyList.add(weeklyNote);
-                                Log.d(TAG, "  Added weekly: " + weeklyNote.getTitle());
                             }
                         }
 
@@ -751,15 +882,13 @@ public class Notes extends Fragment {
                                 return Long.compare(n2.getTimestamp(), n1.getTimestamp());
                             }
                         });
-                    } else {
-                        Log.d(TAG, "No schedules found");
                     }
 
-                    Log.d(TAG, "Schedules loaded - Todos: " + todoList.size() + ", Weeklies: " + weeklyList.size());
                     schedulesLoaded = true;
                     updateUI();
                 });
     }
+
     private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");
@@ -784,11 +913,8 @@ public class Notes extends Fragment {
             }
         }
 
-        // ✅ CRITICAL FIX: Always explicitly set starred state from Firebase
         Boolean isStarred = doc.getBoolean("isStarred");
         note.setStarred(isStarred != null && isStarred);
-
-        Log.d(TAG, "📅 Loaded schedule: " + note.getTitle() + " | starred=" + note.isStarred());
 
         Boolean isLocked = doc.getBoolean("isLocked");
         note.setLocked(isLocked != null && isLocked);
@@ -798,15 +924,8 @@ public class Notes extends Fragment {
 
     private void updateUI() {
         if (!notesLoaded || !schedulesLoaded) {
-            Log.d(TAG, "⏳ Waiting for all data... (notes:" + notesLoaded +
-                    ", schedules:" + schedulesLoaded + ")");
             return;
         }
-
-        Log.d(TAG, "🎨 All data loaded! Updating UI...");
-        Log.d(TAG, "   Notes: " + noteList.size());
-        Log.d(TAG, "   Todos: " + todoList.size());
-        Log.d(TAG, "   Weeklies: " + weeklyList.size());
 
         starredList.clear();
         for (Note note : noteList) {
@@ -826,11 +945,9 @@ public class Notes extends Fragment {
         }
 
         if (starredList.isEmpty()) {
-            Log.d(TAG, "No starred items - showing welcome card");
             defaultCardAdapter prioWelcomeAdapter = new defaultCardAdapter(true);
             prioNotesRecyclerView.setAdapter(prioWelcomeAdapter);
         } else {
-            Log.d(TAG, "Starred items found: " + starredList.size());
             updatePrioLayout();
         }
 
@@ -838,8 +955,6 @@ public class Notes extends Fragment {
         combinedList.addAll(noteList);
         combinedList.addAll(todoList);
         combinedList.addAll(weeklyList);
-
-        Log.d(TAG, "Combined list size: " + combinedList.size());
 
         Collections.sort(combinedList, new Comparator<Note>() {
             @Override
@@ -849,13 +964,10 @@ public class Notes extends Fragment {
         });
 
         if (combinedList.isEmpty()) {
-            Log.d(TAG, "No items - showing welcome card");
             defaultCardAdapter recentWelcomeAdapter = new defaultCardAdapter(false);
             notesRecyclerView.setAdapter(recentWelcomeAdapter);
         } else {
-            Log.d(TAG, "Combined items found: " + combinedList.size());
             updateRecentsLayout();
-            Log.d(TAG, "✅ UI Updated successfully!");
         }
-    }//
+    }
 }

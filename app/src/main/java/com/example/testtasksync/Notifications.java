@@ -6,6 +6,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -24,6 +25,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -32,6 +34,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,7 +45,7 @@ public class Notifications extends Fragment {
     private FirebaseAuth auth;
 
     private RecyclerView upcomingRecyclerView;
-    private RecyclerView overdueRecyclerView;
+    private LinearLayout overdueContainer;
     private TextView upcomingEmptyText;
     private TextView overdueEmptyText;
 
@@ -50,7 +53,6 @@ public class Notifications extends Fragment {
     private List<NotificationItem> overdueList = new ArrayList<>();
 
     private NotificationAdapter upcomingAdapter;
-    private NotificationAdapter overdueAdapter;
 
     private Set<String> deletedTodoLists = new HashSet<>();
     private Set<String> deletedWeeklyPlans = new HashSet<>();
@@ -72,12 +74,11 @@ public class Notifications extends Fragment {
         auth = FirebaseAuth.getInstance();
 
         upcomingRecyclerView = view.findViewById(R.id.upcomingRecyclerView);
-        overdueRecyclerView = view.findViewById(R.id.overdueRecyclerView);
+        overdueContainer = view.findViewById(R.id.overdueContainer);
         upcomingEmptyText = view.findViewById(R.id.upcomingEmptyText);
         overdueEmptyText = view.findViewById(R.id.overdueEmptyText);
 
         upcomingRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        overdueRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
         upcomingAdapter = new NotificationAdapter(upcomingList, new NotificationAdapter.OnItemClickListener() {
             @Override
@@ -86,15 +87,7 @@ public class Notifications extends Fragment {
             }
         });
 
-        overdueAdapter = new NotificationAdapter(overdueList, new NotificationAdapter.OnItemClickListener() {
-            @Override
-            public void onItemClick(NotificationItem item) {
-                openTask(item);
-            }
-        });
-
         upcomingRecyclerView.setAdapter(upcomingAdapter);
-        overdueRecyclerView.setAdapter(overdueAdapter);
 
         loadNotifications();
     }
@@ -180,7 +173,6 @@ public class Notifications extends Fragment {
 
                         String listTitle = todoDoc.getString("title");
 
-                        // Check if the TODO LIST itself has a schedule
                         Task<QuerySnapshot> checkScheduleTask = db.collection("users")
                                 .document(user.getUid())
                                 .collection("schedules")
@@ -192,7 +184,6 @@ public class Notifications extends Fragment {
                                     Timestamp listScheduleDate = null;
                                     String listScheduleTime = "";
 
-                                    // Check if list has a schedule
                                     if (scheduleResult.isSuccessful() && scheduleResult.getResult() != null &&
                                             !scheduleResult.getResult().isEmpty()) {
                                         DocumentSnapshot scheduleDoc = scheduleResult.getResult().getDocuments().get(0);
@@ -208,7 +199,6 @@ public class Notifications extends Fragment {
                                     final Timestamp finalListScheduleDate = listScheduleDate;
                                     final String finalListScheduleTime = listScheduleTime;
 
-                                    // Load tasks
                                     return db.collection("users")
                                             .document(user.getUid())
                                             .collection("todoLists")
@@ -219,7 +209,6 @@ public class Notifications extends Fragment {
                                                 for (QueryDocumentSnapshot taskDoc : taskSnapshots) {
                                                     Boolean isCompleted = taskDoc.getBoolean("isCompleted");
 
-                                                    // Skip completed tasks
                                                     if (Boolean.TRUE.equals(isCompleted)) {
                                                         continue;
                                                     }
@@ -228,9 +217,7 @@ public class Notifications extends Fragment {
                                                     String scheduleTime = taskDoc.getString("scheduleTime");
                                                     String taskText = taskDoc.getString("taskText");
 
-                                                    // ✅ FIXED: Show ALL tasks with schedules (task schedule OR list schedule)
                                                     if (scheduleTimestamp != null) {
-                                                        // Task has its own schedule
                                                         Date scheduleDate = scheduleTimestamp.toDate();
                                                         Calendar taskCalendar = Calendar.getInstance();
                                                         taskCalendar.setTime(scheduleDate);
@@ -266,7 +253,6 @@ public class Notifications extends Fragment {
                                                             }
                                                         }
                                                     } else if (finalListHasReminder && finalListScheduleDate != null) {
-                                                        // List has reminder - show all incomplete tasks with list's schedule
                                                         Date scheduleDate = finalListScheduleDate.toDate();
                                                         Calendar taskCalendar = Calendar.getInstance();
                                                         taskCalendar.setTime(scheduleDate);
@@ -350,7 +336,6 @@ public class Notifications extends Fragment {
                             continue;
                         }
 
-                        // Check if the WEEKLY PLAN itself has a schedule
                         Task<QuerySnapshot> checkScheduleTask = db.collection("users")
                                 .document(user.getUid())
                                 .collection("schedules")
@@ -378,7 +363,6 @@ public class Notifications extends Fragment {
                                     final boolean finalPlanHasReminder = planHasReminder;
                                     final String finalPlanScheduleTime = planScheduleTime;
 
-                                    // If plan has reminder, add a single notification for the week start
                                     if (finalPlanHasReminder && startTimestamp != null) {
                                         Calendar weekStartCalendar = Calendar.getInstance();
                                         weekStartCalendar.setTime(startTimestamp.toDate());
@@ -396,7 +380,6 @@ public class Notifications extends Fragment {
                                             }
                                         }
 
-                                        // Format week range for display
                                         String weekRange = android.text.format.DateFormat.format("MMM dd", startTimestamp.toDate()).toString();
                                         if (endTimestamp != null) {
                                             weekRange += " - " + android.text.format.DateFormat.format("MMM dd", endTimestamp.toDate()).toString();
@@ -422,7 +405,6 @@ public class Notifications extends Fragment {
                                         }
                                     }
 
-                                    // Load individual tasks
                                     return db.collection("users")
                                             .document(user.getUid())
                                             .collection("weeklyPlans")
@@ -465,7 +447,6 @@ public class Notifications extends Fragment {
                                                                     if (day != null) {
                                                                         List<DaySchedule> daySchedules = daySchedulesMap.get(day);
 
-                                                                        // ✅ FIXED: Show ALL tasks with schedules
                                                                         if (daySchedules != null && !daySchedules.isEmpty()) {
                                                                             for (DaySchedule daySchedule : daySchedules) {
                                                                                 if (daySchedule.getDate() != null) {
@@ -513,7 +494,6 @@ public class Notifications extends Fragment {
                                                                                 }
                                                                             }
                                                                         } else {
-                                                                            // No day schedules - use plan dates
                                                                             Calendar taskDate = Calendar.getInstance();
                                                                             taskDate.setTime(startTimestamp.toDate());
                                                                             int targetDay = getDayOfWeek(day);
@@ -596,7 +576,6 @@ public class Notifications extends Fragment {
         });
 
         upcomingAdapter.notifyDataSetChanged();
-        overdueAdapter.notifyDataSetChanged();
 
         if (upcomingList.isEmpty()) {
             upcomingRecyclerView.setVisibility(View.GONE);
@@ -606,16 +585,77 @@ public class Notifications extends Fragment {
             upcomingEmptyText.setVisibility(View.GONE);
         }
 
+        overdueContainer.removeAllViews();
+
         if (overdueList.isEmpty()) {
-            overdueRecyclerView.setVisibility(View.GONE);
+            overdueContainer.setVisibility(View.GONE);
             overdueEmptyText.setVisibility(View.VISIBLE);
         } else {
-            overdueRecyclerView.setVisibility(View.VISIBLE);
+            overdueContainer.setVisibility(View.VISIBLE);
             overdueEmptyText.setVisibility(View.GONE);
+
+            for (NotificationItem item : overdueList) {
+                View itemView = createOverdueItemView(item);
+                overdueContainer.addView(itemView);
+            }
         }
 
         Log.d(TAG, "✅ Notifications updated - Upcoming: " + upcomingList.size() +
                 ", Overdue: " + overdueList.size());
+    }
+
+    private View createOverdueItemView(NotificationItem item) {
+        View view = LayoutInflater.from(getContext()).inflate(R.layout.item_notification, overdueContainer, false);
+
+        TextView titleText = view.findViewById(R.id.notificationTitle);
+        TextView taskText = view.findViewById(R.id.notificationTask);
+        TextView dueDateText = view.findViewById(R.id.notificationDueDate);
+        View categoryIndicator = view.findViewById(R.id.categoryIndicator);
+
+        titleText.setText(item.getTitle());
+        taskText.setText(item.getTaskText());
+
+        String timeFormat = Settings.getTimeFormat(getContext());
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd", Locale.getDefault());
+        String dateStr = "Due: " + dateFormat.format(item.getDueDate());
+
+        if (item.getDueTime() != null && !item.getDueTime().isEmpty()) {
+            String formattedTime = convertTimeFormat(item.getDueTime(), timeFormat);
+            dateStr += ", " + formattedTime;
+        }
+
+        dueDateText.setText(dateStr);
+
+        int color = getResources().getColor(android.R.color.holo_red_dark);
+        categoryIndicator.setBackgroundColor(color);
+        dueDateText.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
+
+        view.setOnClickListener(v -> openTask(item));
+
+        return view;
+    }
+
+    private String convertTimeFormat(String time24, String format) {
+        if (time24 == null || time24.isEmpty()) {
+            return "";
+        }
+
+        try {
+            String[] parts = time24.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+
+            if ("civilian".equals(format)) {
+                String period = (hour >= 12) ? "PM" : "AM";
+                int hour12 = (hour == 0) ? 12 : (hour > 12) ? hour - 12 : hour;
+                return String.format(Locale.getDefault(), "%d:%02d %s", hour12, minute, period);
+            } else {
+                return String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+            }
+        } catch (Exception e) {
+            return time24;
+        }
     }
 
     private void openTask(NotificationItem item) {

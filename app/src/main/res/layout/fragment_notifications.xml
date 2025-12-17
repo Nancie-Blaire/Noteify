@@ -85,14 +85,14 @@
             android:gravity="center"
             android:visibility="gone"/>
 
-        <!-- Overdue RecyclerView -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/overdueRecyclerView"
+        <!-- ✅ OVERDUE LINEAR LAYOUT (replaces RecyclerView) -->
+        <LinearLayout
+            android:id="@+id/overdueContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:layout_marginStart="20dp"
-            android:layout_marginEnd="20dp"
-            android:nestedScrollingEnabled="false"/>
+            android:layout_marginEnd="20dp"/>
 
     </LinearLayout>
 

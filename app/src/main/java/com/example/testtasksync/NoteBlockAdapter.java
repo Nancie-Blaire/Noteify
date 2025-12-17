@@ -619,9 +619,11 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                        // ✅ FIXED: Check cursor position, not text emptiness
+                        if (cursorPosition == 0) {
+                            // Cursor is at the start of the block
                             listener.onBackspaceAtStart(pos, currentText);
-                            return true;
+                            return true; // ✅ Consume the event
                         }
                     }
                 }
@@ -988,6 +990,30 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             contentEdit.setCursorVisible(true);
             contentEdit.setLongClickable(true);
 
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
+
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
             // ✅ Set input type (same as Subpage)
             contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
                     android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -1154,17 +1180,18 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
                         String textBeforeCursor = currentText.substring(0, cursorPosition);
                         String textAfterCursor = currentText.substring(cursorPosition);
-
                         listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (currentText.isEmpty()) {
-                            listener.onBackspaceOnEmptyBlock(pos);
+                        // ✅ NEW: Check cursor position first
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
                             return true;
                         }
-                        else if (cursorPosition == 0) {
-                            listener.onBackspaceAtStart(pos, currentText);
+                        // ✅ Keep existing empty block behavior
+                        else if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
                     }
@@ -1650,23 +1677,25 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
                         String textBeforeCursor = currentText.substring(0, cursorPosition);
                         String textAfterCursor = currentText.substring(cursorPosition);
-
                         listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (currentText.isEmpty()) {
-                            listener.onBackspaceOnEmptyBlock(pos);
+                        // ✅ NEW: Check cursor position first
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
                             return true;
                         }
-                        else if (cursorPosition == 0) {
-                            listener.onBackspaceAtStart(pos, currentText);
+                        // ✅ Keep existing empty block behavior
+                        else if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
                     }
                 }
                 return false;
             });
+
 
             contentEdit.addTextChangedListener(new TextWatcher() {
                 private boolean isApplyingBookmarks = false;
@@ -2145,23 +2174,25 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
                         String textBeforeCursor = currentText.substring(0, cursorPosition);
                         String textAfterCursor = currentText.substring(cursorPosition);
-
                         listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (currentText.isEmpty()) {
-                            listener.onBackspaceOnEmptyBlock(pos);
+                        // ✅ NEW: Check cursor position first
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
                             return true;
                         }
-                        else if (cursorPosition == 0) {
-                            listener.onBackspaceAtStart(pos, currentText);
+                        // ✅ Keep existing empty block behavior
+                        else if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
                     }
                 }
                 return false;
             });
+
 
             checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 int pos = getAdapterPosition();

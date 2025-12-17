@@ -45,6 +45,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import android.graphics.Color;
+import android.graphics.Color;
+import android.os.Build;
 
 public class SubpageActivity extends AppCompatActivity {
 
@@ -89,6 +91,14 @@ public class SubpageActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_subpage);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(Color.parseColor("#8daaa6"));
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // This makes the status bar icons dark
+                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
         // Initialize views
         subpageTitle = findViewById(R.id.subpageTitle);
         subpageBlocksRecycler = findViewById(R.id.subpageBlocksRecycler);
@@ -201,6 +211,11 @@ public class SubpageActivity extends AppCompatActivity {
             public void onBackspaceOnEmptyBlock(int position) {
                 handleBackspaceOnEmptyBlock(position);
             }
+            @Override
+            public void onBackspaceAtStart(int position, String currentText) {
+                handleBackspaceAtStart(position, currentText);
+            }
+
 
             @Override
             public void onIndentChanged(SubpageBlock block, boolean indent) {
@@ -459,13 +474,78 @@ public class SubpageActivity extends AppCompatActivity {
     }
 
     private void addBlock(String type) {
-        // Try to replace last empty text block first
-        if (tryReplaceLastEmptyTextBlock(type)) {
-            return; // Successfully replaced
+        // ✅ Get currently focused block position
+        View focusedView = getCurrentFocus();
+        int insertPosition = blocks.size(); // Default to end
+
+        if (focusedView != null) {
+            RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+            if (holder != null) {
+                int currentPosition = holder.getAdapterPosition();
+                if (currentPosition != RecyclerView.NO_POSITION && currentPosition < blocks.size()) {
+                    SubpageBlock currentBlock = blocks.get(currentPosition);
+
+                    // ✅ Check if current block is empty text
+                    if (currentBlock.getType().equals("text") &&
+                            (currentBlock.getContent() == null || currentBlock.getContent().trim().isEmpty())) {
+                        // Replace empty text block with new type
+                        convertBlockToType(currentPosition, type);
+                        return;
+                    }
+
+                    // ✅ If block has content, insert AFTER current position
+                    insertPosition = currentPosition + 1;
+                }
+            }
         }
 
-        // Otherwise, create new block
-        addNewBlock(type, "");
+        // ✅ Insert new block at position
+        addNewBlockAt(insertPosition, type, "");
+
+        // ✅ Focus the new block
+        subpageBlocksRecycler.smoothScrollToPosition(insertPosition);
+        // Create a final copy of the variable to use inside the lambda
+        final int finalInsertPosition = insertPosition;
+
+        subpageBlocksRecycler.postDelayed(() -> focusBlockAt(finalInsertPosition + 1), 100);
+
+    }
+
+    private void convertBlockToType(int position, String newType) {
+        if (position < 0 || position >= blocks.size()) return;
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        SubpageBlock oldBlock = blocks.get(position);
+
+        // Delete old block from Firestore
+        db.collection("users").document(user.getUid())
+                .collection("notes").document(noteId)
+                .collection("subpages").document(subpageId)
+                .collection("blocks").document(oldBlock.getBlockId())
+                .delete();
+
+        // Remove from list
+        blocks.remove(position);
+
+        // Create new block with new type
+        SubpageBlock newBlock = new SubpageBlock();
+        newBlock.setBlockId(java.util.UUID.randomUUID().toString());
+        newBlock.setType(newType);
+        newBlock.setContent("");
+        newBlock.setOrder(position);
+        newBlock.setIndentLevel(0);
+        newBlock.setChecked(false);
+
+        // Insert new block
+        blocks.add(position, newBlock);
+        blockAdapter.notifyItemChanged(position);
+        saveBlock(newBlock);
+        updateBlockOrder();
+
+        // Focus the converted block
+        focusBlockAt(position);
     }
 
     private boolean tryReplaceLastEmptyTextBlock(String newType) {
@@ -628,6 +708,155 @@ public class SubpageActivity extends AppCompatActivity {
                 // ✅ No indent - convert to text (stay on same line)
                 convertBlockToText(position);
             }
+        }
+    }
+
+    private void handleBackspaceAtStart(int position, String currentText) {
+        android.util.Log.d("Backspace", "handleBackspaceAtStart called - position: " + position + ", text: '" + currentText + "'");
+
+        if (position <= 0) {
+            android.util.Log.d("Backspace", "Already at first block");
+            return;
+        }
+
+        if (position >= blocks.size()) {
+            android.util.Log.d("Backspace", "Invalid position");
+            return;
+        }
+
+        SubpageBlock currentBlock = blocks.get(position);
+        SubpageBlock previousBlock = blocks.get(position - 1);
+
+        android.util.Log.d("Backspace", "Current: " + currentBlock.getType() + ", Previous: " + previousBlock.getType());
+
+        boolean canMerge = canMergeWith(previousBlock.getType());
+
+        if (!canMerge) {
+            android.util.Log.d("Backspace", "Cannot merge with previous block type");
+            if (isEditableBlock(previousBlock.getType())) {
+                android.util.Log.d("Backspace", "Moving cursor to previous editable block");
+                String prevContent = previousBlock.getContent();
+                focusBlockAt(position - 1);
+                // Set cursor at end via post
+                subpageBlocksRecycler.postDelayed(() -> {
+                    RecyclerView.ViewHolder holder = subpageBlocksRecycler.findViewHolderForAdapterPosition(position - 1);
+                    if (holder != null) {
+                        EditText editText = holder.itemView.findViewById(R.id.contentEdit);
+                        if (editText != null) {
+                            editText.setSelection(prevContent != null ? prevContent.length() : 0);
+                        }
+                    }
+                }, 100);
+            } else {
+                android.util.Log.d("Backspace", "Previous block not editable, staying");
+                Toast.makeText(this, "Can't move to previous block", Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+
+        if (currentText == null || currentText.trim().isEmpty()) {
+            android.util.Log.d("Backspace", "Current block empty, moving cursor up");
+            String prevContent = previousBlock.getContent();
+            focusBlockAt(position - 1);
+            subpageBlocksRecycler.postDelayed(() -> {
+                RecyclerView.ViewHolder holder = subpageBlocksRecycler.findViewHolderForAdapterPosition(position - 1);
+                if (holder != null) {
+                    EditText editText = holder.itemView.findViewById(R.id.contentEdit);
+                    if (editText != null) {
+                        editText.setSelection(prevContent != null ? prevContent.length() : 0);
+                    }
+                }
+            }, 100);
+            return;
+        }
+
+        android.util.Log.d("Backspace", "Merging blocks");
+        String previousContent = previousBlock.getContent();
+        if (previousContent == null) previousContent = "";
+
+        int cursorPositionInPrevious = previousContent.length();
+        String mergedContent = previousContent + currentText;
+
+        previousBlock.setContent(mergedContent);
+        saveBlock(previousBlock);
+
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            db.collection("users").document(user.getUid())
+                    .collection("notes").document(noteId)
+                    .collection("subpages").document(subpageId)
+                    .collection("blocks").document(currentBlock.getBlockId())
+                    .delete();
+        }
+
+        blocks.remove(position);
+        blockAdapter.notifyItemRemoved(position);
+        updateBlockOrder();
+
+        final int previousPosition = position - 1;
+        final int finalCursorPosition = cursorPositionInPrevious;
+
+        android.util.Log.d("Backspace", "Focusing previous block at position " + finalCursorPosition);
+
+        subpageBlocksRecycler.post(() -> {
+            blockAdapter.notifyItemChanged(previousPosition);
+
+            subpageBlocksRecycler.postDelayed(() -> {
+                RecyclerView.ViewHolder holder = subpageBlocksRecycler.findViewHolderForAdapterPosition(previousPosition);
+                if (holder != null) {
+                    View view = holder.itemView;
+                    EditText editText = view.findViewById(R.id.contentEdit);
+                    if (editText != null) {
+                        android.util.Log.d("Backspace", "Found EditText, setting focus");
+                        editText.requestFocus();
+                        int safePosition = Math.max(0, Math.min(finalCursorPosition, editText.getText().length()));
+                        editText.setSelection(safePosition);
+
+                        android.view.inputmethod.InputMethodManager imm =
+                                (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                        if (imm != null) {
+                            imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                        }
+                    } else {
+                        android.util.Log.e("Backspace", "EditText not found!");
+                    }
+                } else {
+                    android.util.Log.e("Backspace", "ViewHolder not found!");
+                }
+            }, 150);
+        });
+    }
+    private boolean canMergeWith(String type) {
+        switch (type) {
+            case "text":
+            case "heading1":
+            case "heading2":
+            case "heading3":
+            case "bullet":
+            case "numbered":
+            case "checkbox":
+                return true;
+            case "image":
+            case "divider":
+            case "link":
+            case "link_to_page":
+            default:
+                return false;
+        }
+    }
+
+    private boolean isEditableBlock(String type) {
+        switch (type) {
+            case "text":
+            case "heading1":
+            case "heading2":
+            case "heading3":
+            case "bullet":
+            case "numbered":
+            case "checkbox":
+                return true;
+            default:
+                return false;
         }
     }
     private void convertBlockToText(int position) {
@@ -1186,42 +1415,44 @@ public class SubpageActivity extends AppCompatActivity {
                 return;
             }
 
-            // Add https:// if missing
             if (!url.startsWith("http://") && !url.startsWith("https://")) {
                 url = "https://" + url;
             }
 
-            // Extract title from URL
             String title = extractTitle(url);
 
-            // Check if last block is empty text - replace it
-            boolean shouldReplaceLastBlock = false;
+            // ✅ Get cursor position
+            View focusedView = getCurrentFocus();
             int insertPosition = blocks.size();
 
-            if (!blocks.isEmpty()) {
-                SubpageBlock lastBlock = blocks.get(blocks.size() - 1);
+            if (focusedView != null) {
+                RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+                if (holder != null) {
+                    int currentPosition = holder.getAdapterPosition();
+                    if (currentPosition != RecyclerView.NO_POSITION && currentPosition < blocks.size()) {
+                        SubpageBlock currentBlock = blocks.get(currentPosition);
 
-                if (lastBlock.getType().equals("text") &&
-                        (lastBlock.getContent() == null || lastBlock.getContent().trim().isEmpty())) {
+                        if (currentBlock.getType().equals("text") &&
+                                (currentBlock.getContent() == null || currentBlock.getContent().trim().isEmpty())) {
 
-                    shouldReplaceLastBlock = true;
-                    insertPosition = blocks.size() - 1;
-
-                    // ✅ Delete empty text block - SUBPAGE PATH
-                    FirebaseUser user = auth.getCurrentUser();
-                    if (user != null) {
-                        db.collection("users").document(user.getUid())
-                                .collection("notes").document(noteId)
-                                .collection("subpages").document(subpageId) // ✅ SUBPAGE
-                                .collection("blocks").document(lastBlock.getBlockId())
-                                .delete();
+                            FirebaseUser user = auth.getCurrentUser();
+                            if (user != null) {
+                                db.collection("users").document(user.getUid())
+                                        .collection("notes").document(noteId)
+                                        .collection("subpages").document(subpageId)
+                                        .collection("blocks").document(currentBlock.getBlockId())
+                                        .delete();
+                            }
+                            blocks.remove(currentPosition);
+                            insertPosition = currentPosition;
+                        } else {
+                            insertPosition = currentPosition + 1;
+                        }
                     }
-
-                    blocks.remove(blocks.size() - 1);
                 }
             }
 
-            // ✅ Create SubpageBlock (not NoteBlock)
+            // Create link block
             SubpageBlock block = new SubpageBlock();
             block.setBlockId(java.util.UUID.randomUUID().toString());
             block.setType("link");
@@ -1232,13 +1463,7 @@ public class SubpageActivity extends AppCompatActivity {
             block.setOrder(insertPosition);
 
             blocks.add(insertPosition, block);
-
-            if (shouldReplaceLastBlock) {
-                blockAdapter.notifyItemChanged(insertPosition);
-            } else {
-                blockAdapter.notifyItemInserted(insertPosition);
-            }
-
+            blockAdapter.notifyItemInserted(insertPosition);
             saveBlock(block);
 
             // Add new text block after link
@@ -1246,13 +1471,19 @@ public class SubpageActivity extends AppCompatActivity {
             textBlock.setBlockId(java.util.UUID.randomUUID().toString());
             textBlock.setType("text");
             textBlock.setContent("");
-            textBlock.setOrder(blocks.size());
-
-            blocks.add(textBlock);
-            blockAdapter.notifyItemInserted(blocks.size() - 1);
+            textBlock.setOrder(insertPosition + 1);
+            blocks.add(insertPosition + 1, textBlock);
+            blockAdapter.notifyItemInserted(insertPosition + 1);
             saveBlock(textBlock);
 
             updateBlockOrder();
+
+            // Focus new text block
+            subpageBlocksRecycler.smoothScrollToPosition(insertPosition + 1);
+            // Create a final copy of the variable to use inside the lambda
+            final int finalInsertPosition = insertPosition;
+
+            subpageBlocksRecycler.postDelayed(() -> focusBlockAt(finalInsertPosition + 1), 100);
 
             bottomSheet.dismiss();
             Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
@@ -1260,6 +1491,7 @@ public class SubpageActivity extends AppCompatActivity {
 
         bottomSheet.show();
     }
+
 
     // ✅ Helper method - same as NoteActivity
     private String extractTitle(String url) {
@@ -1354,29 +1586,68 @@ public class SubpageActivity extends AppCompatActivity {
         bottomSheet.show();
     }
     private void addDividerBlockWithStyle(String style) {
-        boolean replacedEmptyBlock = tryReplaceLastEmptyTextBlock("divider");
+        View focusedView = getCurrentFocus();
+        int insertPosition = blocks.size();
 
-        if (!replacedEmptyBlock) {
-            SubpageBlock block = new SubpageBlock();
-            block.setBlockId(java.util.UUID.randomUUID().toString());
-            block.setType("divider");
-            block.setContent(style); // ✅ Store style in content
-            block.setOrder(blocks.size());
+        if (focusedView != null) {
+            RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+            if (holder != null) {
+                int currentPosition = holder.getAdapterPosition();
+                if (currentPosition != RecyclerView.NO_POSITION && currentPosition < blocks.size()) {
+                    SubpageBlock currentBlock = blocks.get(currentPosition);
 
-            blocks.add(block);
-            blockAdapter.notifyItemInserted(blocks.size() - 1);
-            saveBlock(block);
+                    // Replace empty text block
+                    if (currentBlock.getType().equals("text") &&
+                            (currentBlock.getContent() == null || currentBlock.getContent().trim().isEmpty())) {
 
-            subpageBlocksRecycler.post(() -> {
-                subpageBlocksRecycler.smoothScrollToPosition(blocks.size() - 1);
-            });
-        } else {
-            // If replaced empty block, update its style
-            SubpageBlock lastBlock = blocks.get(blocks.size() - 1);
-            lastBlock.setContent(style);
-            blockAdapter.notifyItemChanged(blocks.size() - 1);
-            saveBlock(lastBlock);
+                        FirebaseUser user = auth.getCurrentUser();
+                        if (user != null) {
+                            db.collection("users").document(user.getUid())
+                                    .collection("notes").document(noteId)
+                                    .collection("subpages").document(subpageId)
+                                    .collection("blocks").document(currentBlock.getBlockId())
+                                    .delete();
+                        }
+                        blocks.remove(currentPosition);
+                        insertPosition = currentPosition;
+                    } else {
+                        // Insert after current block
+                        insertPosition = currentPosition + 1;
+                    }
+                }
+            }
         }
+
+        // Create divider block
+        SubpageBlock block = new SubpageBlock();
+        block.setBlockId(java.util.UUID.randomUUID().toString());
+        block.setType("divider");
+        block.setContent(style);
+        block.setOrder(insertPosition);
+
+        blocks.add(insertPosition, block);
+        blockAdapter.notifyItemInserted(insertPosition);
+        saveBlock(block);
+
+        // Add text block after divider
+        SubpageBlock textBlock = new SubpageBlock();
+        textBlock.setBlockId(java.util.UUID.randomUUID().toString());
+        textBlock.setType("text");
+        textBlock.setContent("");
+        textBlock.setOrder(insertPosition + 1);
+        blocks.add(insertPosition + 1, textBlock);
+        blockAdapter.notifyItemInserted(insertPosition + 1);
+        saveBlock(textBlock);
+
+        updateBlockOrder();
+
+        // Focus text block
+        subpageBlocksRecycler.smoothScrollToPosition(insertPosition + 1);
+        // Create a final copy of the variable to use inside the lambda
+        final int finalInsertPosition = insertPosition;
+
+        subpageBlocksRecycler.postDelayed(() -> focusBlockAt(finalInsertPosition + 1), 100);
+
     }
     private void showHeadingOptions() {
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
@@ -2265,7 +2536,7 @@ public class SubpageActivity extends AppCompatActivity {
         List<LinkableItem> filteredItems = new ArrayList<>();
 
         LinkToPageAdapter adapter = new LinkToPageAdapter(item -> {
-            insertLinkToPageBlock(item);
+            insertLinkToPageBlockAtCursor(item); // ✅ NEW METHOD
             bottomSheet.dismiss();
         });
 
@@ -2302,6 +2573,75 @@ public class SubpageActivity extends AppCompatActivity {
         });
 
         bottomSheet.show();
+    }
+    private void insertLinkToPageBlockAtCursor(LinkableItem item) {
+        View focusedView = getCurrentFocus();
+        int insertPosition = blocks.size(); // Default to end
+
+        if (focusedView != null) {
+            RecyclerView.ViewHolder holder = subpageBlocksRecycler.findContainingViewHolder(focusedView);
+            if (holder != null) {
+                int currentPosition = holder.getAdapterPosition();
+                if (currentPosition != RecyclerView.NO_POSITION && currentPosition < blocks.size()) {
+                    SubpageBlock currentBlock = blocks.get(currentPosition);
+
+                    // ✅ If current block is empty text, replace it
+                    if (currentBlock.getType().equals("text") &&
+                            (currentBlock.getContent() == null || currentBlock.getContent().trim().isEmpty())) {
+
+                        // Delete empty text block
+                        FirebaseUser user = auth.getCurrentUser();
+                        if (user != null) {
+                            db.collection("users").document(user.getUid())
+                                    .collection("notes").document(noteId)
+                                    .collection("subpages").document(subpageId)
+                                    .collection("blocks").document(currentBlock.getBlockId())
+                                    .delete();
+                        }
+                        blocks.remove(currentPosition);
+                        insertPosition = currentPosition;
+                    } else {
+                        // ✅ Insert after current block
+                        insertPosition = currentPosition + 1;
+                    }
+                }
+            }
+        }
+
+        // Create link to page block
+        SubpageBlock block = new SubpageBlock();
+        block.setBlockId(java.util.UUID.randomUUID().toString());
+        block.setType("link_to_page");
+        block.setContent(item.getTitle());
+        block.setLinkedPageId(item.getId());
+        block.setLinkedPageType(item.getType());
+        block.setLinkedPageCollection(item.getCollection());
+        block.setOrder(insertPosition);
+
+        blocks.add(insertPosition, block);
+        blockAdapter.notifyItemInserted(insertPosition);
+        saveBlock(block);
+
+        // Add new text block after link
+        SubpageBlock textBlock = new SubpageBlock();
+        textBlock.setBlockId(java.util.UUID.randomUUID().toString());
+        textBlock.setType("text");
+        textBlock.setContent("");
+        textBlock.setOrder(insertPosition + 1);
+        blocks.add(insertPosition + 1, textBlock);
+        blockAdapter.notifyItemInserted(insertPosition + 1);
+        saveBlock(textBlock);
+
+        updateBlockOrder();
+
+        // Focus new text block
+        subpageBlocksRecycler.smoothScrollToPosition(insertPosition + 1);
+        // Create a final copy of the variable to use inside the lambda
+        final int finalInsertPosition = insertPosition;
+
+        subpageBlocksRecycler.postDelayed(() -> focusBlockAt(finalInsertPosition + 1), 100);
+
+        Toast.makeText(this, "✅ Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
     }
 
 

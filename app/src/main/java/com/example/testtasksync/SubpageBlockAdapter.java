@@ -49,6 +49,8 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
         void onIndentChanged(SubpageBlock block, boolean indent);
         void onLinkClick(String url);
         void onLinkToPageClick(String pageId, String pageType, String collection);
+        void onBackspaceAtStart(int position, String currentText);
+
     }
 
     public SubpageBlockAdapter(Context context, List<SubpageBlock> blocks,
@@ -371,12 +373,20 @@ public class SubpageBlockAdapter extends RecyclerView.Adapter<SubpageBlockAdapte
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (currentText.isEmpty()) {
-                            String blockType = block.getType();
-                            if (blockType.equals("bullet") || blockType.equals("numbered") || blockType.equals("checkbox")) {
-                                listener.onBackspaceOnEmptyBlock(pos);
-                                return true;
+                        // ✅ FIXED: Check cursor position at start
+                        if (cursorPosition == 0) {
+                            // Cursor at start - always try to move to previous block
+                            if (currentText.isEmpty()) {
+                                // Empty block at cursor start - handle conversion/outdent
+                                String blockType = block.getType();
+                                if (blockType.equals("bullet") || blockType.equals("numbered") || blockType.equals("checkbox")) {
+                                    listener.onBackspaceOnEmptyBlock(pos);
+                                    return true;
+                                }
                             }
+                            // Move to previous block (whether current is empty or not)
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
                         }
                     }
                 }

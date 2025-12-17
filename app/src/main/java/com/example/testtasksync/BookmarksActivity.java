@@ -358,14 +358,14 @@ public class BookmarksActivity extends AppCompatActivity {
                 .addOnSuccessListener(aVoid -> {
                     // ✅ Set result to notify NoteActivity to refresh
                     setResult(RESULT_OK);
-                    android.widget.Toast.makeText(this, "Bookmark updated",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                    //android.widget.Toast.makeText(this, "Bookmark updated",
+                           // android.widget.Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     // ✅ Still works offline - will sync when online
                     setResult(RESULT_OK); // ✅ Still notify to refresh
-                    android.widget.Toast.makeText(this, "Saved offline - will sync when online",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                    //android.widget.Toast.makeText(this, "Saved offline - will sync when online",
+                         //   android.widget.Toast.LENGTH_SHORT).show();
                 });
     }
 
@@ -405,14 +405,14 @@ public class BookmarksActivity extends AppCompatActivity {
                 .addOnSuccessListener(aVoid -> {
                     // ✅ Set result to notify NoteActivity to refresh
                     setResult(RESULT_OK);
-                    android.widget.Toast.makeText(this, "Bookmark deleted",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                   // android.widget.Toast.makeText(this, "Bookmark deleted",
+                           // android.widget.Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     // ✅ Still works offline - will sync when online
                     setResult(RESULT_OK); // ✅ Still notify to refresh
-                    android.widget.Toast.makeText(this, "Deleted offline - will sync when online",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                    //android.widget.Toast.makeText(this, "Deleted offline - will sync when online",
+                        //    android.widget.Toast.LENGTH_SHORT).show();
                 });
     }
 }

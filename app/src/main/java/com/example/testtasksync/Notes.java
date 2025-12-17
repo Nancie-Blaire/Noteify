@@ -281,19 +281,19 @@ public class Notes extends Fragment {
             prioLayoutMode = LayoutMode.LIST;
             saveLayoutPreference(PREF_PRIO_LAYOUT, prioLayoutMode);
             updatePrioLayout();
-            Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortNewest.setOnClickListener(v -> {
             sortPriosByNewest();
-            Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortOldest.setOnClickListener(v -> {
             sortPriosByOldest();
-            Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
@@ -327,7 +327,7 @@ public class Notes extends Fragment {
             recentsLayoutMode = LayoutMode.GRID;
             saveLayoutPreference(PREF_RECENTS_LAYOUT, recentsLayoutMode);
             updateRecentsLayout();
-            Toast.makeText(getContext(), "Grid view", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "Grid view", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
@@ -335,19 +335,19 @@ public class Notes extends Fragment {
             recentsLayoutMode = LayoutMode.LIST;
             saveLayoutPreference(PREF_RECENTS_LAYOUT, recentsLayoutMode);
             updateRecentsLayout();
-            Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortNewest.setOnClickListener(v -> {
             sortRecentsByNewest();
-            Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortOldest.setOnClickListener(v -> {
             sortRecentsByOldest();
-            Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 

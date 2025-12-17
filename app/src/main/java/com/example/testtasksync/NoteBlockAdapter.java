@@ -2929,8 +2929,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (position > 0) {
                         moveBlock(position, position - 1);
                         listener.onBlockChanged(blocks.get(position - 1));
-                        android.widget.Toast.makeText(view.getContext(),
-                                "Moved up", android.widget.Toast.LENGTH_SHORT).show();
+                        //android.widget.Toast.makeText(view.getContext(),
+                            //    "Moved up", android.widget.Toast.LENGTH_SHORT).show();
                     } else {
                         android.widget.Toast.makeText(view.getContext(),
                                 "Already at top", android.widget.Toast.LENGTH_SHORT).show();
@@ -2944,8 +2944,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (position < blocks.size() - 1) {
                         moveBlock(position, position + 1);
                         listener.onBlockChanged(blocks.get(position + 1));
-                        android.widget.Toast.makeText(view.getContext(),
-                                "Moved down", android.widget.Toast.LENGTH_SHORT).show();
+                       // android.widget.Toast.makeText(view.getContext(),
+                         //       "Moved down", android.widget.Toast.LENGTH_SHORT).show();
                     } else {
                         android.widget.Toast.makeText(view.getContext(),
                                 "Already at bottom", android.widget.Toast.LENGTH_SHORT).show();
@@ -2998,8 +2998,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             notifyItemInserted(position + 1);
             listener.onBlockChanged(newBlock);
 
-            android.widget.Toast.makeText(itemView.getContext(),
-                    "Divider duplicated", android.widget.Toast.LENGTH_SHORT).show();
+            //android.widget.Toast.makeText(itemView.getContext(),
+              //      "Divider duplicated", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
     class SubpageViewHolder extends RecyclerView.ViewHolder {

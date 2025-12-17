@@ -247,7 +247,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     .update("isCompleted", true)
                     .addOnSuccessListener(aVoid -> {
                         Log.d(TAG, "✅ Weekly task marked as completed");
-                        Toast.makeText(this, "✓ Task completed", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Task completed", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "❌ Failed to complete weekly task", e);
@@ -273,7 +273,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     .update("isCompleted", true)
                     .addOnSuccessListener(aVoid -> {
                         Log.d(TAG, "✅ Todo task marked as completed");
-                        Toast.makeText(this, "✓ Task completed", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Task completed", Toast.LENGTH_SHORT).show();
                         updateTodoListCompletionCount(user.getUid(), sourceId);
                     })
                     .addOnFailureListener(e -> {
@@ -1018,7 +1018,7 @@ public class DayDetailsActivity extends AppCompatActivity {
             }
         }
 
-        Toast.makeText(this, "🗑️ " + deleteCount + " item(s) deleted", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, deleteCount + " item(s) deleted", Toast.LENGTH_SHORT).show();
         exitDeleteMode();
     }
     private String getCategoryDisplayName(String category) {
@@ -1446,9 +1446,9 @@ public class DayDetailsActivity extends AppCompatActivity {
 
             // Update input hint
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
-            taskInput.setHint("Task (📅 " + sdf.format(taskDate.getTime()) + " " + taskData.scheduleTime + ")");
+            taskInput.setHint("Task ( " + sdf.format(taskDate.getTime()) + " " + taskData.scheduleTime + ")");
 
-            Toast.makeText(this, "✓ Schedule set", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Schedule set", Toast.LENGTH_SHORT).show();
             scheduleDialog.dismiss();
         });
 
@@ -1705,7 +1705,7 @@ public class DayDetailsActivity extends AppCompatActivity {
             // Update input hint
             taskInput.setHint("Task (scheduled: " + taskData.scheduleTime + ")");
 
-            Toast.makeText(this, "✓ Schedule set for " + day, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Schedule set for " + day, Toast.LENGTH_SHORT).show();
             scheduleDialog.dismiss();
         });
 
@@ -1718,7 +1718,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                                                 String time, boolean hasReminder, Spinner reminderSpinner,
                                                 Map<String, List<WeeklyDialogTask>> weeklyTasks,
                                                 AlertDialog dialog) {
-        Toast.makeText(this, "💾 Saving weekly plan...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Saving weekly plan...", Toast.LENGTH_SHORT).show();
 
         Map<String, Object> weeklyPlanData = new HashMap<>();
         weeklyPlanData.put("title", title);
@@ -1759,7 +1759,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     }
 
                     dialog.dismiss();
-                    Toast.makeText(this, "✅ Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
 
                     AtomicInteger tasksAdded = new AtomicInteger(0);
                     int position = 0;
@@ -1802,7 +1802,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "❌ Failed to create weekly plan", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Failed to create weekly plan", Toast.LENGTH_SHORT).show();
                     Log.e(TAG, "Error creating weekly plan", e);
                 });
     }
@@ -1845,7 +1845,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                                              Map<String, List<String>> weeklyTasks, AlertDialog dialog) {
 
         // ✅ Show loading immediately
-        Toast.makeText(this, "💾 Saving weekly plan...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Saving weekly plan...", Toast.LENGTH_SHORT).show();
 
         Map<String, Object> weeklyPlanData = new HashMap<>();
         weeklyPlanData.put("title", title);
@@ -1889,7 +1889,7 @@ public class DayDetailsActivity extends AppCompatActivity {
 
                     // ✅ DISMISS DIALOG IMMEDIATELY - don't wait for tasks to save
                     dialog.dismiss();
-                    Toast.makeText(this, "✅ Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
 
                     // ✅ Save tasks in background
                     AtomicInteger tasksAdded = new AtomicInteger(0);
@@ -1928,7 +1928,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "❌ Failed to create weekly plan", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Failed to create weekly plan", Toast.LENGTH_SHORT).show();
                     Log.e(TAG, "Error creating weekly plan", e);
                 });
     }
@@ -1993,7 +1993,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                 .collection("schedules")
                 .add(scheduleData)
                 .addOnSuccessListener(scheduleRef -> {
-                    Toast.makeText(this, "✅ All tasks saved!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "All tasks saved!", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to create schedule reference", e);
@@ -2267,7 +2267,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                                                     boolean hasReminder, Spinner reminderSpinner,
                                                     Map<String, List<String>> weeklyTasks, AlertDialog dialog) {
 
-        Toast.makeText(this, "💾 Saving weekly plan...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Saving weekly plan...", Toast.LENGTH_SHORT).show();
 
         Map<String, Object> weeklyPlanData = new HashMap<>();
         weeklyPlanData.put("title", title);
@@ -2301,7 +2301,7 @@ public class DayDetailsActivity extends AppCompatActivity {
                     final int finalTotalTasks = totalTasks;
 
                     dialog.dismiss();
-                    Toast.makeText(this, "✅ Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Weekly plan created! Saving " + finalTotalTasks + " tasks...", Toast.LENGTH_SHORT).show();
 
                     AtomicInteger tasksAdded = new AtomicInteger(0);
                     int position = 0;

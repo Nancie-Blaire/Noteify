@@ -1225,12 +1225,12 @@ public class SubpageActivity extends AppCompatActivity {
                     progressDialog.dismiss();
 
                     if (base64SizeKB > MAX_INLINE_IMAGE_KB) {
-                        Toast.makeText(this, "Saving large image (" + originalSizeKB + " KB) in chunks...",
-                                Toast.LENGTH_SHORT).show();
+                       // Toast.makeText(this, "Saving large image (" + originalSizeKB + " KB) in chunks...",
+                                //Toast.LENGTH_SHORT).show();
                         uploadImageInChunks(base64Image, originalSizeKB);
                     } else {
-                        Toast.makeText(this, "Saving image (" + originalSizeKB + " KB)...",
-                                Toast.LENGTH_SHORT).show();
+                        //Toast.makeText(this, "Saving image (" + originalSizeKB + " KB)...",
+                             //   Toast.LENGTH_SHORT).show();
                         insertImageBlock(base64Image, false, originalSizeKB);
                     }
                 });
@@ -1294,7 +1294,7 @@ public class SubpageActivity extends AppCompatActivity {
                     }
 
                     createImageBlock(imageId, true, sizeKB);
-                    Toast.makeText(this, "✅ Large image saved", Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(this, "Large image saved", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Failed to save large image", Toast.LENGTH_SHORT).show();
@@ -1323,7 +1323,7 @@ public class SubpageActivity extends AppCompatActivity {
                     .set(imageData)
                     .addOnSuccessListener(aVoid -> {
                         createImageBlock(imageId, isChunked, sizeKB);
-                        Toast.makeText(this, "✅ Image saved", Toast.LENGTH_SHORT).show();
+                     //   Toast.makeText(this, "Image saved", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> {
                         Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show();
@@ -1486,7 +1486,7 @@ public class SubpageActivity extends AppCompatActivity {
             subpageBlocksRecycler.postDelayed(() -> focusBlockAt(finalInsertPosition + 1), 100);
 
             bottomSheet.dismiss();
-            Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
         });
 
         bottomSheet.show();
@@ -1825,7 +1825,7 @@ public class SubpageActivity extends AppCompatActivity {
         blockAdapter.notifyItemChanged(position);
         saveBlock(block);
 
-        Toast.makeText(this, "Heading applied", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Heading applied", Toast.LENGTH_SHORT).show();
         focusBlockAt(position);
     }
 
@@ -1856,7 +1856,7 @@ public class SubpageActivity extends AppCompatActivity {
         blockAdapter.notifyItemChanged(position);
         saveBlock(block);
 
-        Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+       // Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
         focusBlockAt(position);
     }
 
@@ -1886,7 +1886,7 @@ public class SubpageActivity extends AppCompatActivity {
         saveBlock(block);
 
         String colorName = getColorName(color);
-        Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
         focusBlockAt(position);
     }
 
@@ -1938,7 +1938,7 @@ public class SubpageActivity extends AppCompatActivity {
         blockAdapter.notifyItemChanged(position);
         saveBlock(block);
 
-        Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
+     //   Toast.makeText(this, "Converted to normal text", Toast.LENGTH_SHORT).show();
         focusBlockAt(position);
     }
 
@@ -2112,7 +2112,7 @@ public class SubpageActivity extends AppCompatActivity {
                         }
                     }
 
-                    Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
+                  //  Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Error saving bookmark", Toast.LENGTH_SHORT).show();
@@ -2245,7 +2245,7 @@ public class SubpageActivity extends AppCompatActivity {
                     blockAdapter.notifyItemChanged(finalBlockPosition);
                     restoreFocusToBlock(finalBlockPosition, finalEnd);
 
-                    Toast.makeText(this, "Bookmark expanded", Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(this, "Bookmark expanded", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Error expanding bookmark", Toast.LENGTH_SHORT).show();
@@ -2364,7 +2364,7 @@ public class SubpageActivity extends AppCompatActivity {
                             blockAdapter.notifyItemChanged(blockPosition);
                             restoreFocusToBlock(blockPosition, bookmark.getEndIndex());
 
-                            Toast.makeText(this, "Bookmark updated", Toast.LENGTH_SHORT).show();
+                           // Toast.makeText(this, "Bookmark updated", Toast.LENGTH_SHORT).show();
                         })
                         .addOnFailureListener(e -> {
                             Toast.makeText(this, "Error updating bookmark", Toast.LENGTH_SHORT).show();
@@ -2641,7 +2641,7 @@ public class SubpageActivity extends AppCompatActivity {
 
         subpageBlocksRecycler.postDelayed(() -> focusBlockAt(finalInsertPosition + 1), 100);
 
-        Toast.makeText(this, "✅ Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
     }
 
 
@@ -2759,7 +2759,7 @@ public class SubpageActivity extends AppCompatActivity {
             saveBlock(lastBlock);
         }
 
-        Toast.makeText(this, "✅ Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
+     //  Toast.makeText(this, "Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
     }
 
     // 8️⃣ ADD: Open linked page

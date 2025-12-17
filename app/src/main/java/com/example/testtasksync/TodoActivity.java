@@ -224,7 +224,7 @@ public class TodoActivity extends AppCompatActivity {
                     taskAdapter.notifyItemRemoved(position);
                     updateTaskPositions();
                     if (!isNewList) {
-                        saveTodoListWithoutFinish(); // ✅ CHANGED: Use new method
+                        saveTodoListWithoutFinish();
                     }
                 } else {
                     Toast.makeText(TodoActivity.this, "Keep at least one task",
@@ -1477,7 +1477,7 @@ public class TodoActivity extends AppCompatActivity {
                 finalCompletedTasks, scheduleData);
 
         // ✅ IMMEDIATELY SHOW TOAST AND FINISH
-        Toast.makeText(this, "✓ Saving to-do list...", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "✓ Saving to-do list...", Toast.LENGTH_SHORT).show();
         finish();
     }
 

@@ -308,7 +308,7 @@ public class WeeklyActivity extends AppCompatActivity {
                                 saveTaskScheduleOnly(task);
                             }
 
-                            Toast.makeText(WeeklyActivity.this, "Task schedule cleared", Toast.LENGTH_SHORT).show();
+                           // Toast.makeText(WeeklyActivity.this, "Task schedule cleared", Toast.LENGTH_SHORT).show();
                         }
                     });
 
@@ -741,7 +741,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     .setPositiveButton("Set Current Week", (d, w) -> {
                         setCurrentWeek();
                         updateScheduleDisplay();
-                        Toast.makeText(this, "Week range set to current week", Toast.LENGTH_SHORT).show();
+                       // Toast.makeText(this, "Week range set to current week", Toast.LENGTH_SHORT).show();
                         d.dismiss();
                         // Open the task schedule dialog again after setting week range
                         showTaskScheduleDialog(task, taskDay);
@@ -879,7 +879,7 @@ public class WeeklyActivity extends AppCompatActivity {
             }
 
             // ✅ Show confirmation
-            String message = "✓ Schedule set for " + taskDay;
+            String message = "Schedule set for " + taskDay;
             if (notificationCheckbox.isChecked()) {
                 message += " (Notification enabled)";
             }
@@ -1311,7 +1311,7 @@ public class WeeklyActivity extends AppCompatActivity {
                 finalCompletedTasks, mainScheduleData);
 
         // ✅ IMMEDIATELY SHOW TOAST AND FINISH
-        Toast.makeText(this, "✓ Saving weekly plan...", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Saving weekly plan...", Toast.LENGTH_SHORT).show();
         finish();
     }
 
@@ -1784,7 +1784,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
                     // Validate: end date must be after start date
                     if (endDate.before(startDate)) {
-                        Toast.makeText(this, "âš ï¸ End date must be after start date",
+                        Toast.makeText(this, "End date must be after start date",
                                 Toast.LENGTH_SHORT).show();
                         endDate = (Calendar) startDate.clone();
                         endDate.add(Calendar.DAY_OF_MONTH, 6);
@@ -1898,8 +1898,8 @@ public class WeeklyActivity extends AppCompatActivity {
 
     // HEADINGS & FONTS
     private void showHeadingOptions() {
-        Toast.makeText(this, "⚠️ Font styles only apply to the plan title, not tasks",
-                Toast.LENGTH_LONG).show();
+      //  Toast.makeText(this, "Font styles only apply to the plan title, not tasks",
+              //  Toast.LENGTH_LONG).show();
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
         bottomSheet.setContentView(sheetView);
@@ -2140,7 +2140,7 @@ public class WeeklyActivity extends AppCompatActivity {
         }
 
         saveTitleFormatting();
-        Toast.makeText(this, "Title style applied", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Title style applied", Toast.LENGTH_SHORT).show();
     }
 
     // 6. REPLACE applyFontColor():
@@ -2148,7 +2148,7 @@ public class WeeklyActivity extends AppCompatActivity {
         titleFontColor = color;
         weeklyTitle.setTextColor(Color.parseColor(color));
         saveTitleFormatting();
-        Toast.makeText(this, "Color applied", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Color applied", Toast.LENGTH_SHORT).show();
     }
     private void saveTitleFormatting() {
         FirebaseUser user = auth.getCurrentUser();
@@ -2274,7 +2274,7 @@ public class WeeklyActivity extends AppCompatActivity {
     // SUBPAGE (Create new linked weekly plan)
     private void createSubWeeklyPlan() {
         if (isNewPlan) {
-            Toast.makeText(this, "Please save this plan first", Toast.LENGTH_SHORT).show();
+        //    Toast.makeText(this, "Please save this plan first", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -2311,7 +2311,7 @@ public class WeeklyActivity extends AppCompatActivity {
                             .collection("subpages")
                             .add(subpageRef)
                             .addOnSuccessListener(docRef -> {
-                                Toast.makeText(this, "Sub-plan created", Toast.LENGTH_SHORT).show();
+                             //   Toast.makeText(this, "Sub-plan created", Toast.LENGTH_SHORT).show();
 
                                 loadSubpages();
                                 Intent intent = new Intent(this, WeeklyActivity.class);
@@ -2453,7 +2453,7 @@ public class WeeklyActivity extends AppCompatActivity {
             saveWeekScheduleOnly();
         }
 
-        Toast.makeText(this, "Schedule cleared", Toast.LENGTH_SHORT).show();
+       // Toast.makeText(this, "Schedule cleared", Toast.LENGTH_SHORT).show();
     }
     private void saveWeekScheduleOnly() {
         FirebaseUser user = auth.getCurrentUser();
@@ -2671,7 +2671,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
         SimpleDateFormat fullDateFormat = new SimpleDateFormat("MMM dd 'at' h:mm a", Locale.getDefault());
         Log.d(TAG, "✅ Scheduled weekly notification for: " + fullDateFormat.format(notificationTime.getTime()));
-        Toast.makeText(this, "✓ Reminder set for " + fullDateFormat.format(notificationTime.getTime()),
+        Toast.makeText(this, "Reminder set for " + fullDateFormat.format(notificationTime.getTime()),
                 Toast.LENGTH_SHORT).show();
     }
 }

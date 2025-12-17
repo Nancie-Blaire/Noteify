@@ -113,8 +113,8 @@ public class SecuritySettingsActivity extends AppCompatActivity {
                                                 setupComplete != null ? setupComplete : true)
                                         .apply();
 
-                                Toast.makeText(this, "🔄 Master password synced from cloud",
-                                        Toast.LENGTH_SHORT).show();
+                              //  Toast.makeText(this, "Master password synced from cloud",
+                                     //   Toast.LENGTH_SHORT).show();
                             }
                         }
                     } else {
@@ -123,8 +123,8 @@ public class SecuritySettingsActivity extends AppCompatActivity {
                     updateSecurityStatus();
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "⚠️ Failed to sync password: " + e.getMessage(),
-                            Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(this, "Failed to sync password: " + e.getMessage(),
+                            //Toast.LENGTH_SHORT).show();
                     updateSecurityStatus();
                 });
     }
@@ -217,10 +217,10 @@ public class SecuritySettingsActivity extends AppCompatActivity {
             String savedPassword = prefs.getString(getUserKey(MASTER_PASSWORD_KEY), null);
 
             if (enteredPassword.equals(savedPassword)) {
-                Toast.makeText(this, "✅ Password verified!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Password verified!", Toast.LENGTH_SHORT).show();
                 onSuccess.run();
             } else {
-                Toast.makeText(this, "❌ Incorrect password", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Incorrect password", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -239,7 +239,7 @@ public class SecuritySettingsActivity extends AppCompatActivity {
                         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                         prefs.edit().putBoolean(getUserKey(BIOMETRIC_ENABLED_KEY), true).apply();
 
-                        Toast.makeText(SecuritySettingsActivity.this, "✅ Fingerprint enabled on this device!", Toast.LENGTH_LONG).show();
+                        Toast.makeText(SecuritySettingsActivity.this, "Fingerprint enabled on this device!", Toast.LENGTH_LONG).show();
                         updateSecurityStatus();
                     }
 
@@ -305,7 +305,7 @@ public class SecuritySettingsActivity extends AppCompatActivity {
             }
 
             if (!old.equals(savedPassword)) {
-                Toast.makeText(this, "❌ Current password is incorrect", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Current password is incorrect", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -339,13 +339,13 @@ public class SecuritySettingsActivity extends AppCompatActivity {
                                     .putBoolean(getUserKey(SECURITY_SETUP_COMPLETE), true)
                                     .apply();
 
-                            Toast.makeText(this, "✅ Password changed & synced to cloud!", Toast.LENGTH_LONG).show();
+                          //  Toast.makeText(this, "Password changed & synced to cloud!", Toast.LENGTH_LONG).show();
                         })
                         .addOnFailureListener(e -> {
-                            Toast.makeText(this, "❌ Failed to update password: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                            Toast.makeText(this, "Failed to update password: " + e.getMessage(), Toast.LENGTH_LONG).show();
                         });
             } else {
-                Toast.makeText(this, "❌ User not logged in", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show();
             }
         });
 

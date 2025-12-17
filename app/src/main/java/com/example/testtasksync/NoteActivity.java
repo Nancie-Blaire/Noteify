@@ -404,7 +404,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             public void onDragFinished() {
                 isReordering = false;
                 saveBlockOrder();
-                Toast.makeText(NoteActivity.this, "Block moved", Toast.LENGTH_SHORT).show();
+              //  Toast.makeText(NoteActivity.this, "Block moved", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -902,7 +902,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("notes").document(noteId)
                 .update("color", color)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Color saved", Toast.LENGTH_SHORT).show();
+                 //   Toast.makeText(this, "Color saved", Toast.LENGTH_SHORT).show();
                 });
     }
 
@@ -1081,12 +1081,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     progressDialog.dismiss();
 
                     if (base64SizeKB > MAX_INLINE_IMAGE_KB) {
-                        Toast.makeText(this, "Saving large image (" + originalSizeKB + " KB) in chunks...",
-                                Toast.LENGTH_SHORT).show();
+                       // Toast.makeText(this, "Saving large image (" + originalSizeKB + " KB) in chunks...",
+                               // Toast.LENGTH_SHORT).show();
                         uploadImageInChunks(base64Image, originalSizeKB);
                     } else {
-                        Toast.makeText(this, "Saving image (" + originalSizeKB + " KB)...",
-                                Toast.LENGTH_SHORT).show();
+                        //Toast.makeText(this, "Saving image (" + originalSizeKB + " KB)...",
+                           //     Toast.LENGTH_SHORT).show();
                         insertImageBlock(base64Image, false, originalSizeKB);
                     }
                 });
@@ -1146,7 +1146,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     }
 
                     createImageBlock(imageId, true, sizeKB);
-                    Toast.makeText(this, "✅ Large image saved", Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(this, "✅ Large image saved", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Failed to save large image", Toast.LENGTH_SHORT).show();
@@ -1173,7 +1173,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     .set(imageData)
                     .addOnSuccessListener(aVoid -> {
                         createImageBlock(imageId, isChunked, sizeKB);
-                        Toast.makeText(this, "✅ Image saved", Toast.LENGTH_SHORT).show();
+                       // Toast.makeText(this, "Image saved", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> {
                         Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show();
@@ -1401,7 +1401,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             updateBlockPositions();
 
             bottomSheet.dismiss();
-            Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
         });
 
         bottomSheet.show();
@@ -1456,7 +1456,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     .collection("subpages").document(block.getSubpageId())
                     .delete()
                     .addOnSuccessListener(aVoid -> {
-                        Toast.makeText(this, "Subpage deleted", Toast.LENGTH_SHORT).show();
+                     //   Toast.makeText(this, "Subpage deleted", Toast.LENGTH_SHORT).show();
                     });
         }
 
@@ -1485,7 +1485,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
     @Override
     public void onImageClick(String imageId) {
-        Toast.makeText(this, "Image clicked", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Image clicked", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -1546,8 +1546,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         // This is handled in the adapter now
         // But you can add additional logic here if needed
         NoteBlock block = blocks.get(position);
-        Toast.makeText(this, "Tap to change style, long press for options",
-                Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Tap to change style, long press for options",
+             //   Toast.LENGTH_SHORT).show();
     }
 
     // ✅ OPTIONAL: Add helper method to handle divider style changes
@@ -1867,7 +1867,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             renumberLists();
         }
 
-        Toast.makeText(this, "Converted to text", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Converted to text", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -2312,7 +2312,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Show color name
         String colorName = getColorName(color);
-        Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
 
         // Refocus the block
         focusBlock(position, block.getContent().length());
@@ -2360,7 +2360,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         adapter.notifyItemChanged(position);
         saveBlock(block);
 
-        Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+       // Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
 
         // Refocus the block
         focusBlock(position, block.getContent().length());
@@ -3184,7 +3184,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             saveBlock(lastBlock);
         }
 
-        Toast.makeText(this, "✅ Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
+        //Toast.makeText(this, "Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
     }
     @Override
     public void onLinkToPageClick(String pageId, String pageType) {
@@ -3195,12 +3195,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 startActivityForResult(intent, REQUEST_BOOKMARKS);
                 break;
             case "todo":
-                // TODO: Navigate to todo
-                Toast.makeText(this, "Opening todo...", Toast.LENGTH_SHORT).show();
+
+             //   Toast.makeText(this, "Opening todo...", Toast.LENGTH_SHORT).show();
                 break;
             case "weekly":
-                // TODO: Navigate to weekly
-                Toast.makeText(this, "Opening weekly...", Toast.LENGTH_SHORT).show();
+
+               // Toast.makeText(this, "Opening weekly...", Toast.LENGTH_SHORT).show();
                 break;
         }
     }

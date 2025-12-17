@@ -196,7 +196,7 @@ public class ScheduleAdapter extends RecyclerView.Adapter<ScheduleAdapter.Schedu
                         .update("isCompleted", schedule.isCompleted())
                         .addOnSuccessListener(aVoid -> {
                             String message = schedule.isCompleted() ?
-                                    "✓ Marked as done" : "Marked as not done";
+                                    "Marked as done" : "Marked as not done";
                             Toast.makeText(view.getContext(), message, Toast.LENGTH_SHORT).show();
                         })
                         .addOnFailureListener(e -> {

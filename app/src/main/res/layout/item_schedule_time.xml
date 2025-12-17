@@ -22,6 +22,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Schedule 1"
+            android:fontFamily="@font/syne"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#000000" />
@@ -42,6 +43,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Date"
+        android:fontFamily="@font/syne"
         android:textSize="12sp"
         android:textColor="#808080"
         android:layout_marginBottom="4dp" />
@@ -80,6 +82,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Time"
+        android:fontFamily="@font/syne"
         android:textSize="12sp"
         android:textColor="#808080"
         android:layout_marginBottom="4dp" />

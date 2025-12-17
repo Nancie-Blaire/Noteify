@@ -12,9 +12,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="22dp"
-        android:layout_marginTop="10dp"
-        android:paddingBottom="4dp"
+        android:layout_marginTop="17dp"
         android:text="Calendar"
+        android:fontFamily="@font/syne"
         android:textColor="#000000"
         android:textSize="15sp"
         android:textStyle="bold" />
@@ -47,10 +47,10 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=""
+            android:text="▼"
             android:textSize="16sp"
             android:textColor="#000000"
-            android:layout_marginStart="8dp"/>
+            android:layout_marginStart="30dp"/>
     </LinearLayout>
     <!-- Custom Calendar Grid (We'll use RecyclerView for this) -->
     <androidx.recyclerview.widget.RecyclerView

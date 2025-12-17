@@ -28,6 +28,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Grid View"
+            android:fontFamily="@font/syne"
             android:textStyle="bold"
             android:textColor="#000000"
             android:textSize="16sp" />
@@ -55,6 +56,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="List View"
+            android:fontFamily="@font/syne"
             android:textStyle="bold"
             android:textColor="#000000"
             android:textSize="16sp" />
@@ -83,6 +85,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Sort by Newest"
+            android:fontFamily="@font/syne"
             android:textStyle="bold"
             android:textColor="#000000"
             android:textSize="16sp" />
@@ -111,6 +114,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Sort by Oldest"
+            android:fontFamily="@font/syne"
             android:textStyle="bold"
             android:textColor="#000000"
             android:textSize="16sp" />

@@ -89,7 +89,7 @@ public class CalendarFragment extends Fragment {
 
     private void updateCalendarDisplay() {
         // Show both month and year
-        SimpleDateFormat sdf = new SimpleDateFormat("MMMM yyyy ▼", Locale.getDefault());
+        SimpleDateFormat sdf = new SimpleDateFormat("MMMM yyyy", Locale.getDefault());
         monthYearText.setText(sdf.format(currentCalendar.getTime()));
 
         List<CalendarDay> days = generateCalendarDays(currentCalendar);

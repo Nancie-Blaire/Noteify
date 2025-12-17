@@ -31,6 +31,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Note Title"
+            android:fontFamily="@font/syne"
             android:textSize="16sp"
             android:textColor="#333333"
             android:textStyle="bold"

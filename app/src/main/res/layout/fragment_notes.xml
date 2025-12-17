@@ -75,208 +75,216 @@
 
             <!-- Time and Date Card -->
 
+            <?xml version="1.0" encoding="utf-8"?>
+            <!-- Replace the FrameLayout section in fragment_notes.xml (lines ~89-265) with this: -->
+
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="130dp"
                 android:layout_marginBottom="24dp"
                 android:layout_marginStart="10dp"
                 android:layout_marginEnd="10dp"
-                app:cardBackgroundColor="@android:color/transparent"
-                android:background="@drawable/disp">
+                android:background="@drawable/card_background">
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"
+                    android:padding="20dp">
+
+                    <!-- Left side: Greeting text -->
                     <LinearLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:padding="20dp"
-                        android:gravity="center_vertical">
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                        <!-- Left side: Greeting text -->
-                        <LinearLayout
-                            android:layout_width="186dp"
-                            android:layout_height="74dp"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/greetingText"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="@font/syne"
-                                android:letterSpacing="-0.02"
-                                android:text="Hi,"
-                                android:textColor="#000000"
-                                android:textSize="20sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/userNameText"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="-10dp"
-                                android:fontFamily="@font/syne"
-                                android:letterSpacing="-0.02"
-                                android:text="Nancie!"
-                                android:textColor="#000000"
-                                android:textSize="20sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/quoteText"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="12dp"
-                                android:fontFamily="@font/syne"
-                                android:lineSpacingExtra="2dp"
-                                android:text="&quot;You don't have to see the whole staircase, just take the first step.&quot;"
-                                android:textColor="#000000"
-                                android:textSize="8sp" />
-                        </LinearLayout>
-
-                        <!-- Vertical divider -->
-                        <View
-                            android:layout_width="2dp"
-                            android:layout_height="match_parent"
-                            android:background="#ffffff"
-                            android:layout_marginStart="6dp"
-                            android:layout_marginEnd="6dp"/>
-
-                        <!-- Right side: Time and Date (vertical) -->
-                        <LinearLayout
+                        <TextView
+                            android:id="@+id/greetingText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center">
+                            android:fontFamily="@font/syne"
+                            android:letterSpacing="-0.02"
+                            android:text="Hi,"
+                            android:textColor="#000000"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
 
-                            <TextView
-                                android:id="@+id/timeText"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="08"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="13sp"
-                                android:textStyle="bold"
-                                android:layout_marginBottom="2dp"/>
-
-                            <TextView
-                                android:id="@+id/minuteText"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="00"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="13sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/amPmText"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="AM"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="11sp"
-                                android:layout_marginTop="4dp"/>
-                        </LinearLayout>
-
-                        <LinearLayout
+                        <TextView
+                            android:id="@+id/userNameText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center">
+                            android:layout_marginTop="-10dp"
+                            android:fontFamily="@font/syne"
+                            android:letterSpacing="-0.02"
+                            android:text="Nancie!"
+                            android:textColor="#000000"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
 
-                            <TextView
-                                android:id="@+id/dayText"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="W"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/dayText2"
-                                android:layout_width="13dp"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="@font/syne"
-                                android:text="E"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/dayText3"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="D"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/dayText4"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="N"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/dayText5"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="E"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/dayText6"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="S"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/dayText7"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="D"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/dayText8"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="A"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-
-                            <TextView
-                                android:id="@+id/dayText9"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Y"
-                                android:fontFamily="@font/syne"
-                                android:textColor="#000000"
-                                android:textSize="10sp"
-                                android:textStyle="bold"/>
-                        </LinearLayout>
-
+                        <TextView
+                            android:id="@+id/quoteText"
+                            android:layout_width="180dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:fontFamily="@font/syne"
+                            android:lineSpacingExtra="2dp"
+                            android:text="&quot;You don't have to see the whole staircase, just take the first step.&quot;"
+                            android:textColor="#000000"
+                            android:textSize="8sp" />
                     </LinearLayout>
+
+                    <!-- Vertical divider -->
+                    <View
+                        android:layout_width="2dp"
+                        android:layout_height="match_parent"
+                        android:background="#ffffff"
+                        android:layout_marginStart="40dp"
+                        android:layout_marginEnd="30dp"/>
+
+                    <!-- Right side: Time (vertical) -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginEnd="30dp">
+
+                        <TextView
+                            android:id="@+id/timeText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="08"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="16sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/minuteText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="00"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:layout_marginTop="-4dp"/>
+
+                        <TextView
+                            android:id="@+id/amPmText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="AM"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="10sp"
+                            android:layout_marginTop="2dp"/>
+                    </LinearLayout>
+
+                    <!-- Far Right: Day text (vertical) -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginEnd="30dp">
+
+                        <TextView
+                            android:id="@+id/dayText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="W"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/dayText2"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/syne"
+                            android:text="E"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/dayText3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="D"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/dayText4"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="N"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="8sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/dayText5"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="E"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/dayText6"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="S"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/dayText7"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="D"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/dayText9"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="A"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/dayText9"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Y"
+                            android:fontFamily="@font/syne"
+                            android:textColor="#000000"
+                            android:textSize="7sp"
+                            android:textStyle="bold"/>
+                    </LinearLayout>
+
+                </LinearLayout>
             </FrameLayout>
 
             <LinearLayout

@@ -619,9 +619,11 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                        // ✅ FIXED: Check cursor position, not text emptiness
+                        if (cursorPosition == 0) {
+                            // Cursor is at the start of the block
                             listener.onBackspaceAtStart(pos, currentText);
-                            return true;
+                            return true; // ✅ Consume the event
                         }
                     }
                 }
@@ -988,6 +990,30 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             contentEdit.setCursorVisible(true);
             contentEdit.setLongClickable(true);
 
+            contentEdit.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int pos = getAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return false;
+
+                    EditText editText = (EditText) v;
+                    int cursorPosition = editText.getSelectionStart();
+                    String currentText = editText.getText().toString();
+
+                    if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                        String textBeforeCursor = currentText.substring(0, cursorPosition);
+                        String textAfterCursor = currentText.substring(cursorPosition);
+                        listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
+                        return true;
+                    }
+                    else if (keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (cursorPosition == 0) {
+                            listener.onBackspaceAtStart(pos, currentText);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
             // ✅ Set input type (same as Subpage)
             contentEdit.setInputType(android.text.InputType.TYPE_CLASS_TEXT |
                     android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -1154,17 +1180,18 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
                         String textBeforeCursor = currentText.substring(0, cursorPosition);
                         String textAfterCursor = currentText.substring(cursorPosition);
-
                         listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (currentText.isEmpty()) {
-                            listener.onBackspaceOnEmptyBlock(pos);
+                        // ✅ NEW: Check cursor position first
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
                             return true;
                         }
-                        else if (cursorPosition == 0) {
-                            listener.onBackspaceAtStart(pos, currentText);
+                        // ✅ Keep existing empty block behavior
+                        else if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
                     }
@@ -1650,23 +1677,25 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
                         String textBeforeCursor = currentText.substring(0, cursorPosition);
                         String textAfterCursor = currentText.substring(cursorPosition);
-
                         listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (currentText.isEmpty()) {
-                            listener.onBackspaceOnEmptyBlock(pos);
+                        // ✅ NEW: Check cursor position first
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
                             return true;
                         }
-                        else if (cursorPosition == 0) {
-                            listener.onBackspaceAtStart(pos, currentText);
+                        // ✅ Keep existing empty block behavior
+                        else if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
                     }
                 }
                 return false;
             });
+
 
             contentEdit.addTextChangedListener(new TextWatcher() {
                 private boolean isApplyingBookmarks = false;
@@ -2145,23 +2174,25 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
                         String textBeforeCursor = currentText.substring(0, cursorPosition);
                         String textAfterCursor = currentText.substring(cursorPosition);
-
                         listener.onEnterPressed(pos, textBeforeCursor, textAfterCursor);
                         return true;
                     }
                     else if (keyCode == KeyEvent.KEYCODE_DEL) {
-                        if (currentText.isEmpty()) {
-                            listener.onBackspaceOnEmptyBlock(pos);
+                        // ✅ NEW: Check cursor position first
+                        if (cursorPosition == 0 && !currentText.isEmpty()) {
+                            listener.onBackspaceAtStart(pos, currentText);
                             return true;
                         }
-                        else if (cursorPosition == 0) {
-                            listener.onBackspaceAtStart(pos, currentText);
+                        // ✅ Keep existing empty block behavior
+                        else if (currentText.isEmpty()) {
+                            listener.onBackspaceOnEmptyBlock(pos);
                             return true;
                         }
                     }
                 }
                 return false;
             });
+
 
             checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 int pos = getAdapterPosition();
@@ -2758,54 +2789,44 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             if (style == null || style.isEmpty()) {
                 style = "solid";
             }
-            int themeColor = androidx.core.content.ContextCompat.getColor(
-                    itemView.getContext(), R.color.black);
+
             // Apply divider style
             switch (style) {
                 case "solid":
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    dividerView.setTextColor(themeColor); // ✅ Use theme color
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setTextColor(0xFF333333);
                     break;
                 case "dashed":
                     dividerView.setText("╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍");
-                    dividerView.setTextColor(themeColor); // ✅ Use theme color
+                    dividerView.setTextColor(0xFF333333);
                     break;
                 case "dotted":
                     dividerView.setText("⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯");
-                    dividerView.setTextColor(themeColor); // ✅ Use theme color
+                    dividerView.setTextColor(0xFF333333);
                     break;
                 case "double":
-                    dividerView.setText("╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘╘");
-                    dividerView.setTextColor(themeColor); // ✅ Use theme color
+                    dividerView.setText("═══════════════════════════════");
+                    dividerView.setTextColor(0xFF333333);
                     break;
                 case "arrows":
                     dividerView.setText("→→→→→→→→→→→ ✱ ←←←←←←←←←←←");
-                    // ✅ Use lighter gray for decorative styles
-                    int grayColor = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), R.color.divider_decorative);
-                    dividerView.setTextColor(grayColor);
+                    dividerView.setTextColor(0xFF666666);
                     break;
                 case "stars":
-                    dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ⋆ ✦✦✦✦✦✦✦✦✦✦✦✦");
-                    int grayColor2 = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), R.color.divider_decorative);
-                    dividerView.setTextColor(grayColor2);
+                    dividerView.setText("✦✦✦✦✦✦✦✦✦✦✦✦ ❋ ✦✦✦✦✦✦✦✦✦✦✦✦");
+                    dividerView.setTextColor(0xFF666666);
                     break;
                 case "wave":
                     dividerView.setText("∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿");
-                    int grayColor3 = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), R.color.divider_decorative);
-                    dividerView.setTextColor(grayColor3);
+                    dividerView.setTextColor(0xFF666666);
                     break;
                 case "diamond":
                     dividerView.setText("◈◈◈◈◈◈◈◈◈◈◈◈◈◈ ◆ ◈◈◈◈◈◈◈◈◈◈◈◈◈◈");
-                    int grayColor4 = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), R.color.divider_decorative);
-                    dividerView.setTextColor(grayColor4);
+                    dividerView.setTextColor(0xFF666666);
                     break;
                 default:
-                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    dividerView.setTextColor(themeColor); // ✅ Use theme color
+                    dividerView.setText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    dividerView.setTextColor(0xFF333333);
                     break;
             }
 
@@ -2908,8 +2929,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (position > 0) {
                         moveBlock(position, position - 1);
                         listener.onBlockChanged(blocks.get(position - 1));
-                        android.widget.Toast.makeText(view.getContext(),
-                                "Moved up", android.widget.Toast.LENGTH_SHORT).show();
+                        //android.widget.Toast.makeText(view.getContext(),
+                            //    "Moved up", android.widget.Toast.LENGTH_SHORT).show();
                     } else {
                         android.widget.Toast.makeText(view.getContext(),
                                 "Already at top", android.widget.Toast.LENGTH_SHORT).show();
@@ -2923,8 +2944,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     if (position < blocks.size() - 1) {
                         moveBlock(position, position + 1);
                         listener.onBlockChanged(blocks.get(position + 1));
-                        android.widget.Toast.makeText(view.getContext(),
-                                "Moved down", android.widget.Toast.LENGTH_SHORT).show();
+                       // android.widget.Toast.makeText(view.getContext(),
+                         //       "Moved down", android.widget.Toast.LENGTH_SHORT).show();
                     } else {
                         android.widget.Toast.makeText(view.getContext(),
                                 "Already at bottom", android.widget.Toast.LENGTH_SHORT).show();
@@ -2977,8 +2998,8 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             notifyItemInserted(position + 1);
             listener.onBlockChanged(newBlock);
 
-            android.widget.Toast.makeText(itemView.getContext(),
-                    "Divider duplicated", android.widget.Toast.LENGTH_SHORT).show();
+            //android.widget.Toast.makeText(itemView.getContext(),
+              //      "Divider duplicated", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
     class SubpageViewHolder extends RecyclerView.ViewHolder {
@@ -3291,6 +3312,7 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             bottomSheet.show();
         }
     }
+
     private void applyFontStyle(EditText editText, String fontStyle, String fontColor) {
         // Apply font style (bold, italic, etc.)
         if (fontStyle == null || fontStyle.isEmpty()) {
@@ -3312,24 +3334,19 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             }
         }
 
-        // ✅ Apply font color - use theme default if null
+        // Apply font color
         if (fontColor != null && !fontColor.isEmpty()) {
             try {
                 editText.setTextColor(android.graphics.Color.parseColor(fontColor));
             } catch (Exception e) {
-                // If parsing fails, use theme color
-                int themeColor = androidx.core.content.ContextCompat.getColor(
-                        editText.getContext(), R.color.black);
-                editText.setTextColor(themeColor);
+                editText.setTextColor(android.graphics.Color.parseColor("#333333"));
             }
         } else {
-            // ✅ Use theme color from resources
-            int themeColor = androidx.core.content.ContextCompat.getColor(
-                    editText.getContext(), R.color.black);
-            editText.setTextColor(themeColor);
+            editText.setTextColor(android.graphics.Color.parseColor("#333333"));
         }
     }
- private void showBookmarkContextMenu(View anchorView, String selectedText,
+    // Add this method sa NoteBlockAdapter class (before the ViewHolder classes)
+    private void showBookmarkContextMenu(View anchorView, String selectedText,
                                          String blockId, int startIndex, int endIndex) {
         android.widget.PopupMenu popup = new android.widget.PopupMenu(anchorView.getContext(), anchorView);
         popup.getMenu().add("📌 Bookmark this");
@@ -3464,117 +3481,117 @@ public class NoteBlockAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             canvas.drawLine(x, underlineY, x + textWidth, underlineY, underlinePaint);
         }
     }
-//LINK TO PAGE
-class LinkToPageViewHolder extends RecyclerView.ViewHolder {
-    ImageView pageIcon;
-    TextView pageTitle;
-    TextView pageType;
+    //LINK TO PAGE
+    class LinkToPageViewHolder extends RecyclerView.ViewHolder {
+        ImageView pageIcon;
+        TextView pageTitle;
+        TextView pageType;
 
-    LinkToPageViewHolder(View view) {
-        super(view);
-        pageIcon = view.findViewById(R.id.pageIcon);
-        pageTitle = view.findViewById(R.id.pageTitle);
-        pageType = view.findViewById(R.id.pageType);
+        LinkToPageViewHolder(View view) {
+            super(view);
+            pageIcon = view.findViewById(R.id.pageIcon);
+            pageTitle = view.findViewById(R.id.pageTitle);
+            pageType = view.findViewById(R.id.pageType);
 
-        // Click to open linked page
-        itemView.setOnClickListener(v -> {
-            int pos = getAdapterPosition();
-            if (pos != RecyclerView.NO_POSITION) {
-                NoteBlock block = blocks.get(pos);
-                openLinkedPage(block);
+            // Click to open linked page
+            itemView.setOnClickListener(v -> {
+                int pos = getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) {
+                    NoteBlock block = blocks.get(pos);
+                    openLinkedPage(block);
+                }
+            });
+
+            // Long press for options
+            itemView.setOnLongClickListener(v -> {
+                int pos = getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) {
+                    showLinkToPageOptions(v, pos);
+                }
+                return true;
+            });
+        }
+
+        void bind(NoteBlock block) {
+            // Set title
+            String title = block.getContent();
+            pageTitle.setText(title != null && !title.isEmpty() ? title : "Untitled");
+
+            // Set type badge
+            String type = block.getLinkedPageType();
+            pageType.setText(type != null ? type : "page");
+
+            // Set icon based on type
+            if (type != null) {
+                switch (type) {
+                    case "note":
+                        pageIcon.setImageResource(R.drawable.ic_fab_notes);
+                        pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                                android.graphics.Color.parseColor("#8daaa6")));
+                        //#E3F2FD
+                        break;
+                    case "todo":
+                        pageIcon.setImageResource(R.drawable.ic_fab_todo);
+                        pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                                android.graphics.Color.parseColor("#FFF3E0")));
+                        break;
+                    case "weekly":
+                        pageIcon.setImageResource(R.drawable.ic_calendar);
+                        pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                                android.graphics.Color.parseColor("#F3E5F5")));
+                        break;
+                    default:
+                        pageIcon.setImageResource(R.drawable.ic_fab_notes);
+                        pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                                android.graphics.Color.parseColor("#E0E0E0")));
+                        break;
+                }
             }
-        });
+        }
 
-        // Long press for options
-        itemView.setOnLongClickListener(v -> {
-            int pos = getAdapterPosition();
-            if (pos != RecyclerView.NO_POSITION) {
-                showLinkToPageOptions(v, pos);
+        private void openLinkedPage(NoteBlock block) {
+            String pageId = block.getLinkedPageId();
+            String pageType = block.getLinkedPageType();
+
+            if (pageId == null || pageType == null) {
+                Toast.makeText(itemView.getContext(), "Invalid link", Toast.LENGTH_SHORT).show();
+                return;
             }
-            return true;
-        });
-    }
 
-    void bind(NoteBlock block) {
-        // Set title
-        String title = block.getContent();
-        pageTitle.setText(title != null && !title.isEmpty() ? title : "Untitled");
+            android.content.Context context = itemView.getContext();
 
-        // Set type badge
-        String type = block.getLinkedPageType();
-        pageType.setText(type != null ? type : "page");
-
-        // Set icon based on type
-        if (type != null) {
-            switch (type) {
+            switch (pageType) {
                 case "note":
-                    pageIcon.setImageResource(R.drawable.ic_fab_notes);
-                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                            android.graphics.Color.parseColor("#E3F2FD")));
+                    android.content.Intent noteIntent = new android.content.Intent(context, NoteActivity.class);
+                    noteIntent.putExtra("noteId", pageId);
+                    context.startActivity(noteIntent);
                     break;
+
                 case "todo":
-                    pageIcon.setImageResource(R.drawable.ic_fab_todo);
-                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                            android.graphics.Color.parseColor("#FFF3E0")));
+                    // ✅ FIXED: Open TodoActivity
+                    android.content.Intent todoIntent = new android.content.Intent(context, TodoActivity.class);
+                    todoIntent.putExtra("listId", pageId); // ✅ Use "listId" not "todoId"
+                    context.startActivity(todoIntent);
                     break;
+
                 case "weekly":
-                    pageIcon.setImageResource(R.drawable.ic_calendar);
-                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                            android.graphics.Color.parseColor("#F3E5F5")));
-                    break;
-                default:
-                    pageIcon.setImageResource(R.drawable.ic_fab_notes);
-                    pageIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                            android.graphics.Color.parseColor("#E0E0E0")));
+                    // ✅ FIXED: Open WeeklyActivity
+                    android.content.Intent weeklyIntent = new android.content.Intent(context, WeeklyActivity.class);
+                    weeklyIntent.putExtra("planId", pageId); // ✅ Use "planId" not "weeklyId"
+                    context.startActivity(weeklyIntent);
                     break;
             }
         }
-    }
+        private void showLinkToPageOptions(View view, int position) {
+            android.widget.PopupMenu popup = new android.widget.PopupMenu(view.getContext(), view);
+            popup.getMenu().add("🗑️ Remove link");
 
-    private void openLinkedPage(NoteBlock block) {
-        String pageId = block.getLinkedPageId();
-        String pageType = block.getLinkedPageType();
+            popup.setOnMenuItemClickListener(item -> {
+                listener.onBlockDeleted(position);
+                return true;
+            });
 
-        if (pageId == null || pageType == null) {
-            Toast.makeText(itemView.getContext(), "Invalid link", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        android.content.Context context = itemView.getContext();
-
-        switch (pageType) {
-            case "note":
-                android.content.Intent noteIntent = new android.content.Intent(context, NoteActivity.class);
-                noteIntent.putExtra("noteId", pageId);
-                context.startActivity(noteIntent);
-                break;
-
-            case "todo":
-                // ✅ FIXED: Open TodoActivity
-                android.content.Intent todoIntent = new android.content.Intent(context, TodoActivity.class);
-                todoIntent.putExtra("listId", pageId); // ✅ Use "listId" not "todoId"
-                context.startActivity(todoIntent);
-                break;
-
-            case "weekly":
-                // ✅ FIXED: Open WeeklyActivity
-                android.content.Intent weeklyIntent = new android.content.Intent(context, WeeklyActivity.class);
-                weeklyIntent.putExtra("planId", pageId); // ✅ Use "planId" not "weeklyId"
-                context.startActivity(weeklyIntent);
-                break;
+            popup.show();
         }
     }
-    private void showLinkToPageOptions(View view, int position) {
-        android.widget.PopupMenu popup = new android.widget.PopupMenu(view.getContext(), view);
-        popup.getMenu().add("🗑️ Remove link");
-
-        popup.setOnMenuItemClickListener(item -> {
-            listener.onBlockDeleted(position);
-            return true;
-        });
-
-        popup.show();
-    }
-}
-
 }

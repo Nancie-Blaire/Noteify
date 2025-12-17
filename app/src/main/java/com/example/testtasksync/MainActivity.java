@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Verify FABs are found
         if (fabMain == null || fabNote == null || fabTodo == null || fabWeekly == null) {
-            Toast.makeText(this, "ERROR: FABs not found!", Toast.LENGTH_LONG).show();
+         //   Toast.makeText(this, "ERROR: FABs not found!", Toast.LENGTH_LONG).show();
             Log.e(TAG, "FABs not found in layout!");
             return;
         }

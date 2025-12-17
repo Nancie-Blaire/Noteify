@@ -40,7 +40,7 @@
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:textStyle="bold"
-        app:backgroundTint="@color/nav_bg"
+        app:backgroundTint="#8daaa6"
         app:fabSize="mini"
         android:minWidth="150dp"
         android:visibility="gone"
@@ -61,7 +61,7 @@
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:textStyle="bold"
-        app:backgroundTint="@color/nav_bg"
+        app:backgroundTint="#8daaa6"
         app:fabSize="mini"
         android:minWidth="150dp"
         android:visibility="gone"
@@ -83,7 +83,7 @@
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:textStyle="bold"
-        app:backgroundTint="@color/nav_bg"
+        app:backgroundTint="#8daaa6"
         app:fabSize="mini"
         android:minWidth="150dp"
         android:paddingStart="12dp"
@@ -117,7 +117,7 @@
                 android:layout_width="45dp"
                 android:layout_height="45dp"
                 android:layout_gravity="center"
-                android:background="@drawable/circle_bg_main"
+                android:background="@drawable/circle_bg"
                 android:contentDescription="Nav Home"
                 android:padding="10dp"
                 android:src="@drawable/ic_navbar_home"
@@ -154,10 +154,10 @@
                 android:contentDescription="Add Note"
                 android:elevation="12dp"
                 android:src="@drawable/ic_fab_add"
-                app:backgroundTint="@color/plus_bg"
+                app:backgroundTint="#f6d5b6"
                 app:fabCustomSize="40dp"
                 app:maxImageSize="30dp"
-                app:tint="@color/black" />
+                app:tint="#000000" />
         </FrameLayout>
 
         <!-- Notifs -->

@@ -278,7 +278,7 @@ public class Login extends AppCompatActivity {
             finish();
         } catch (ActivityNotFoundException ex) {
             Log.e(TAG, "MainActivity not found: " + ex.getMessage(), ex);
-            Toast.makeText(Login.this, "MainActivity not found", Toast.LENGTH_LONG).show();
+            //Toast.makeText(Login.this, "MainActivity not found", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -392,7 +392,7 @@ public class Login extends AppCompatActivity {
                 finish();
             } catch (ActivityNotFoundException ex) {
                 Log.e(TAG, "MainActivity not found onStart: " + ex.getMessage(), ex);
-                Toast.makeText(this, "MainActivity not found", Toast.LENGTH_LONG).show();
+              //  Toast.makeText(this, "MainActivity not found", Toast.LENGTH_LONG).show();
             }
         }
     }

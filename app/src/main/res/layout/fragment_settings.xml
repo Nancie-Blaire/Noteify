@@ -2,11 +2,8 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#f4e8df"
+    android:layout_height="match_parent">
 
-    >
-    <!--COMMENT-->
     <!-- Header with Back Button -->
     <LinearLayout
         android:id="@+id/header"
@@ -14,17 +11,20 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:gravity="center_vertical">
+
+        android:gravity="center_vertical"
+        android:background="#f4e8df">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Settings"
-            android:fontFamily="@font/syne"
             android:textColor="#000000"
             android:textSize="25sp"
+            android:fontFamily="@font/syne"
             android:textStyle="bold"
-            android:layout_marginStart="3dp"/>
+            android:layout_marginStart="3dp"
+            />
     </LinearLayout>
 
     <ScrollView
@@ -39,7 +39,8 @@
             android:orientation="vertical"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
-            android:paddingBottom="80dp">
+            android:paddingBottom="80dp"
+            android:background="#f4e8df">
 
             <!-- Settings Icon -->
             <ImageView
@@ -118,7 +119,6 @@
                                 android:textStyle="bold"
                                 android:gravity="center_vertical"
                                 android:paddingEnd="8dp" />
-
 
                             <!-- Civilian Option -->
                             <RadioButton
@@ -262,91 +262,6 @@
                     android:layout_height="24dp"
                     android:src="@drawable/ic_arrow_right"
                     app:tint="#666666"/>
-            </LinearLayout>
-
-            <!-- THEME Section -->
-            <!-- THEME Section - UPDATED TO EXPANDABLE -->
-            <LinearLayout
-                android:id="@+id/btnTheme"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
-                android:layout_marginBottom="2dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:id="@+id/themeHeader"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="THEME"
-                        android:textColor="#000000"
-                        android:textSize="15sp"
-                        android:textStyle="bold"/>
-
-                    <ImageView
-                        android:id="@+id/themeArrow"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_chevron_down"
-                        app:tint="#666666"/>
-                </LinearLayout>
-
-                <!-- Expandable Content -->
-                <LinearLayout
-                    android:id="@+id/themeContent"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="100dp"
-                    android:layout_marginTop="16dp"
-                    android:background="#ffffff"
-                    android:padding="8dp"
-                    android:visibility="gone">
-
-                    <RadioGroup
-                        android:id="@+id/themeRadioGroup"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-
-                        <RadioButton
-                            android:id="@+id/rbLightTheme"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Light"
-                            android:textStyle="bold"
-                            android:textSize="14sp"
-                            android:textColor="#333333"
-                            android:layout_marginBottom="8dp"/>
-
-                        <RadioButton
-                            android:id="@+id/rbDarkTheme"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Dark"
-                            android:textStyle="bold"
-                            android:textSize="14sp"
-                            android:textColor="#333333"
-                            android:layout_marginBottom="8dp"/>
-
-                        <RadioButton
-                            android:id="@+id/rbSystemTheme"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="System Default"
-                            android:textStyle="bold"
-                            android:textSize="14sp"
-                            android:textColor="#333333"/>
-                    </RadioGroup>
-                </LinearLayout>
             </LinearLayout>
 
             <!-- BIN Section -->

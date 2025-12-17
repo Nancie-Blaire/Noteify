@@ -42,6 +42,8 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
 import java.util.List;
+import android.graphics.Color;
+import android.os.Build;
 
 public class Account extends AppCompatActivity {
 
@@ -62,6 +64,14 @@ public class Account extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_account);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(Color.parseColor("#f4e8df"));
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // This makes the status bar icons dark
+                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -143,7 +153,7 @@ public class Account extends AppCompatActivity {
     private void loadUserProfile() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
-            Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -510,7 +520,7 @@ public class Account extends AppCompatActivity {
                             }
                         }
 
-                        Toast.makeText(Account.this, errorMessage, Toast.LENGTH_LONG).show();
+                    //    Toast.makeText(Account.this, errorMessage, Toast.LENGTH_LONG).show();
 
                         // Current user remains logged in - no action needed!
                         Log.d(TAG, "Failed to add account, current user still logged in");
@@ -606,7 +616,7 @@ public class Account extends AppCompatActivity {
         }
     }
     private void switchToGoogleAccount(AccountManager.SavedAccount account) {
-        Toast.makeText(this, "Switching to " + account.getEmail() + "...", Toast.LENGTH_SHORT).show();
+     //   Toast.makeText(this, "Switching to " + account.getEmail() + "...", Toast.LENGTH_SHORT).show();
 
         // ✅ Try silent sign-in first (no account picker)
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -793,14 +803,13 @@ public class Account extends AppCompatActivity {
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)
-                .setIcon(android.R.drawable.ic_dialog_alert)
                 .show();
     }
 
     private void deleteUserAccount() {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
-            Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show();
+         //   Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show();
             return;
         }
 

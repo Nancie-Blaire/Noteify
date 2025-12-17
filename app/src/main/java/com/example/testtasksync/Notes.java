@@ -90,19 +90,6 @@ public class Notes extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        //TOP BAR COLOR
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            requireActivity().getWindow().setStatusBarColor(
-                    Color.parseColor("#f4e8df") // White
-            );
-            // ✅ THIS IS FOR THE ICONS
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                View decorView = requireActivity().getWindow().getDecorView();
-                decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR); // Dark icons
-                // OR remove this line for white icons
-            }
-
-        }
 
 
 
@@ -294,19 +281,19 @@ public class Notes extends Fragment {
             prioLayoutMode = LayoutMode.LIST;
             saveLayoutPreference(PREF_PRIO_LAYOUT, prioLayoutMode);
             updatePrioLayout();
-            Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortNewest.setOnClickListener(v -> {
             sortPriosByNewest();
-            Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortOldest.setOnClickListener(v -> {
             sortPriosByOldest();
-            Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
@@ -340,7 +327,7 @@ public class Notes extends Fragment {
             recentsLayoutMode = LayoutMode.GRID;
             saveLayoutPreference(PREF_RECENTS_LAYOUT, recentsLayoutMode);
             updateRecentsLayout();
-            Toast.makeText(getContext(), "Grid view", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "Grid view", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
@@ -348,19 +335,19 @@ public class Notes extends Fragment {
             recentsLayoutMode = LayoutMode.LIST;
             saveLayoutPreference(PREF_RECENTS_LAYOUT, recentsLayoutMode);
             updateRecentsLayout();
-            Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "List view", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortNewest.setOnClickListener(v -> {
             sortRecentsByNewest();
-            Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "Sorted by newest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 
         sortOldest.setOnClickListener(v -> {
             sortRecentsByOldest();
-            Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(getContext(), "Sorted by oldest", Toast.LENGTH_SHORT).show();
             popupWindow.dismiss();
         });
 

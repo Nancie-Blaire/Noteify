@@ -1,7 +1,5 @@
 package com.example.testtasksync;
 
-import static androidx.core.graphics.drawable.DrawableCompat.applyTheme;
-
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -19,12 +17,13 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatDelegate;
 import androidx.fragment.app.Fragment;
+import android.graphics.Color;
+import android.os.Build;
 
 public class Settings extends Fragment {
 
-    private LinearLayout userProfileIcon, btnTheme, btnSecurity, btnBin;
+    private LinearLayout userProfileIcon, btnSecurity, btnBin;
     private LinearLayout timeFormatSection, notificationSection;
     private LinearLayout timeFormatContent, notificationContent;
     private ImageView timeFormatArrow, notificationArrow;
@@ -32,16 +31,10 @@ public class Settings extends Fragment {
     private RadioButton rbMilitary, rbCivilian, rbNotificationOn, rbNotificationOff;
     private ImageButton btnBack;
 
-    private LinearLayout themeContent;
-    private ImageView themeArrow;
-    private RadioGroup themeRadioGroup;
-    private RadioButton rbLightTheme, rbDarkTheme, rbSystemTheme;
-
     private SharedPreferences preferences;
     private static final String PREFS_NAME = "AppSettings";
     private static final String KEY_TIME_FORMAT = "time_format";
     private static final String KEY_NOTIFICATION = "notification_enabled";
-    private static final String KEY_THEME = "theme";
 
     @Nullable
     @Override
@@ -49,7 +42,16 @@ public class Settings extends Fragment {
                              @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (getActivity() != null && getActivity().getWindow() != null) {
+                getActivity().getWindow().setStatusBarColor(Color.parseColor("#f4e8df"));
 
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // This makes the status bar icons dark
+                    getActivity().getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                }
+            }
+        }
         // Initialize SharedPreferences
         preferences = requireContext().getSharedPreferences(PREFS_NAME, requireContext().MODE_PRIVATE);
 
@@ -85,17 +87,8 @@ public class Settings extends Fragment {
         rbNotificationOn = view.findViewById(R.id.rbNotificationOn);
         rbNotificationOff = view.findViewById(R.id.rbNotificationOff);
 
-        btnTheme = view.findViewById(R.id.btnTheme);
-        themeContent = view.findViewById(R.id.themeContent);
-        themeArrow = view.findViewById(R.id.themeArrow);
-        themeRadioGroup = view.findViewById(R.id.themeRadioGroup);
-        rbLightTheme = view.findViewById(R.id.rbLightTheme);
-        rbDarkTheme = view.findViewById(R.id.rbDarkTheme);
-        rbSystemTheme = view.findViewById(R.id.rbSystemTheme);
-
         // Navigation sections
         userProfileIcon = view.findViewById(R.id.userProfileIcon);
-        btnTheme = view.findViewById(R.id.btnTheme);
         btnBin = view.findViewById(R.id.btnBin);
         btnSecurity = view.findViewById(R.id.btnSecurity);
     }
@@ -123,12 +116,7 @@ public class Settings extends Fragment {
                 toggleSection(notificationContent, notificationArrow);
             });
         }
-// ✅ ADD THEME SECTION
-        if (btnTheme != null && themeContent != null && themeArrow != null) {
-            btnTheme.setOnClickListener(v -> {
-                toggleSection(themeContent, themeArrow);
-            });
-        }
+
         // Time Format Radio Group Listener
         if (timeFormatRadioGroup != null) {
             timeFormatRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
@@ -140,39 +128,24 @@ public class Settings extends Fragment {
             });
         }
 
-        // ✅ UPDATED: Notification Radio Group Listener
+        // Notification Radio Group Listener
         if (notificationRadioGroup != null) {
             notificationRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
                 if (checkedId == R.id.rbNotificationOn) {
                     saveNotificationSetting(true);
-                    // ✅ NEW: Re-schedule all existing tasks when enabling notifications
+                    // Re-schedule all existing tasks when enabling notifications
                     rescheduleAllNotifications();
-                    Toast.makeText(requireContext(),
-                            "Notifications enabled. Scheduling reminders...",
-                            Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(requireContext(),
+                           // "Notifications enabled. Scheduling reminders...",
+                         //   Toast.LENGTH_SHORT).show();
                 } else if (checkedId == R.id.rbNotificationOff) {
                     saveNotificationSetting(false);
-                    // ✅ Cancel all existing notifications when disabled
+                    // Cancel all existing notifications when disabled
                     NotificationHelper.cancelAllNotifications(requireContext());
-                    Toast.makeText(requireContext(),
-                            "Notifications disabled. All scheduled reminders cancelled.",
-                            Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(requireContext(),
+                     //       "Notifications disabled. All scheduled reminders cancelled.",
+                       //     Toast.LENGTH_SHORT).show();
                 }
-            });
-        }
-
-        if (themeRadioGroup != null) {
-            themeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
-                String theme;
-                if (checkedId == R.id.rbLightTheme) {
-                    theme = "light";
-                } else if (checkedId == R.id.rbDarkTheme) {
-                    theme = "dark";
-                } else {
-                    theme = "system";
-                }
-                saveTheme(theme);
-                applyTheme(theme);
             });
         }
     }
@@ -242,47 +215,19 @@ public class Settings extends Fragment {
         } else {
             if (rbNotificationOff != null) rbNotificationOff.setChecked(true);
         }
-        String theme = preferences.getString(KEY_THEME, "system");
-        if (theme.equals("light")) {
-            if (rbLightTheme != null) rbLightTheme.setChecked(true);
-        } else if (theme.equals("dark")) {
-            if (rbDarkTheme != null) rbDarkTheme.setChecked(true);
-        } else {
-            if (rbSystemTheme != null) rbSystemTheme.setChecked(true);
-        }
-
     }
 
     private void saveTimeFormat(String format) {
         preferences.edit().putString(KEY_TIME_FORMAT, format).apply();
-        // TODO: Apply time format change throughout the app
-        // You might want to broadcast this change or use LiveData/ViewModel
     }
 
     private void saveNotificationSetting(boolean enabled) {
         preferences.edit().putBoolean(KEY_NOTIFICATION, enabled).apply();
     }
-    private void saveTheme(String theme) {
-        preferences.edit().putString(KEY_THEME, theme).apply();
-    }
 
-    private void applyTheme(String theme) {
-        if (getActivity() != null) {
-            switch (theme) {
-                case "light":
-                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
-                    break;
-                case "dark":
-                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-                    break;
-                case "system":
-                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-                    break;
-            }
-
-        }
-    }
-
+    /**
+     * Re-schedule all notifications for existing tasks when notifications are enabled
+     */
     private void rescheduleAllNotifications() {
         NotificationScheduler.rescheduleAllNotifications(requireContext());
     }
@@ -297,10 +242,5 @@ public class Settings extends Fragment {
     public static boolean areNotificationsEnabled(android.content.Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, context.MODE_PRIVATE);
         return prefs.getBoolean(KEY_NOTIFICATION, true);
-    }
-
-    public static String getTheme(android.content.Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, context.MODE_PRIVATE);
-        return prefs.getString(KEY_THEME, "system");
     }
 }

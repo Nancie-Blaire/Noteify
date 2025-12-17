@@ -95,8 +95,8 @@ public class NoteBlock {
         this.listNumber = 1;
         this.isChunked = false;
         this.sizeKB = 0;
-        this.styleData = null;
-        this.fontColor = null;// Default black color
+        this.fontColor = "#333333";
+        this.styleData = null;// Default black color
     }
 
     // Empty constructor for Firestore
@@ -106,8 +106,7 @@ public class NoteBlock {
         this.content = "";
         this.indentLevel = 0;
         this.isChunked = false;
-        this.fontColor = null;
-    // Default black color
+        this.fontColor = "#333333"; // Default black color
     }
 
     // Getters and Setters
@@ -251,9 +250,7 @@ public class NoteBlock {
         if (block.fontColor == null || block.fontColor.isEmpty()) {
             block.fontColor = "#333333";
         }
-        if (block.fontColor == null || block.fontColor.isEmpty()) {
-            block.fontColor = null; // Will be resolved in Activity/Adapter
-        }
+
         return block;
     }
 }

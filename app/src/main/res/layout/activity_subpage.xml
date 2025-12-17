@@ -272,7 +272,7 @@
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:layout_margin="4dp"
-                android:src="@drawable/ic_link_to_page"
+                android:src="@drawable/link_to_page_share"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Link to Page"
                 app:tint="#FFFFFFFF" />

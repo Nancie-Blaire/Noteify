@@ -199,7 +199,7 @@ public class WeeklyActivity extends AppCompatActivity {
         findViewById(R.id.addSunTask).setOnClickListener(v -> addTask("Sun"));
 
         saveButton.setOnClickListener(v -> saveWeeklyPlan());
-        backButton.setOnClickListener(v -> finish());
+        backButton.setOnClickListener(v -> saveWeeklyPlan());
         scheduleButton.setOnClickListener(v -> showScheduleDialog());
 
         // ✅ REMOVED: Image and divider setup
@@ -308,7 +308,7 @@ public class WeeklyActivity extends AppCompatActivity {
                                 saveTaskScheduleOnly(task);
                             }
 
-                            Toast.makeText(WeeklyActivity.this, "Task schedule cleared", Toast.LENGTH_SHORT).show();
+                           // Toast.makeText(WeeklyActivity.this, "Task schedule cleared", Toast.LENGTH_SHORT).show();
                         }
                     });
 
@@ -741,7 +741,7 @@ public class WeeklyActivity extends AppCompatActivity {
                     .setPositiveButton("Set Current Week", (d, w) -> {
                         setCurrentWeek();
                         updateScheduleDisplay();
-                        Toast.makeText(this, "Week range set to current week", Toast.LENGTH_SHORT).show();
+                       // Toast.makeText(this, "Week range set to current week", Toast.LENGTH_SHORT).show();
                         d.dismiss();
                         // Open the task schedule dialog again after setting week range
                         showTaskScheduleDialog(task, taskDay);
@@ -879,7 +879,7 @@ public class WeeklyActivity extends AppCompatActivity {
             }
 
             // ✅ Show confirmation
-            String message = "✓ Schedule set for " + taskDay;
+            String message = "Schedule set for " + taskDay;
             if (notificationCheckbox.isChecked()) {
                 message += " (Notification enabled)";
             }
@@ -1226,7 +1226,6 @@ public class WeeklyActivity extends AppCompatActivity {
             title = "Weekly Plan";
         }
 
-        // Calculate total and completed tasks
         int totalTasks = 0;
         int completedTasks = 0;
         for (String day : days) {
@@ -1243,7 +1242,6 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         }
 
-        // Update mainScheduleData with week range in description
         Map<String, Object> mainScheduleData = new HashMap<>();
         mainScheduleData.put("title", title);
 
@@ -1261,22 +1259,18 @@ public class WeeklyActivity extends AppCompatActivity {
         mainScheduleData.put("description", description);
         mainScheduleData.put("category", "weekly");
         mainScheduleData.put("isCompleted", completedTasks == totalTasks && totalTasks > 0);
-        mainScheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
-
-        // Set date to start of week (so it appears in calendar on that date)
+        mainScheduleData.put("createdAt", new Timestamp(new Date()));
+        mainScheduleData.put("createdAtServer", com.google.firebase.firestore.FieldValue.serverTimestamp());
         if (startDate != null) {
             mainScheduleData.put("date", new Timestamp(startDate.getTime()));
         } else {
             mainScheduleData.put("date", null);
         }
 
-        // âœ… ADD TIME to mainScheduleData
         mainScheduleData.put("time", selectedTime != null ? selectedTime : "");
         mainScheduleData.put("hasReminder", hasReminder);
         mainScheduleData.put("reminderMinutes", reminderMinutes);
 
-
-        // Generate new ID if this is a new plan
         if (isNewPlan) {
             planId = db.collection("users")
                     .document(user.getUid())
@@ -1289,17 +1283,14 @@ public class WeeklyActivity extends AppCompatActivity {
         final int finalTotalTasks = totalTasks;
         final int finalCompletedTasks = completedTasks;
 
-        // Save to weeklyPlans collection with date range and time
         Map<String, Object> planData = new HashMap<>();
         planData.put("title", finalTitle);
-        planData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        planData.put("timestamp", new Timestamp(new Date()));
+        planData.put("timestampServer", com.google.firebase.firestore.FieldValue.serverTimestamp());
         planData.put("taskCount", finalTotalTasks);
         planData.put("completedCount", finalCompletedTasks);
-
-        // âœ… ADD TIME to planData
         planData.put("time", selectedTime != null ? selectedTime : "");
 
-        // Add week range dates
         if (startDate != null && endDate != null) {
             planData.put("startDate", new Timestamp(startDate.getTime()));
             planData.put("endDate", new Timestamp(endDate.getTime()));
@@ -1308,20 +1299,20 @@ public class WeeklyActivity extends AppCompatActivity {
             planData.put("endDate", null);
         }
 
+        // ✅ START SAVE OPERATIONS (will queue offline)
         db.collection("users")
                 .document(user.getUid())
                 .collection("weeklyPlans")
                 .document(finalPlanId)
-                .set(planData)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Weekly plan saved successfully");
-                    saveTasks(user.getUid(), finalPlanId, finalTitle, finalTotalTasks,
-                            finalCompletedTasks, mainScheduleData);
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to save weekly plan", e);
-                    Toast.makeText(this, "Failed to save plan", Toast.LENGTH_SHORT).show();
-                });
+                .set(planData);
+
+        // Save tasks in background
+        saveTasks(user.getUid(), finalPlanId, finalTitle, finalTotalTasks,
+                finalCompletedTasks, mainScheduleData);
+
+        // ✅ IMMEDIATELY SHOW TOAST AND FINISH
+      //  Toast.makeText(this, "Saving weekly plan...", Toast.LENGTH_SHORT).show();
+        finish();
     }
 
     private void saveTasks(String userId, String planId, String planTitle, int totalTasks,
@@ -1333,10 +1324,9 @@ public class WeeklyActivity extends AppCompatActivity {
                 .collection("tasks")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    // ✅ FIX: Cancel notifications using the correct composite ID format
+                    // Cancel old notifications
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
                         String oldTaskId = doc.getId();
-                        // Cancel with composite ID (same format used when scheduling)
                         NotificationHelper.cancelNotification(this, planId + "_" + oldTaskId);
                         doc.getReference().delete();
                     }
@@ -1370,7 +1360,6 @@ public class WeeklyActivity extends AppCompatActivity {
                                     taskData.put("isCompleted", task.isCompleted());
                                     taskData.put("position", task.getPosition());
 
-                                    // ✅ Save task-level schedule
                                     if (task.getScheduleDate() != null) {
                                         taskData.put("scheduleDate", new com.google.firebase.Timestamp(task.getScheduleDate()));
                                     }
@@ -1389,7 +1378,6 @@ public class WeeklyActivity extends AppCompatActivity {
                                                 String taskId = documentReference.getId();
                                                 task.setId(taskId);
 
-                                                // ✅ Schedule notification if enabled and task not completed
                                                 if (task.hasNotification() &&
                                                         !task.isCompleted() &&
                                                         task.getScheduleDate() != null) {
@@ -1421,7 +1409,6 @@ public class WeeklyActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     android.util.Log.e(TAG, "Failed to delete old tasks", e);
-                    Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
                 });
     }
     private void createOrUpdateMainSchedule(String userId, String planId,
@@ -1436,7 +1423,6 @@ public class WeeklyActivity extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     if (!queryDocumentSnapshots.isEmpty()) {
-                        // Update existing schedule
                         String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
                         db.collection("users")
                                 .document(userId)
@@ -1445,48 +1431,36 @@ public class WeeklyActivity extends AppCompatActivity {
                                 .update(mainScheduleData)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d(TAG, "Main schedule updated for weekly plan");
-
-                                    // ✅ NEW: Schedule notification after successful save
                                     if (hasReminder) {
                                         scheduleWeeklyPlanNotification();
                                     }
-
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish() - already finished in saveWeeklyPlan()
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to update schedule", e);
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish()
                                 });
                     } else {
-                        // Create new schedule
                         db.collection("users")
                                 .document(userId)
                                 .collection("schedules")
                                 .add(mainScheduleData)
                                 .addOnSuccessListener(documentReference -> {
                                     Log.d(TAG, "Main schedule created for weekly plan");
-
-                                    // ✅ NEW: Schedule notification after successful save
                                     if (hasReminder) {
                                         scheduleWeeklyPlanNotification();
                                     }
-
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish()
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to create schedule", e);
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish()
                                 });
                     }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to check existing schedule", e);
-                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                    finish();
+                    // ✅ REMOVED finish()
                 });
     }
 
@@ -1810,7 +1784,7 @@ public class WeeklyActivity extends AppCompatActivity {
 
                     // Validate: end date must be after start date
                     if (endDate.before(startDate)) {
-                        Toast.makeText(this, "âš ï¸ End date must be after start date",
+                        Toast.makeText(this, "End date must be after start date",
                                 Toast.LENGTH_SHORT).show();
                         endDate = (Calendar) startDate.clone();
                         endDate.add(Calendar.DAY_OF_MONTH, 6);
@@ -1924,8 +1898,8 @@ public class WeeklyActivity extends AppCompatActivity {
 
     // HEADINGS & FONTS
     private void showHeadingOptions() {
-        Toast.makeText(this, "⚠️ Font styles only apply to the plan title, not tasks",
-                Toast.LENGTH_LONG).show();
+      //  Toast.makeText(this, "Font styles only apply to the plan title, not tasks",
+              //  Toast.LENGTH_LONG).show();
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = getLayoutInflater().inflate(R.layout.headings_fonts_bottom_sheet, null);
         bottomSheet.setContentView(sheetView);
@@ -2166,7 +2140,7 @@ public class WeeklyActivity extends AppCompatActivity {
         }
 
         saveTitleFormatting();
-        Toast.makeText(this, "Title style applied", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Title style applied", Toast.LENGTH_SHORT).show();
     }
 
     // 6. REPLACE applyFontColor():
@@ -2174,7 +2148,7 @@ public class WeeklyActivity extends AppCompatActivity {
         titleFontColor = color;
         weeklyTitle.setTextColor(Color.parseColor(color));
         saveTitleFormatting();
-        Toast.makeText(this, "Color applied", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Color applied", Toast.LENGTH_SHORT).show();
     }
     private void saveTitleFormatting() {
         FirebaseUser user = auth.getCurrentUser();
@@ -2300,7 +2274,7 @@ public class WeeklyActivity extends AppCompatActivity {
     // SUBPAGE (Create new linked weekly plan)
     private void createSubWeeklyPlan() {
         if (isNewPlan) {
-            Toast.makeText(this, "Please save this plan first", Toast.LENGTH_SHORT).show();
+        //    Toast.makeText(this, "Please save this plan first", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -2337,7 +2311,7 @@ public class WeeklyActivity extends AppCompatActivity {
                             .collection("subpages")
                             .add(subpageRef)
                             .addOnSuccessListener(docRef -> {
-                                Toast.makeText(this, "Sub-plan created", Toast.LENGTH_SHORT).show();
+                             //   Toast.makeText(this, "Sub-plan created", Toast.LENGTH_SHORT).show();
 
                                 loadSubpages();
                                 Intent intent = new Intent(this, WeeklyActivity.class);
@@ -2479,7 +2453,7 @@ public class WeeklyActivity extends AppCompatActivity {
             saveWeekScheduleOnly();
         }
 
-        Toast.makeText(this, "Schedule cleared", Toast.LENGTH_SHORT).show();
+       // Toast.makeText(this, "Schedule cleared", Toast.LENGTH_SHORT).show();
     }
     private void saveWeekScheduleOnly() {
         FirebaseUser user = auth.getCurrentUser();
@@ -2652,19 +2626,26 @@ public class WeeklyActivity extends AppCompatActivity {
         int hour = Integer.parseInt(timeParts[0]);
         int minute = Integer.parseInt(timeParts[1]);
 
-        // Create notification time using startDate + selectedTime
-        Calendar notificationTime = (Calendar) startDate.clone();
+        // ✅ FIX: Use TODAY's date instead of startDate
+        Calendar notificationTime = Calendar.getInstance();
         notificationTime.set(Calendar.HOUR_OF_DAY, hour);
         notificationTime.set(Calendar.MINUTE, minute);
         notificationTime.set(Calendar.SECOND, 0);
+        notificationTime.set(Calendar.MILLISECOND, 0);
 
         // Subtract reminder minutes
         notificationTime.add(Calendar.MINUTE, -reminderMinutes);
 
-        // Only schedule if notification time is in the future
+        // ✅ If the notification time has passed today, schedule for tomorrow
         if (notificationTime.getTimeInMillis() <= System.currentTimeMillis()) {
-            Log.d(TAG, "⚠️ Notification time is in the past, skipping");
-            Toast.makeText(this, "⚠️ Reminder time has passed", Toast.LENGTH_SHORT).show();
+            notificationTime.add(Calendar.DAY_OF_MONTH, 1);
+            Log.d(TAG, "⏭️ Notification time passed today, scheduling for tomorrow");
+        }
+
+        // ✅ Check if notification time is still within the week range
+        if (endDate != null && notificationTime.getTimeInMillis() > endDate.getTimeInMillis()) {
+            Log.d(TAG, "⚠️ Notification would be after week end date, skipping");
+            Toast.makeText(this, "Week has ended - notification not scheduled", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -2675,12 +2656,12 @@ public class WeeklyActivity extends AppCompatActivity {
 
         SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
         String weekRange = sdf.format(startDate.getTime()) + " - " + sdf.format(endDate.getTime());
-        String notificationBody = "Your weekly plan (" + weekRange + ") starts at " + selectedTime;
+        String notificationBody = "Your weekly plan (" + weekRange + ") reminder at " + selectedTime;
 
         // Schedule the notification
         NotificationHelper.scheduleNotification(
                 this,
-                "weekly_" + planId, // Unique ID for this weekly plan
+                "weekly_" + planId,
                 title,
                 notificationBody,
                 notificationTime.getTimeInMillis(),
@@ -2688,8 +2669,9 @@ public class WeeklyActivity extends AppCompatActivity {
                 planId
         );
 
-        Log.d(TAG, "✅ Scheduled weekly notification for: " + notificationTime.getTime());
+        SimpleDateFormat fullDateFormat = new SimpleDateFormat("MMM dd 'at' h:mm a", Locale.getDefault());
+        Log.d(TAG, "✅ Scheduled weekly notification for: " + fullDateFormat.format(notificationTime.getTime()));
+        Toast.makeText(this, "Reminder set for " + fullDateFormat.format(notificationTime.getTime()),
+                Toast.LENGTH_SHORT).show();
     }
-
-
 }

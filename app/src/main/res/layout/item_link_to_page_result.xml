@@ -14,8 +14,8 @@
         android:layout_height="40dp"
         android:padding="8dp"
         android:src="@drawable/ic_fab_notes"
-        android:background="@drawable/profile_circle_bg"
-        android:backgroundTint="#E3F2FD"/>
+        android:background="@drawable/circle_bg"
+        android:backgroundTint="#8daaa6"/>
 
     <!-- Content -->
     <LinearLayout

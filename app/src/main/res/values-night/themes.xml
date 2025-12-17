@@ -1,41 +1,18 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme - Dark -->
+    <!-- Base application theme. -->
     <style name="Base.Theme.TESTtaskSync" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Dark theme status bar -->
-        <item name="android:statusBarColor">@color/bg_bgcolor</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">@color/bg_bgcolor</item>
+        <!-- Customize your dark theme here. -->
+        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
     </style>
-
-    <!-- FOR MAIN ACTIVITY STATUS BAR -->
-    <style name="Theme.MyApp.DarkBars" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@color/bg_bgcolor</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">@color/nav_bg</item>
-    </style>
-
-    <!-- FOR note taking ACTIVITY STATUS BAR -->
-    <style name="Theme.MyApp.Note" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@color/header_note</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">@color/header_note</item>
-
-        <item name="editTextStyle">@style/MyEditText</item>
-    </style>
-    <style name="MyEditText" parent="Widget.AppCompat.EditText">
-        <item name="android:textColor">?attr/colorOnBackground</item>
-        <item name="android:textColorHint">?attr/colorOnBackground</item>
-    </style>
-
-    <!-- Dark splash screen -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/background_color</item>
+        <item name="windowSplashScreenBackground">#f4e8df</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_app_logo</item>
         <item name="windowSplashScreenAnimationDuration">1000</item>
-        <item name="postSplashScreenTheme">@style/Base.Theme.TESTtaskSync</item>
+        <item name="postSplashScreenTheme">@style/Theme.TESTtaskSync</item>
 
-        <item name="android:statusBarColor">@color/background_color</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">@color/background_color</item>
+        <!-- Force light theme colors -->
+        <item name="android:statusBarColor">#f4e8df</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#f4e8df</item>
     </style>
 </resources>

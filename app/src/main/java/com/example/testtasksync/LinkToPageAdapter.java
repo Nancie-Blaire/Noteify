@@ -74,7 +74,7 @@ public class LinkToPageAdapter extends RecyclerView.Adapter<LinkToPageAdapter.Vi
                 case "note":
                     itemIcon.setImageResource(R.drawable.ic_fab_notes);
                     itemIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                            android.graphics.Color.parseColor("#E3F2FD")));
+                            android.graphics.Color.parseColor("#8daaa6")));
                     break;
                 case "todo":
                     itemIcon.setImageResource(R.drawable.ic_fab_todo);

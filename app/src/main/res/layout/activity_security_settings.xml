@@ -2,6 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:fillViewport="true"
     android:background="#f4e8df">
 
@@ -12,14 +13,28 @@
         android:padding="24dp">
 
         <!-- Header -->
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Security Settings"
-            android:textSize="25sp"
-            android:textColor="#000000"
-            android:textStyle="bold"
-            android:layout_marginBottom="10dp"/>
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+            <ImageView
+                android:id="@+id/btnBack"
+                android:layout_width="30dp"
+                android:layout_height="match_parent"
+                android:contentDescription="Back button"
+                android:src="@drawable/ic_revert_back_btn"
+                app:tint="#000000" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Security Settings"
+                android:textSize="25sp"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginStart="5dp"/>
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvSecurityStatus"
@@ -42,7 +57,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:background="@drawable/rounded_bg"
+                android:background="#F6D5B6"
                 android:padding="20dp">
 
                 <TextView
@@ -91,7 +106,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:background="@drawable/rounded_bg"
+                android:background="#F6D5B6"
                 android:padding="20dp">
 
                 <TextView
@@ -129,7 +144,7 @@
                     android:layout_height="wrap_content"
                     android:text="Fingerprint is device-specific. You need to enable it separately on each device."
                     android:textSize="10sp"
-                    android:textColor="#8DAAA6"
+                    android:textColor="#000000"
                     android:layout_marginTop="8dp"
                     android:padding="8dp"
                     android:background="#FFF9E6"/>
@@ -152,7 +167,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp"
-                android:background="@drawable/rounded_bg">
+                android:background="#F6D5B6">
 
                 <TextView
                     android:layout_width="match_parent"
@@ -168,7 +183,7 @@
                     android:layout_height="wrap_content"
                     android:text="• Master password works on all devices\n• Fingerprint must be enabled per device\n• If fingerprint fails, you can use password"
                     android:textSize="11sp"
-                    android:textColor="#666666"
+                    android:textColor="#757575"
                     android:textStyle="bold"
                     android:lineSpacingExtra="4dp"/>
 
@@ -181,18 +196,6 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"/>
-
-        <!-- Back Button -->
-        <Button
-            android:id="@+id/btnBack"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Back"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#FF9376"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:textAllCaps="false"/>
 
     </LinearLayout>
 

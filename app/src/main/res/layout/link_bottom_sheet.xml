@@ -33,12 +33,12 @@
         android:id="@+id/createLinkBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Create Bookmark"
+        android:text="Create Placeholder"
         android:textColor="#FF9376"
         android:textSize="16sp"
-        android:padding="16dp"
+        android:padding="10dp"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="15dp"
+        android:layout_marginBottom="1dp"
         android:clickable="true"
         android:focusable="true"
         android:background="?attr/selectableItemBackground"/>
@@ -46,7 +46,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Create a visual bookmark from a link."
+        android:text="Create a visual placeholder for a link."
         android:textColor="#8DAAA6"
         android:textStyle="bold"
         android:textSize="11sp" />

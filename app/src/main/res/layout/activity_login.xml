@@ -8,7 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
-        android:src="@drawable/background" />
+        android:src="@drawable/lightmode" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -34,7 +34,7 @@
             android:fontFamily="@font/inter_regular"
             android:letterSpacing="0.3"
             android:text="NOTEIFY"
-            android:textColor="@color/black"
+            android:textColor="#000000"
             android:textSize="25sp"
             android:textStyle="bold" />
 
@@ -42,10 +42,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="32dp"
-            android:fontFamily="@font/inter_itallic"
+            android:fontFamily="@font/syne"
             android:letterSpacing="0.1"
             android:text="Stay organized. Stay on time."
-            android:textColor="@color/stay_text"
+            android:textColor="#666666"
             android:textSize="10sp" />
 
         <LinearLayout
@@ -73,7 +73,7 @@
                 android:fontFamily="@font/inter_regular"
                 android:hint="Email"
                 android:inputType="textEmailAddress"
-                android:textColorHint="@color/edit_input"
+                android:textColorHint="#CCCCCC"
                 android:textColor="#000000"
                 android:textSize="15sp" />
         </LinearLayout>
@@ -103,7 +103,7 @@
                 android:fontFamily="@font/inter_regular"
                 android:hint="Password"
                 android:inputType="textPassword"
-                android:textColorHint="@color/edit_input"
+                android:textColorHint="#CCCCCC"
                 android:textColor="#000000"
                 android:textSize="15sp" />
 
@@ -127,7 +127,7 @@
             android:letterSpacing="0.2"
             android:padding="5dp"
             android:text="Forgot Password?"
-            android:textColor="@color/black"
+            android:textColor="#000000"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -136,7 +136,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="-2dp"
-            android:backgroundTint="@color/btn_highlight"
+            android:backgroundTint="#FF9376"
             android:fontFamily="@font/inter_regular"
             android:letterSpacing=".05"
             android:paddingTop="10dp"
@@ -225,9 +225,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="25dp"
-                    android:fontFamily="@font/inter_regular"
+                    android:fontFamily="@font/syne"
                     android:text="Don't have an account? "
-                    android:textColor="@color/black"
+                    android:textColor="#000000"
                     android:textSize="10sp" />
 
                 <TextView
@@ -241,8 +241,8 @@
                     android:padding="4dp"
                     android:layout_marginTop="25dp"
                     android:text="@string/underlined_text_signup"
-                    android:textColor="@color/black"
-                    android:textSize="13sp"
+                    android:textColor="#000000"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </RelativeLayout>

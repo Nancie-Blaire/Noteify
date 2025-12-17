@@ -33,8 +33,8 @@
         <activity
             android:name=".NoteActivity"
             android:exported="false"
-
-           />
+            android:theme="@style/Theme.MyApp.Note"
+            />
 
 
         <!-- Notification Receiver -->
@@ -99,7 +99,7 @@
         <activity
             android:name=".NoteActivity_1"
             android:exported="false"
-         />
+            />
         <activity
             android:name=".Notes"
             android:exported="false"
@@ -107,7 +107,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
-            android:theme="@style/Theme.MyApp.DarkBars"/>
+          />
         <activity
             android:name=".WeeklyActivity"
             android:exported="false"

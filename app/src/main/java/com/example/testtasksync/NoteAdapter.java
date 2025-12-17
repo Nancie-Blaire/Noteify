@@ -1,7 +1,6 @@
 package com.example.testtasksync;
 
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -335,7 +334,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     itemType.equals("weekly") ? "Weekly Plan" : "Note";
 
             BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("🔓 Unlock " + itemLabel)
+                    .setTitle("🔐 Unlock " + itemLabel)
                     .setSubtitle("Use your fingerprint to access this locked item")
                     .setNegativeButtonText("Use Password")
                     .build();
@@ -343,27 +342,19 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             biometricPrompt.authenticate(promptInfo);
         }
 
-        // ✅ Updated: showPasswordDialog using XML layout
+        // ✅ Updated: Use XML layout for "Verify Master Password" dialog
         private void showPasswordDialog(Context context, Note note, OnNoteClickListener listener,
                                         String savedPassword) {
-            // Inflate custom XML layout
-            LayoutInflater inflater = LayoutInflater.from(context);
-            View dialogView = inflater.inflate(R.layout.dialog_master_password, null);
-
-            // Create dialog
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            View dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_verify_password, null);
             builder.setView(dialogView);
+
             AlertDialog dialog = builder.create();
 
-            // Get views from layout
             EditText passwordInput = dialogView.findViewById(R.id.passwordInput);
             Button btnCancel = dialogView.findViewById(R.id.btnCancel);
             Button btnUnlock = dialogView.findViewById(R.id.btnUnlock);
 
-            // Set button text to UNLOCK
-            btnUnlock.setText("UNLOCK");
-
-            // Set button listeners
             btnCancel.setOnClickListener(v -> dialog.dismiss());
 
             btnUnlock.setOnClickListener(v -> {
@@ -397,7 +388,6 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             View deleteView = popupView.findViewById(R.id.menu_delete);
             View lockView = popupView.findViewById(R.id.menu_lock);
 
-            // Update lock text based on current state
             TextView lockText = lockView.findViewById(R.id.menu_lock).findViewById(android.R.id.text1);
             if (lockText == null) {
                 lockText = ((ViewGroup) lockView).getChildAt(1) instanceof TextView ?
@@ -503,7 +493,7 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
                     });
 
             BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("🔓 Authenticate to Unlock")
+                    .setTitle("🔐 Authenticate to Unlock")
                     .setSubtitle("Verify your identity to unlock this item")
                     .setNegativeButtonText("Use Password")
                     .build();
@@ -511,23 +501,18 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
             biometricPrompt.authenticate(promptInfo);
         }
 
-        // ✅ Updated: showPasswordDialogForUnlock using XML layout
+        // ✅ Updated: Use XML layout for "Verify Master Password" dialog (for unlocking)
         private void showPasswordDialogForUnlock(Context context, String savedPassword, Runnable onSuccess) {
-            // Inflate custom XML layout
-            LayoutInflater inflater = LayoutInflater.from(context);
-            View dialogView = inflater.inflate(R.layout.dialog_verify_password, null);
-
-            // Create dialog
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            View dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_verify_password, null);
             builder.setView(dialogView);
+
             AlertDialog dialog = builder.create();
 
-            // Get views from layout
             EditText passwordInput = dialogView.findViewById(R.id.passwordInput);
             Button btnCancel = dialogView.findViewById(R.id.btnCancel);
             Button btnUnlock = dialogView.findViewById(R.id.btnUnlock);
 
-            // Set button listeners
             btnCancel.setOnClickListener(v -> dialog.dismiss());
 
             btnUnlock.setOnClickListener(v -> {
@@ -609,26 +594,28 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
         private void softDeleteNote(String userId, String noteId, FirebaseFirestore db, View view,
                                     List<Note> noteList, NoteAdapter adapter) {
+            Toast.makeText(view.getContext(), "✓ Note moved to bin", Toast.LENGTH_SHORT).show();
+            removeFromList(view, noteList, adapter);
+
             db.collection("users")
                     .document(userId)
                     .collection("notes")
                     .document(noteId)
                     .update("deletedAt", com.google.firebase.Timestamp.now())
                     .addOnSuccessListener(aVoid -> {
-                        removeFromList(view, noteList, adapter);
-                        Toast.makeText(view.getContext(), "✓ Note moved to bin",
-                                Toast.LENGTH_SHORT).show();
                         Log.d("NoteAdapter", "Note soft deleted: " + noteId);
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
                         Log.e("NoteAdapter", "Failed to soft delete note", e);
                     });
         }
 
         private void softDeleteSchedule(String userId, String scheduleId, FirebaseFirestore db,
                                         View view, List<Note> noteList, NoteAdapter adapter, String itemType) {
+            String itemLabel = "todo".equals(itemType) ? "To-Do" : "Weekly plan";
+            Toast.makeText(view.getContext(), "✓ " + itemLabel + " moved to bin", Toast.LENGTH_SHORT).show();
+            removeFromList(view, noteList, adapter);
+
             db.collection("users")
                     .document(userId)
                     .collection("schedules")
@@ -665,25 +652,14 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
                             batch.commit()
                                     .addOnSuccessListener(aVoid -> {
-                                        removeFromList(view, noteList, adapter);
-                                        String itemLabel = "todo".equals(itemType) ? "To-Do" : "Weekly plan";
-                                        Toast.makeText(view.getContext(), "✓ " + itemLabel + " moved to bin",
-                                                Toast.LENGTH_SHORT).show();
                                         Log.d("NoteAdapter", "Schedule soft deleted with source: " + scheduleId);
                                     })
                                     .addOnFailureListener(e -> {
-                                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                                Toast.LENGTH_SHORT).show();
                                         Log.e("NoteAdapter", "Failed to soft delete schedule", e);
                                     });
-                        } else {
-                            Toast.makeText(view.getContext(), "✗ Item not found",
-                                    Toast.LENGTH_SHORT).show();
                         }
                     })
                     .addOnFailureListener(e -> {
-                        Toast.makeText(view.getContext(), "✗ Failed to delete",
-                                Toast.LENGTH_SHORT).show();
                         Log.e("NoteAdapter", "Failed to get schedule data", e);
                     });
         }

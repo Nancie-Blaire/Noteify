@@ -157,7 +157,7 @@ public class TodoActivity extends AppCompatActivity {
 
         // Set up buttons
         saveButton.setOnClickListener(v -> saveTodoList());
-        backButton.setOnClickListener(v -> finish());
+        backButton.setOnClickListener(v -> saveTodoList());
         addTaskButton.setOnClickListener(v -> addTask());
         dueDateButton.setOnClickListener(v -> showDueDateDialog());
         clearDateButton.setOnClickListener(v -> clearDueDate());
@@ -1437,23 +1437,23 @@ public class TodoActivity extends AppCompatActivity {
         scheduleData.put("description", finalTotalTasks + " tasks (" + finalCompletedTasks + " completed)");
         scheduleData.put("category", "todo");
         scheduleData.put("isCompleted", finalCompletedTasks == finalTotalTasks && finalTotalTasks > 0);
-        scheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
-
+        scheduleData.put("createdAt", new Timestamp(new Date()));
+        scheduleData.put("createdAtServer", com.google.firebase.firestore.FieldValue.serverTimestamp());
         if (dueDate != null) {
             scheduleData.put("date", new Timestamp(dueDate.getTime()));
             scheduleData.put("hasReminder", hasReminder);
-            scheduleData.put("reminderMinutes",  reminderMinutes);
+            scheduleData.put("reminderMinutes", reminderMinutes);
         } else {
             scheduleData.put("date", null);
             scheduleData.put("hasReminder", false);
         }
 
-        // ✅ NEW: Save due time
         scheduleData.put("time", dueTime != null ? dueTime : "");
 
         Map<String, Object> listData = new HashMap<>();
         listData.put("title", finalTitle);
-        listData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        listData.put("timestamp", new Timestamp(new Date()));
+        listData.put("timestampServer", com.google.firebase.firestore.FieldValue.serverTimestamp());
         listData.put("taskCount", finalTotalTasks);
         listData.put("completedCount", finalCompletedTasks);
 
@@ -1463,23 +1463,22 @@ public class TodoActivity extends AppCompatActivity {
             listData.put("dueDate", null);
         }
 
-        // ✅ NEW: Save due time in list data
         listData.put("dueTime", dueTime);
 
+        // ✅ START SAVE OPERATIONS (will queue offline)
         db.collection("users")
                 .document(user.getUid())
                 .collection("todoLists")
                 .document(finalListId)
-                .set(listData)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Todo list saved successfully");
-                    saveTasks(user.getUid(), finalListId, finalTitle, finalTotalTasks,
-                            finalCompletedTasks, scheduleData);
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to save todo list", e);
-                    Toast.makeText(this, "Failed to save list", Toast.LENGTH_SHORT).show();
-                });
+                .set(listData);
+
+        // Save tasks in background
+        saveTasks(user.getUid(), finalListId, finalTitle, finalTotalTasks,
+                finalCompletedTasks, scheduleData);
+
+        // ✅ IMMEDIATELY SHOW TOAST AND FINISH
+        Toast.makeText(this, "✓ Saving to-do list...", Toast.LENGTH_SHORT).show();
+        finish();
     }
 
     // ========================================
@@ -1487,7 +1486,6 @@ public class TodoActivity extends AppCompatActivity {
 // ========================================
     private void saveTasks(String userId, String listId, String listTitle, int totalTasks,
                            int completedTasks, Map<String, Object> scheduleData) {
-        // 1. Kuhanin ang listahan ng tasks mula sa Firestore para DELETION
         db.collection("users")
                 .document(userId)
                 .collection("todoLists")
@@ -1495,15 +1493,13 @@ public class TodoActivity extends AppCompatActivity {
                 .collection("tasks")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    // ✅ CANCEL LAHAT NG NOTIFICATIONS BAGO MAG-DELETE
+                    // Cancel old notifications
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
                         String oldTaskId = doc.getId();
                         NotificationHelper.cancelNotification(this, oldTaskId);
-                        Log.d(TAG, "🔕 Cancelled notification for old task: " + oldTaskId);
                         doc.getReference().delete();
                     }
 
-                    // 2. BILANGIN: Tukuyin kung ilang tasks ang valid at kailangang i-save
                     int tasksToSave = 0;
                     for (TodoTask task : taskList) {
                         if (!task.getTaskText().trim().isEmpty()) {
@@ -1511,13 +1507,11 @@ public class TodoActivity extends AppCompatActivity {
                         }
                     }
 
-                    // Kung walang tasks na isasave, mag-update lang ng schedule at mag-exit
                     if (tasksToSave == 0) {
                         createOrUpdateSchedule(userId, listId, scheduleData);
                         return;
                     }
 
-                    // 3. I-SAVE: Simulan ang pag-save ng bawat task at subaybayan ang progreso
                     final int[] savedCount = {0};
                     for (TodoTask task : taskList) {
                         if (!task.getTaskText().trim().isEmpty()) {
@@ -1543,28 +1537,24 @@ public class TodoActivity extends AppCompatActivity {
                                     .addOnSuccessListener(documentReference -> {
                                         savedCount[0]++;
 
-                                        // ✅ Get new task ID
                                         String newTaskId = documentReference.getId();
                                         task.setId(newTaskId);
 
-                                        // ✅ Schedule notification ONLY if: may notification, hindi completed, at may schedule date
                                         if (task.hasNotification() &&
                                                 !task.isCompleted() &&
                                                 task.getScheduleDate() != null) {
 
                                             NotificationHelper.scheduleTodoTaskNotification(
                                                     this,
-                                                    listId,              // ✅ ADDED: Pass listId first
-                                                    newTaskId,           // Task ID
-                                                    task.getTaskText(),  // Task text
-                                                    task.getScheduleDate(),    // Date
-                                                    task.getScheduleTime(),    // Time
-                                                    task.getNotificationMinutes() // Reminder minutes
+                                                    listId,
+                                                    newTaskId,
+                                                    task.getTaskText(),
+                                                    task.getScheduleDate(),
+                                                    task.getScheduleTime(),
+                                                    task.getNotificationMinutes()
                                             );
-                                            Log.d(TAG, "🔔 Scheduled notification for: " + task.getTaskText());
                                         }
 
-                                        // ✅ Pag tapos na lahat, update schedule
                                         if (savedCount[0] == finalTasksToSave) {
                                             createOrUpdateSchedule(userId, listId, scheduleData);
                                         }
@@ -1577,7 +1567,6 @@ public class TodoActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to delete old tasks", e);
-                    Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
                 });
     }
 
@@ -1587,7 +1576,6 @@ public class TodoActivity extends AppCompatActivity {
     private void createOrUpdateSchedule(String userId, String listId, Map<String, Object> scheduleData) {
         scheduleData.put("sourceId", listId);
 
-        // ✅ Get the list title from scheduleData
         String listTitle = (String) scheduleData.get("title");
 
         db.collection("users")
@@ -1606,17 +1594,12 @@ public class TodoActivity extends AppCompatActivity {
                                 .update(scheduleData)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d(TAG, "Schedule updated for todo list");
-
-                                    // ✅ Schedule list-level notification
                                     scheduleListNotificationIfNeeded(userId, listId, listTitle);
-
-                                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish() - already finished in saveTodoList()
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to update schedule", e);
-                                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish()
                                 });
                     } else {
                         db.collection("users")
@@ -1625,24 +1608,18 @@ public class TodoActivity extends AppCompatActivity {
                                 .add(scheduleData)
                                 .addOnSuccessListener(documentReference -> {
                                     Log.d(TAG, "Schedule created for todo list");
-
-                                    // ✅ Schedule list-level notification
                                     scheduleListNotificationIfNeeded(userId, listId, listTitle);
-
-                                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish()
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e(TAG, "Failed to create schedule", e);
-                                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    // ✅ REMOVED finish()
                                 });
                     }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to check existing schedule", e);
-                    Toast.makeText(this, "✓ To-Do list saved", Toast.LENGTH_SHORT).show();
-                    finish();
+                    // ✅ REMOVED finish()
                 });
     }
     @Override

@@ -1504,6 +1504,10 @@ public class DayDetailsActivity extends AppCompatActivity {
                             taskData.put("isCompleted", false);
                             taskData.put("position", i);
 
+                            // ✅✅✅ CRITICAL FIX: Save schedule info sa bawat task!
+                            taskData.put("scheduleDate", new Timestamp(scheduleDate.getTime()));
+                            taskData.put("scheduleTime", time != null ? time : "");
+
                             db.collection("users")
                                     .document(user.getUid())
                                     .collection("todoLists")
@@ -1519,7 +1523,6 @@ public class DayDetailsActivity extends AppCompatActivity {
                     }
                 });
     }
-
     // New method to build weekly days UI with individual schedule buttons
     private void buildWeeklyDaysUIForDialog(LinearLayout container, Map<String, List<WeeklyDialogTask>> weeklyTasks,
                                             Calendar[] weekStart, Calendar[] weekEnd) {
@@ -2838,5 +2841,3 @@ public class DayDetailsActivity extends AppCompatActivity {
     }
 
 }
-
-//commentt

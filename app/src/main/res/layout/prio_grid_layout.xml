@@ -20,6 +20,7 @@
             android:layout_height="24dp"
             android:layout_alignParentStart="true"
             android:layout_alignParentTop="true"
+            android:buttonTint="#ff9376"
             android:visibility="gone"
             android:clickable="false"
             android:focusable="false"/>

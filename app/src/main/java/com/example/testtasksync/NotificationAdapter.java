@@ -80,25 +80,12 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
 
             dueDateText.setText(dateStr);
 
-            // ✅ NEW: Check if overdue
-            boolean isOverdue = item.getDueDate().before(new Date());
-
             // Set category indicator color
             int color;
-            if (isOverdue) {
-                // ✅ OVERDUE: Always show RED
-                color = itemView.getContext().getResources().getColor(android.R.color.holo_red_dark);
-                // ✅ Make due date text RED
-                dueDateText.setTextColor(itemView.getContext().getResources().getColor(android.R.color.holo_red_dark));
+            if ("todo".equals(item.getType())) {
+                color = itemView.getContext().getResources().getColor(R.color.todo_green);
             } else {
-                // ✅ NOT OVERDUE: Use category colors
-                if ("todo".equals(item.getType())) {
-                    color = itemView.getContext().getResources().getColor(R.color.todo_green);
-                } else {
-                    color = itemView.getContext().getResources().getColor(R.color.weekly_blue);
-                }
-                // ✅ Keep due date text normal (gray)
-                dueDateText.setTextColor(itemView.getContext().getResources().getColor(android.R.color.darker_gray));
+                color = itemView.getContext().getResources().getColor(R.color.weekly_blue);
             }
             categoryIndicator.setBackgroundColor(color);
 

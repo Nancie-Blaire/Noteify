@@ -75,12 +75,11 @@
 
             <!-- Time and Date Card -->
 
-            <?xml version="1.0" encoding="utf-8"?>
             <!-- Replace the FrameLayout section in fragment_notes.xml (lines ~89-265) with this: -->
 
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="130dp"
+                android:layout_height="140dp"
                 android:layout_marginBottom="24dp"
                 android:layout_marginStart="10dp"
                 android:layout_marginEnd="10dp"
@@ -108,7 +107,8 @@
                             android:text="Hi,"
                             android:textColor="#000000"
                             android:textSize="20sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:layout_marginBottom="3dp"/>
 
                         <TextView
                             android:id="@+id/userNameText"
@@ -131,7 +131,7 @@
                             android:lineSpacingExtra="2dp"
                             android:text="&quot;You don't have to see the whole staircase, just take the first step.&quot;"
                             android:textColor="#000000"
-                            android:textSize="8sp" />
+                            android:textSize="12sp" />
                     </LinearLayout>
 
                     <!-- Vertical divider -->
@@ -272,16 +272,15 @@
                             android:textColor="#000000"
                             android:textSize="7sp"
                             android:textStyle="bold" />
-
                         <TextView
-                            android:id="@+id/dayText9"
+                            android:id="@+id/dayText10"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Y"
                             android:fontFamily="@font/syne"
                             android:textColor="#000000"
                             android:textSize="7sp"
-                            android:textStyle="bold"/>
+                            android:textStyle="bold" />
                     </LinearLayout>
 
                 </LinearLayout>

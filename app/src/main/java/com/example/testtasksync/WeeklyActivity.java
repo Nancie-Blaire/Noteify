@@ -199,7 +199,7 @@ public class WeeklyActivity extends AppCompatActivity {
         findViewById(R.id.addSunTask).setOnClickListener(v -> addTask("Sun"));
 
         saveButton.setOnClickListener(v -> saveWeeklyPlan());
-        backButton.setOnClickListener(v -> finish());
+        backButton.setOnClickListener(v -> saveWeeklyPlan());
         scheduleButton.setOnClickListener(v -> showScheduleDialog());
 
         // ✅ REMOVED: Image and divider setup
@@ -1226,7 +1226,6 @@ public class WeeklyActivity extends AppCompatActivity {
             title = "Weekly Plan";
         }
 
-        // Calculate total and completed tasks
         int totalTasks = 0;
         int completedTasks = 0;
         for (String day : days) {
@@ -1243,40 +1242,46 @@ public class WeeklyActivity extends AppCompatActivity {
             }
         }
 
-        // Update mainScheduleData with week range in description
-        Map<String, Object> mainScheduleData = new HashMap<>();
-        mainScheduleData.put("title", title);
+        // ✅ FIX: Ensure time is included in description
+        String description = totalTasks + " task" + (totalTasks != 1 ? "s" : "");
 
-        String description = totalTasks + " tasks";
         if (startDate != null && endDate != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
             description += " (" + sdf.format(startDate.getTime()) + " - " +
                     sdf.format(endDate.getTime()) + ")";
         }
 
-        if (completedTasks > 0) {
-            description += " • " + completedTasks + " completed";
-        }
+        description += " • " + completedTasks + " completed";
 
+        Map<String, Object> mainScheduleData = new HashMap<>();
+        mainScheduleData.put("title", title);
         mainScheduleData.put("description", description);
         mainScheduleData.put("category", "weekly");
         mainScheduleData.put("isCompleted", completedTasks == totalTasks && totalTasks > 0);
-        mainScheduleData.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        mainScheduleData.put("createdAt", new Timestamp(new Date()));
+        mainScheduleData.put("createdAtServer", com.google.firebase.firestore.FieldValue.serverTimestamp());
 
-        // Set date to start of week (so it appears in calendar on that date)
         if (startDate != null) {
             mainScheduleData.put("date", new Timestamp(startDate.getTime()));
+            mainScheduleData.put("startDate", new Timestamp(startDate.getTime()));
         } else {
             mainScheduleData.put("date", null);
+            mainScheduleData.put("startDate", null);
         }
 
-        // âœ… ADD TIME to mainScheduleData
+        if (endDate != null) {
+            mainScheduleData.put("endDate", new Timestamp(endDate.getTime()));
+        } else {
+            mainScheduleData.put("endDate", null);
+        }
+
+        // ✅ FIX: Always save time, even if empty string
         mainScheduleData.put("time", selectedTime != null ? selectedTime : "");
         mainScheduleData.put("hasReminder", hasReminder);
         mainScheduleData.put("reminderMinutes", reminderMinutes);
+        mainScheduleData.put("taskCount", totalTasks);
+        mainScheduleData.put("completedCount", completedTasks);
 
-
-        // Generate new ID if this is a new plan
         if (isNewPlan) {
             planId = db.collection("users")
                     .document(user.getUid())
@@ -1289,17 +1294,16 @@ public class WeeklyActivity extends AppCompatActivity {
         final int finalTotalTasks = totalTasks;
         final int finalCompletedTasks = completedTasks;
 
-        // Save to weeklyPlans collection with date range and time
+        // ✅ ADD sourceId immediately
+        mainScheduleData.put("sourceId", finalPlanId);
+
         Map<String, Object> planData = new HashMap<>();
         planData.put("title", finalTitle);
-        planData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        planData.put("timestamp", new Timestamp(new Date()));
         planData.put("taskCount", finalTotalTasks);
         planData.put("completedCount", finalCompletedTasks);
-
-        // âœ… ADD TIME to planData
         planData.put("time", selectedTime != null ? selectedTime : "");
 
-        // Add week range dates
         if (startDate != null && endDate != null) {
             planData.put("startDate", new Timestamp(startDate.getTime()));
             planData.put("endDate", new Timestamp(endDate.getTime()));
@@ -1308,188 +1312,156 @@ public class WeeklyActivity extends AppCompatActivity {
             planData.put("endDate", null);
         }
 
+        // ✅ FIX: Create schedule FIRST before saving tasks
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .document(finalPlanId)
+                .set(mainScheduleData, com.google.firebase.firestore.SetOptions.merge());
+
+        // Save plan data
         db.collection("users")
                 .document(user.getUid())
                 .collection("weeklyPlans")
                 .document(finalPlanId)
-                .set(planData)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Weekly plan saved successfully");
-                    saveTasks(user.getUid(), finalPlanId, finalTitle, finalTotalTasks,
-                            finalCompletedTasks, mainScheduleData);
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to save weekly plan", e);
-                    Toast.makeText(this, "Failed to save plan", Toast.LENGTH_SHORT).show();
-                });
+                .set(planData);
+
+        // Save tasks in background
+        saveTasks(user.getUid(), finalPlanId, finalTitle, finalTotalTasks,
+                finalCompletedTasks, mainScheduleData);
+
+        Toast.makeText(this, "✓ Saving weekly plan...", Toast.LENGTH_SHORT).show();
+        new android.os.Handler().postDelayed(() -> {
+            finish();
+        }, 300);
     }
 
     private void saveTasks(String userId, String planId, String planTitle, int totalTasks,
                            int completedTasks, Map<String, Object> mainScheduleData) {
-        db.collection("users")
-                .document(userId)
-                .collection("weeklyPlans")
-                .document(planId)
-                .collection("tasks")
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    // ✅ FIX: Cancel notifications using the correct composite ID format
-                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                        String oldTaskId = doc.getId();
-                        // Cancel with composite ID (same format used when scheduling)
-                        NotificationHelper.cancelNotification(this, planId + "_" + oldTaskId);
-                        doc.getReference().delete();
-                    }
 
-                    int tasksToSave = 0;
-                    for (String day : days) {
-                        List<WeeklyTask> tasks = dayTasks.get(day);
-                        if (tasks != null) {
-                            for (WeeklyTask task : tasks) {
-                                if (!task.getTaskText().trim().isEmpty()) {
-                                    tasksToSave++;
-                                }
-                            }
+        int tasksToSave = 0;
+        for (String day : days) {
+            List<WeeklyTask> tasks = dayTasks.get(day);
+            if (tasks != null) {
+                for (WeeklyTask task : tasks) {
+                    if (!task.getTaskText().trim().isEmpty()) {
+                        tasksToSave++;
+                    }
+                }
+            }
+        }
+
+        if (tasksToSave == 0) {
+            // ✅ Just schedule notification, schedule already created
+            if (hasReminder) {
+                scheduleWeeklyPlanNotification();
+            }
+            return;
+        }
+
+        final int[] savedCount = {0};
+        final int finalTasksToSave = tasksToSave;
+
+        for (String day : days) {
+            List<WeeklyTask> tasks = dayTasks.get(day);
+            if (tasks != null) {
+                for (WeeklyTask task : tasks) {
+                    if (!task.getTaskText().trim().isEmpty()) {
+                        Map<String, Object> taskData = new HashMap<>();
+                        taskData.put("day", task.getDay());
+                        taskData.put("taskText", task.getTaskText());
+                        taskData.put("isCompleted", task.isCompleted());
+                        taskData.put("position", task.getPosition());
+
+                        if (task.getScheduleDate() != null) {
+                            taskData.put("scheduleDate", new com.google.firebase.Timestamp(task.getScheduleDate()));
                         }
-                    }
+                        taskData.put("scheduleTime", task.getScheduleTime());
+                        taskData.put("hasNotification", task.hasNotification());
+                        taskData.put("notificationMinutes", task.getNotificationMinutes());
 
-                    if (tasksToSave == 0) {
-                        createOrUpdateMainSchedule(userId, planId, mainScheduleData);
-                        return;
-                    }
+                        String taskId = task.getId();
+                        if (taskId == null || taskId.isEmpty()) {
+                            taskId = db.collection("users")
+                                    .document(userId)
+                                    .collection("weeklyPlans")
+                                    .document(planId)
+                                    .collection("tasks")
+                                    .document().getId();
+                            task.setId(taskId);
+                        }
 
-                    final int[] savedCount = {0};
-                    for (String day : days) {
-                        List<WeeklyTask> tasks = dayTasks.get(day);
-                        if (tasks != null) {
-                            for (WeeklyTask task : tasks) {
-                                if (!task.getTaskText().trim().isEmpty()) {
-                                    Map<String, Object> taskData = new HashMap<>();
-                                    taskData.put("day", task.getDay());
-                                    taskData.put("taskText", task.getTaskText());
-                                    taskData.put("isCompleted", task.isCompleted());
-                                    taskData.put("position", task.getPosition());
+                        final String finalTaskId = taskId;
 
-                                    // ✅ Save task-level schedule
-                                    if (task.getScheduleDate() != null) {
-                                        taskData.put("scheduleDate", new com.google.firebase.Timestamp(task.getScheduleDate()));
+                        db.collection("users")
+                                .document(userId)
+                                .collection("weeklyPlans")
+                                .document(planId)
+                                .collection("tasks")
+                                .document(finalTaskId)
+                                .set(taskData)
+                                .addOnSuccessListener(aVoid -> {
+                                    if (task.hasNotification() &&
+                                            !task.isCompleted() &&
+                                            task.getScheduleDate() != null) {
+
+                                        NotificationHelper.scheduleWeeklyTaskNotification(
+                                                WeeklyActivity.this,
+                                                planId + "_" + finalTaskId,
+                                                planTitle,
+                                                task.getTaskText(),
+                                                task.getDay(),
+                                                task.getScheduleDate(),
+                                                task.getScheduleTime(),
+                                                task.getNotificationMinutes()
+                                        );
                                     }
-                                    taskData.put("scheduleTime", task.getScheduleTime());
-                                    taskData.put("hasNotification", task.hasNotification());
-                                    taskData.put("notificationMinutes", task.getNotificationMinutes());
 
-                                    int finalTasksToSave = tasksToSave;
-                                    db.collection("users")
-                                            .document(userId)
-                                            .collection("weeklyPlans")
-                                            .document(planId)
-                                            .collection("tasks")
-                                            .add(taskData)
-                                            .addOnSuccessListener(documentReference -> {
-                                                String taskId = documentReference.getId();
-                                                task.setId(taskId);
-
-                                                // ✅ Schedule notification if enabled and task not completed
-                                                if (task.hasNotification() &&
-                                                        !task.isCompleted() &&
-                                                        task.getScheduleDate() != null) {
-
-                                                    NotificationHelper.scheduleWeeklyTaskNotification(
-                                                            this,
-                                                            planId + "_" + taskId,
-                                                            planTitle,
-                                                            task.getTaskText(),
-                                                            task.getDay(),
-                                                            task.getScheduleDate(),
-                                                            task.getScheduleTime(),
-                                                            task.getNotificationMinutes()
-                                                    );
-                                                }
-
-                                                savedCount[0]++;
-                                                if (savedCount[0] == finalTasksToSave) {
-                                                    createOrUpdateMainSchedule(userId, planId, mainScheduleData);
-                                                }
-                                            })
-                                            .addOnFailureListener(e -> {
-                                                android.util.Log.e(TAG, "Failed to save task", e);
-                                            });
-                                }
-                            }
-                        }
+                                    savedCount[0]++;
+                                    if (savedCount[0] == finalTasksToSave) {
+                                        // ✅ Just schedule notification, schedule already created
+                                        if (hasReminder) {
+                                            scheduleWeeklyPlanNotification();
+                                        }
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    android.util.Log.e(TAG, "Failed to save task", e);
+                                    savedCount[0]++;
+                                    if (savedCount[0] == finalTasksToSave) {
+                                        if (hasReminder) {
+                                            scheduleWeeklyPlanNotification();
+                                        }
+                                    }
+                                });
                     }
-                })
-                .addOnFailureListener(e -> {
-                    android.util.Log.e(TAG, "Failed to delete old tasks", e);
-                    Toast.makeText(this, "Failed to save tasks", Toast.LENGTH_SHORT).show();
-                });
+                }
+            }
+        }
     }
+
     private void createOrUpdateMainSchedule(String userId, String planId,
                                             Map<String, Object> mainScheduleData) {
         mainScheduleData.put("sourceId", planId);
 
+        // ✅ FIXED: Use set() with document ID instead of querying first
+        // This works offline because it writes directly to local cache
         db.collection("users")
                 .document(userId)
                 .collection("schedules")
-                .whereEqualTo("sourceId", planId)
-                .whereEqualTo("category", "weekly")
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        // Update existing schedule
-                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
-                        db.collection("users")
-                                .document(userId)
-                                .collection("schedules")
-                                .document(scheduleId)
-                                .update(mainScheduleData)
-                                .addOnSuccessListener(aVoid -> {
-                                    Log.d(TAG, "Main schedule updated for weekly plan");
-
-                                    // ✅ NEW: Schedule notification after successful save
-                                    if (hasReminder) {
-                                        scheduleWeeklyPlanNotification();
-                                    }
-
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
-                                })
-                                .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Failed to update schedule", e);
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
-                                });
-                    } else {
-                        // Create new schedule
-                        db.collection("users")
-                                .document(userId)
-                                .collection("schedules")
-                                .add(mainScheduleData)
-                                .addOnSuccessListener(documentReference -> {
-                                    Log.d(TAG, "Main schedule created for weekly plan");
-
-                                    // ✅ NEW: Schedule notification after successful save
-                                    if (hasReminder) {
-                                        scheduleWeeklyPlanNotification();
-                                    }
-
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
-                                })
-                                .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Failed to create schedule", e);
-                                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                                    finish();
-                                });
+                .document(planId)  // ✅ Use planId as document ID
+                .set(mainScheduleData, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Main schedule saved for weekly plan (works offline)");
+                    if (hasReminder) {
+                        scheduleWeeklyPlanNotification();
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to check existing schedule", e);
-                    Toast.makeText(this, "Weekly plan saved", Toast.LENGTH_SHORT).show();
-                    finish();
+                    Log.e(TAG, "Failed to save schedule", e);
+                    // Still works offline - will sync when online
                 });
     }
-
     private void setCurrentWeek() {
         Calendar calendar = Calendar.getInstance();
         int currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
@@ -2491,6 +2463,7 @@ public class WeeklyActivity extends AppCompatActivity {
         if (startDate != null && endDate != null) {
             scheduleData.put("startDate", new Timestamp(startDate.getTime()));
             scheduleData.put("endDate", new Timestamp(endDate.getTime()));
+            scheduleData.put("date", new Timestamp(startDate.getTime()));
         }
 
         // Save time and notification
@@ -2498,12 +2471,50 @@ public class WeeklyActivity extends AppCompatActivity {
         scheduleData.put("hasReminder", hasReminder);
         scheduleData.put("reminderMinutes", reminderMinutes);
 
-        // Update weeklyPlans
+        // ✅ ADD: Include other required fields for home display
+        String title = weeklyTitle.getText().toString().trim();
+        if (title.isEmpty()) {
+            title = "Weekly Plan";
+        }
+
+        int totalTasks = 0;
+        int completedTasks = 0;
+        for (String day : days) {
+            List<WeeklyTask> tasks = dayTasks.get(day);
+            if (tasks != null) {
+                for (WeeklyTask task : tasks) {
+                    if (!task.getTaskText().trim().isEmpty()) {
+                        totalTasks++;
+                        if (task.isCompleted()) {
+                            completedTasks++;
+                        }
+                    }
+                }
+            }
+        }
+
+        String description = totalTasks + " task" + (totalTasks != 1 ? "s" : "");
+        if (startDate != null && endDate != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            description += " (" + sdf.format(startDate.getTime()) + " - " +
+                    sdf.format(endDate.getTime()) + ")";
+        }
+        description += " • " + completedTasks + " completed";
+
+        scheduleData.put("title", title);
+        scheduleData.put("description", description);
+        scheduleData.put("category", "weekly");
+        scheduleData.put("sourceId", planId);
+        scheduleData.put("isCompleted", completedTasks == totalTasks && totalTasks > 0);
+        scheduleData.put("taskCount", totalTasks);
+        scheduleData.put("completedCount", completedTasks);
+
+        // ✅ FIX: Update schedule directly
         db.collection("users")
                 .document(user.getUid())
-                .collection("weeklyPlans")
+                .collection("schedules")
                 .document(planId)
-                .update(scheduleData)
+                .set(scheduleData, com.google.firebase.firestore.SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "✅ Week schedule saved");
                 })
@@ -2511,22 +2522,26 @@ public class WeeklyActivity extends AppCompatActivity {
                     Log.e(TAG, "❌ Failed to save week schedule", e);
                 });
 
-        // Update schedules collection
+        // Update weeklyPlans
+        Map<String, Object> planData = new HashMap<>();
+        if (startDate != null && endDate != null) {
+            planData.put("startDate", new Timestamp(startDate.getTime()));
+            planData.put("endDate", new Timestamp(endDate.getTime()));
+        }
+        planData.put("time", selectedTime != null ? selectedTime : "");
+        planData.put("hasReminder", hasReminder);
+        planData.put("reminderMinutes", reminderMinutes);
+
         db.collection("users")
                 .document(user.getUid())
-                .collection("schedules")
-                .whereEqualTo("sourceId", planId)
-                .whereEqualTo("category", "weekly")
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        String scheduleId = queryDocumentSnapshots.getDocuments().get(0).getId();
-                        db.collection("users")
-                                .document(user.getUid())
-                                .collection("schedules")
-                                .document(scheduleId)
-                                .update(scheduleData);
-                    }
+                .collection("weeklyPlans")
+                .document(planId)
+                .update(planData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Week schedule saved");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to save week schedule", e);
                 });
     }
 
@@ -2652,19 +2667,26 @@ public class WeeklyActivity extends AppCompatActivity {
         int hour = Integer.parseInt(timeParts[0]);
         int minute = Integer.parseInt(timeParts[1]);
 
-        // Create notification time using startDate + selectedTime
-        Calendar notificationTime = (Calendar) startDate.clone();
+        // ✅ FIX: Use TODAY's date instead of startDate
+        Calendar notificationTime = Calendar.getInstance();
         notificationTime.set(Calendar.HOUR_OF_DAY, hour);
         notificationTime.set(Calendar.MINUTE, minute);
         notificationTime.set(Calendar.SECOND, 0);
+        notificationTime.set(Calendar.MILLISECOND, 0);
 
         // Subtract reminder minutes
         notificationTime.add(Calendar.MINUTE, -reminderMinutes);
 
-        // Only schedule if notification time is in the future
+        // ✅ If the notification time has passed today, schedule for tomorrow
         if (notificationTime.getTimeInMillis() <= System.currentTimeMillis()) {
-            Log.d(TAG, "⚠️ Notification time is in the past, skipping");
-            Toast.makeText(this, "⚠️ Reminder time has passed", Toast.LENGTH_SHORT).show();
+            notificationTime.add(Calendar.DAY_OF_MONTH, 1);
+            Log.d(TAG, "⏭️ Notification time passed today, scheduling for tomorrow");
+        }
+
+        // ✅ Check if notification time is still within the week range
+        if (endDate != null && notificationTime.getTimeInMillis() > endDate.getTimeInMillis()) {
+            Log.d(TAG, "⚠️ Notification would be after week end date, skipping");
+            Toast.makeText(this, "Week has ended - notification not scheduled", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -2675,12 +2697,12 @@ public class WeeklyActivity extends AppCompatActivity {
 
         SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
         String weekRange = sdf.format(startDate.getTime()) + " - " + sdf.format(endDate.getTime());
-        String notificationBody = "Your weekly plan (" + weekRange + ") starts at " + selectedTime;
+        String notificationBody = "Your weekly plan (" + weekRange + ") reminder at " + selectedTime;
 
         // Schedule the notification
         NotificationHelper.scheduleNotification(
                 this,
-                "weekly_" + planId, // Unique ID for this weekly plan
+                "weekly_" + planId,
                 title,
                 notificationBody,
                 notificationTime.getTimeInMillis(),
@@ -2688,8 +2710,9 @@ public class WeeklyActivity extends AppCompatActivity {
                 planId
         );
 
-        Log.d(TAG, "✅ Scheduled weekly notification for: " + notificationTime.getTime());
+        SimpleDateFormat fullDateFormat = new SimpleDateFormat("MMM dd 'at' h:mm a", Locale.getDefault());
+        Log.d(TAG, "✅ Scheduled weekly notification for: " + fullDateFormat.format(notificationTime.getTime()));
+        Toast.makeText(this, "✓ Reminder set for " + fullDateFormat.format(notificationTime.getTime()),
+                Toast.LENGTH_SHORT).show();
     }
-
-
 }

@@ -415,17 +415,107 @@ public class Notes extends Fragment {
         TextView minuteText = view.findViewById(R.id.minuteText);
         TextView amPmText = view.findViewById(R.id.amPmText);
 
-        // Set user name
-        String displayName = user.getDisplayName();
-        if (displayName != null && !displayName.isEmpty()) {
-            userNameText.setText(displayName + "!");
-        } else {
-            userNameText.setText("User!");
-        }
+        // Day TextViews - NOW WITH 9 TEXTVIEWS
+        TextView dayText1 = view.findViewById(R.id.dayText);
+        TextView dayText2 = view.findViewById(R.id.dayText2);
+        TextView dayText3 = view.findViewById(R.id.dayText3);
+        TextView dayText4 = view.findViewById(R.id.dayText4);
+        TextView dayText5 = view.findViewById(R.id.dayText5);
+        TextView dayText6 = view.findViewById(R.id.dayText6);
+        TextView dayText7 = view.findViewById(R.id.dayText7);
+        TextView dayText8 = view.findViewById(R.id.dayText9);
+        TextView dayText9 = view.findViewById(R.id.dayText10);  // ✅ ADDED THIS
+
+        // Fetch user's display name from Firestore
+        db.collection("users")
+                .document(user.getUid())
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String displayName = documentSnapshot.getString("displayName");
+                        if (displayName != null && !displayName.isEmpty()) {
+                            userNameText.setText(displayName + "!");
+                        } else {
+                            // Fallback to email username
+                            String email = user.getEmail();
+                            if (email != null && email.contains("@")) {
+                                userNameText.setText(email.split("@")[0] + "!");
+                            } else {
+                                userNameText.setText("User!");
+                            }
+                        }
+                    } else {
+                        // Fallback to email username
+                        String email = user.getEmail();
+                        if (email != null && email.contains("@")) {
+                            userNameText.setText(email.split("@")[0] + "!");
+                        } else {
+                            userNameText.setText("User!");
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to load user display name", e);
+                    // Fallback to email username
+                    String email = user.getEmail();
+                    if (email != null && email.contains("@")) {
+                        userNameText.setText(email.split("@")[0] + "!");
+                    } else {
+                        userNameText.setText("User!");
+                    }
+                });
 
         // Update time
         java.util.Calendar calendar = java.util.Calendar.getInstance();
-        // ... rest of the code
+        int hour = calendar.get(java.util.Calendar.HOUR_OF_DAY);
+        int minute = calendar.get(java.util.Calendar.MINUTE);
+
+        // Check if 24-hour format is enabled
+        boolean is24HourFormat = android.text.format.DateFormat.is24HourFormat(requireContext());
+
+        if (is24HourFormat) {
+            // Military time - hide AM/PM
+            timeText.setText(String.format(Locale.getDefault(), "%02d", hour));
+            amPmText.setVisibility(View.GONE);
+        } else {
+            // 12-hour format
+            int displayHour = hour % 12;
+            if (displayHour == 0) displayHour = 12;
+            timeText.setText(String.format(Locale.getDefault(), "%02d", displayHour));
+
+            String amPm = hour >= 12 ? "PM" : "AM";
+            amPmText.setText(amPm);
+            amPmText.setVisibility(View.VISIBLE);
+        }
+
+        minuteText.setText(String.format(Locale.getDefault(), "%02d", minute));
+
+        // Update greeting based on time
+        if (hour < 12) {
+            greetingText.setText("Good Morning,");
+        } else if (hour < 18) {
+            greetingText.setText("Good Afternoon,");
+        } else {
+            greetingText.setText("Good Evening,");
+        }
+
+        // Update day of week - vertical display
+        String[] daysOfWeek = {"SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"};
+        int dayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK) - 1;
+        String currentDay = daysOfWeek[dayOfWeek];
+
+        // Split the day into individual characters and display vertically
+        // ✅ NOW WITH 9 TEXTVIEWS INSTEAD OF 8
+        TextView[] dayTextViews = {dayText1, dayText2, dayText3, dayText4, dayText5, dayText6, dayText7, dayText8, dayText9};
+
+        for (int i = 0; i < dayTextViews.length; i++) {
+            if (i < currentDay.length()) {
+                dayTextViews[i].setText(String.valueOf(currentDay.charAt(i)));
+                dayTextViews[i].setVisibility(View.VISIBLE);
+            } else {
+                dayTextViews[i].setVisibility(View.GONE);
+            }
+        }
     }
 
     // Add this method to load saved preferences
@@ -839,11 +929,13 @@ public class Notes extends Fragment {
     }
 
     private void loadSchedules(FirebaseUser user) {
+        // ✅ Load all schedules with real-time updates
         db.collection("users")
                 .document(user.getUid())
                 .collection("schedules")
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) {
+                        Log.w(TAG, "Schedules listen failed.", e);
                         schedulesLoaded = true;
                         updateUI();
                         return;
@@ -854,6 +946,7 @@ public class Notes extends Fragment {
 
                     if (snapshots != null && !snapshots.isEmpty()) {
                         for (QueryDocumentSnapshot doc : snapshots) {
+                            // Skip deleted items
                             if (doc.get("deletedAt") != null) {
                                 continue;
                             }
@@ -869,19 +962,12 @@ public class Notes extends Fragment {
                             }
                         }
 
-                        Collections.sort(todoList, new Comparator<Note>() {
-                            @Override
-                            public int compare(Note n1, Note n2) {
-                                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
-                            }
-                        });
+                        // Sort by newest first
+                        Collections.sort(todoList, (n1, n2) ->
+                                Long.compare(n2.getTimestamp(), n1.getTimestamp()));
 
-                        Collections.sort(weeklyList, new Comparator<Note>() {
-                            @Override
-                            public int compare(Note n1, Note n2) {
-                                return Long.compare(n2.getTimestamp(), n1.getTimestamp());
-                            }
-                        });
+                        Collections.sort(weeklyList, (n1, n2) ->
+                                Long.compare(n2.getTimestamp(), n1.getTimestamp()));
                     }
 
                     schedulesLoaded = true;
@@ -889,13 +975,17 @@ public class Notes extends Fragment {
                 });
     }
 
+    // Find the createNoteFromSchedule method (around line 890) and REPLACE it with this:
+
     private Note createNoteFromSchedule(QueryDocumentSnapshot doc, String defaultTitle) {
         String id = doc.getId();
         String title = doc.getString("title");
-        String description = doc.getString("description");
-        String content = description != null ? description : "No description";
+        String category = doc.getString("category");
 
-        Note note = new Note(id, title != null ? title : defaultTitle, content);
+        // ✅ BUILD DESCRIPTION FROM FIREBASE DATA (consistent format)
+        String description = buildScheduleDescription(doc, category);
+
+        Note note = new Note(id, title != null ? title : defaultTitle, description);
 
         try {
             Timestamp createdAt = doc.getTimestamp("createdAt");
@@ -920,6 +1010,64 @@ public class Notes extends Fragment {
         note.setLocked(isLocked != null && isLocked);
 
         return note;
+    }
+
+    // ✅ ADD THIS NEW METHOD after createNoteFromSchedule:
+    private String buildScheduleDescription(QueryDocumentSnapshot doc, String category) {
+        StringBuilder description = new StringBuilder();
+
+        if ("todo".equals(category)) {
+            // For Todo Lists: "X tasks (date) • Y completed"
+            Long taskCount = doc.getLong("taskCount");
+            Long completedCount = doc.getLong("completedCount");
+
+            int tasks = taskCount != null ? taskCount.intValue() : 0;
+            int completed = completedCount != null ? completedCount.intValue() : 0;
+
+            description.append(tasks).append(" task").append(tasks != 1 ? "s" : "");
+
+            // Add date if exists
+            Timestamp dateTimestamp = doc.getTimestamp("date");
+            if (dateTimestamp != null) {
+                SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+                description.append(" (").append(sdf.format(dateTimestamp.toDate())).append(")");
+            }
+
+            // Always show completion count
+            description.append(" • ").append(completed).append(" completed");
+
+        } else if ("weekly".equals(category)) {
+            // For Weekly Plans: "X tasks (date range) • Y completed"
+            Long taskCount = doc.getLong("taskCount");
+            Long completedCount = doc.getLong("completedCount");
+
+            int tasks = taskCount != null ? taskCount.intValue() : 0;
+            int completed = completedCount != null ? completedCount.intValue() : 0;
+
+            description.append(tasks).append(" task").append(tasks != 1 ? "s" : "");
+
+            // Add date range if exists
+            Timestamp startTimestamp = doc.getTimestamp("startDate");
+            Timestamp endTimestamp = doc.getTimestamp("endDate");
+
+            if (startTimestamp != null && endTimestamp != null) {
+                SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+                description.append(" (")
+                        .append(sdf.format(startTimestamp.toDate()))
+                        .append(" - ")
+                        .append(sdf.format(endTimestamp.toDate()))
+                        .append(")");
+            }
+
+            // Always show completion count
+            description.append(" • ").append(completed).append(" completed");
+        } else {
+            // Fallback to stored description
+            String storedDescription = doc.getString("description");
+            return storedDescription != null ? storedDescription : "No description";
+        }
+
+        return description.toString();
     }
 
     private void updateUI() {

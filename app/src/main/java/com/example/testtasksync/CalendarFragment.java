@@ -281,8 +281,9 @@ public class CalendarFragment extends Fragment {
                             if (completed == totalLists) {
                                 Log.d(TAG, "✅ All todo lists processed");
                                 calendarAdapter.notifyDataSetChanged();
-                                continue;
+
                             }
+                            continue;
                         }
 
                         String listId = listDoc.getId();
@@ -433,8 +434,9 @@ public class CalendarFragment extends Fragment {
                             processedPlans[0]++;
                             if (processedPlans[0] == totalPlans) {
                                 calendarAdapter.notifyDataSetChanged();
-                                continue;
+
                             }
+                            continue;
                         }
 
                         Timestamp startDateTimestamp = doc.getTimestamp("startDate");

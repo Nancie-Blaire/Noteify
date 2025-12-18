@@ -220,8 +220,8 @@ public class NotificationHelper {
      * Schedule notification with sourceId for navigation
      */
     public static void scheduleNotification(Context context, String id,
-                                             String title, String message,
-                                             long triggerTime, String type, String sourceId) {
+                                            String title, String message,
+                                            long triggerTime, String type, String sourceId) {
         Intent intent = new Intent(context, NotificationReceiver.class);
         intent.putExtra("notification_id", id.hashCode());
         intent.putExtra("title", title);

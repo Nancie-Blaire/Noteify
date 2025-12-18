@@ -917,9 +917,64 @@ public class WeeklyActivity extends AppCompatActivity {
                 .update(taskData)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "✅ Task schedule saved");
+
+                    // ✅ FIX: Also update the main schedule to refresh home display
+                    updateMainScheduleDisplay();
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "❌ Failed to save task schedule", e);
+                });
+    }
+
+    private void updateMainScheduleDisplay() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || planId == null || planId.isEmpty()) return;
+
+        String title = weeklyTitle.getText().toString().trim();
+        if (title.isEmpty()) {
+            title = "Weekly Plan";
+        }
+
+        int totalTasks = 0;
+        int completedTasks = 0;
+        for (String day : days) {
+            List<WeeklyTask> tasks = dayTasks.get(day);
+            if (tasks != null) {
+                for (WeeklyTask task : tasks) {
+                    if (!task.getTaskText().trim().isEmpty()) {
+                        totalTasks++;
+                        if (task.isCompleted()) {
+                            completedTasks++;
+                        }
+                    }
+                }
+            }
+        }
+
+        String description = totalTasks + " task" + (totalTasks != 1 ? "s" : "");
+        if (startDate != null && endDate != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            description += " (" + sdf.format(startDate.getTime()) + " - " +
+                    sdf.format(endDate.getTime()) + ")";
+        }
+        description += " • " + completedTasks + " completed";
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("description", description);
+        updates.put("taskCount", totalTasks);
+        updates.put("completedCount", completedTasks);
+        updates.put("isCompleted", completedTasks == totalTasks && totalTasks > 0);
+
+        db.collection("users")
+                .document(user.getUid())
+                .collection("schedules")
+                .document(planId)
+                .update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "✅ Schedule display updated");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Failed to update schedule display", e);
                 });
     }
 

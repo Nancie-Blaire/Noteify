@@ -58,6 +58,8 @@ import java.util.Map;
 import android.graphics.Color;
 import org.json.JSONObject;
 import org.json.JSONException;
+import android.graphics.Color;
+import android.os.Build;
 
 public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.OnBlockChangeListener {
 
@@ -123,6 +125,14 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(Color.parseColor("#8daaa6"));
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // This makes the status bar icons dark
+                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
 
         // ✅ MODERN: Handle Android back button/gesture
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -394,7 +404,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             public void onDragFinished() {
                 isReordering = false;
                 saveBlockOrder();
-                Toast.makeText(NoteActivity.this, "Block moved", Toast.LENGTH_SHORT).show();
+              //  Toast.makeText(NoteActivity.this, "Block moved", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -892,7 +902,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 .collection("notes").document(noteId)
                 .update("color", color)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Color saved", Toast.LENGTH_SHORT).show();
+                 //   Toast.makeText(this, "Color saved", Toast.LENGTH_SHORT).show();
                 });
     }
 
@@ -1071,12 +1081,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     progressDialog.dismiss();
 
                     if (base64SizeKB > MAX_INLINE_IMAGE_KB) {
-                        Toast.makeText(this, "Saving large image (" + originalSizeKB + " KB) in chunks...",
-                                Toast.LENGTH_SHORT).show();
+                       // Toast.makeText(this, "Saving large image (" + originalSizeKB + " KB) in chunks...",
+                               // Toast.LENGTH_SHORT).show();
                         uploadImageInChunks(base64Image, originalSizeKB);
                     } else {
-                        Toast.makeText(this, "Saving image (" + originalSizeKB + " KB)...",
-                                Toast.LENGTH_SHORT).show();
+                        //Toast.makeText(this, "Saving image (" + originalSizeKB + " KB)...",
+                           //     Toast.LENGTH_SHORT).show();
                         insertImageBlock(base64Image, false, originalSizeKB);
                     }
                 });
@@ -1136,7 +1146,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     }
 
                     createImageBlock(imageId, true, sizeKB);
-                    Toast.makeText(this, "✅ Large image saved", Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(this, "✅ Large image saved", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Failed to save large image", Toast.LENGTH_SHORT).show();
@@ -1163,7 +1173,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     .set(imageData)
                     .addOnSuccessListener(aVoid -> {
                         createImageBlock(imageId, isChunked, sizeKB);
-                        Toast.makeText(this, "✅ Image saved", Toast.LENGTH_SHORT).show();
+                       // Toast.makeText(this, "Image saved", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> {
                         Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show();
@@ -1391,7 +1401,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             updateBlockPositions();
 
             bottomSheet.dismiss();
-            Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(this, "Link added", Toast.LENGTH_SHORT).show();
         });
 
         bottomSheet.show();
@@ -1446,7 +1456,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     .collection("subpages").document(block.getSubpageId())
                     .delete()
                     .addOnSuccessListener(aVoid -> {
-                        Toast.makeText(this, "Subpage deleted", Toast.LENGTH_SHORT).show();
+                     //   Toast.makeText(this, "Subpage deleted", Toast.LENGTH_SHORT).show();
                     });
         }
 
@@ -1475,7 +1485,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
     }
     @Override
     public void onImageClick(String imageId) {
-        Toast.makeText(this, "Image clicked", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Image clicked", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -1536,8 +1546,8 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         // This is handled in the adapter now
         // But you can add additional logic here if needed
         NoteBlock block = blocks.get(position);
-        Toast.makeText(this, "Tap to change style, long press for options",
-                Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Tap to change style, long press for options",
+             //   Toast.LENGTH_SHORT).show();
     }
 
     // ✅ OPTIONAL: Add helper method to handle divider style changes
@@ -1857,31 +1867,68 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             renumberLists();
         }
 
-        Toast.makeText(this, "Converted to text", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Converted to text", Toast.LENGTH_SHORT).show();
     }
 
     @Override
     public void onBackspaceAtStart(int position, String currentText) {
-        if (position <= 0 || position >= blocks.size()) return;
+        android.util.Log.d("Backspace", "onBackspaceAtStart called - position: " + position + ", text: '" + currentText + "'");
+
+        if (position <= 0) {
+            // Already at first block, can't go up
+            android.util.Log.d("Backspace", "Already at first block");
+            return;
+        }
+
+        if (position >= blocks.size()) {
+            android.util.Log.d("Backspace", "Invalid position");
+            return;
+        }
 
         NoteBlock currentBlock = blocks.get(position);
         NoteBlock previousBlock = blocks.get(position - 1);
 
-        // Don't merge with IMAGE, DIVIDER, SUBPAGE
-        switch (previousBlock.getType()) {
-            case IMAGE:
-            case DIVIDER:
-            case SUBPAGE:
-                convertBlockToText(position);
-                return;
+        android.util.Log.d("Backspace", "Current: " + currentBlock.getType() + ", Previous: " + previousBlock.getType());
+
+        // ✅ CHECK: Can we merge with previous block?
+        boolean canMerge = canMergeWith(previousBlock.getType());
+
+        if (!canMerge) {
+            android.util.Log.d("Backspace", "Cannot merge with previous block type");
+            // ✅ Can't merge (previous is IMAGE/DIVIDER/SUBPAGE)
+            // Just move cursor to end of previous block if it's editable
+            if (isEditableBlock(previousBlock.getType())) {
+                android.util.Log.d("Backspace", "Moving cursor to previous editable block");
+                String prevContent = previousBlock.getContent();
+                focusBlock(position - 1, prevContent != null ? prevContent.length() : 0);
+            } else {
+                // Previous block is not editable, just stay in current block
+                android.util.Log.d("Backspace", "Previous block not editable, staying");
+                Toast.makeText(this, "Can't move to previous block", Toast.LENGTH_SHORT).show();
+            }
+            return;
         }
 
-        // Merge content
-        String mergedContent = previousBlock.getContent() + currentText;
+        // ✅ CASE 1: Current block is EMPTY - just move cursor up
+        if (currentText == null || currentText.trim().isEmpty()) {
+            android.util.Log.d("Backspace", "Current block empty, moving cursor up");
+            String prevContent = previousBlock.getContent();
+            focusBlock(position - 1, prevContent != null ? prevContent.length() : 0);
+            return;
+        }
+
+        // ✅ CASE 2: Current block HAS TEXT - merge and move cursor
+        android.util.Log.d("Backspace", "Merging blocks");
+        String previousContent = previousBlock.getContent();
+        if (previousContent == null) previousContent = "";
+
+        int cursorPositionInPrevious = previousContent.length();
+        String mergedContent = previousContent + currentText;
+
         previousBlock.setContent(mergedContent);
         saveBlock(previousBlock);
 
-        // Delete current block
+        // Delete current block from Firestore
         FirebaseUser user = auth.getCurrentUser();
         if (user != null) {
             db.collection("users").document(user.getUid())
@@ -1890,13 +1937,21 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     .delete();
         }
 
+        // Remove current block from list
         blocks.remove(position);
         adapter.notifyItemRemoved(position);
         updateBlockPositions();
 
-        // Focus previous
+        // Renumber if needed
+        if (currentBlock.getType() == NoteBlock.BlockType.NUMBERED) {
+            renumberLists();
+        }
+
+        // ✅ CRITICAL: Move cursor to where the merge happened
         final int previousPosition = position - 1;
-        final int cursorPosition = previousBlock.getContent().length() - currentText.length();
+        final int finalCursorPosition = cursorPositionInPrevious;
+
+        android.util.Log.d("Backspace", "Focusing previous block at position " + finalCursorPosition);
 
         blocksRecycler.post(() -> {
             adapter.notifyItemChanged(previousPosition);
@@ -1907,12 +1962,60 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                     View view = holder.itemView;
                     EditText editText = view.findViewById(R.id.contentEdit);
                     if (editText != null) {
+                        android.util.Log.d("Backspace", "Found EditText, setting focus");
                         editText.requestFocus();
-                        editText.setSelection(Math.max(0, cursorPosition));
+                        // Set cursor at merge point
+                        int safePosition = Math.max(0, Math.min(finalCursorPosition, editText.getText().length()));
+                        editText.setSelection(safePosition);
+
+                        // Show keyboard
+                        android.view.inputmethod.InputMethodManager imm =
+                                (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                        if (imm != null) {
+                            imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                        }
+                    } else {
+                        android.util.Log.e("Backspace", "EditText not found!");
                     }
+                } else {
+                    android.util.Log.e("Backspace", "ViewHolder not found!");
                 }
-            }, 50);
+            }, 150);
         });
+    }
+    private boolean canMergeWith(NoteBlock.BlockType type) {
+        switch (type) {
+            case TEXT:
+            case HEADING_1:
+            case HEADING_2:
+            case HEADING_3:
+            case BULLET:
+            case NUMBERED:
+            case CHECKBOX:
+                return true;
+            case IMAGE:
+            case DIVIDER:
+            case SUBPAGE:
+            case LINK:
+            case LINK_TO_PAGE:
+            default:
+                return false;
+        }
+    }
+
+    private boolean isEditableBlock(NoteBlock.BlockType type) {
+        switch (type) {
+            case TEXT:
+            case HEADING_1:
+            case HEADING_2:
+            case HEADING_3:
+            case BULLET:
+            case NUMBERED:
+            case CHECKBOX:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private void setupEmptySpaceClick(View emptySpace) {
@@ -2209,7 +2312,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
 
         // Show color name
         String colorName = getColorName(color);
-        Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "Color applied: " + colorName, Toast.LENGTH_SHORT).show();
 
         // Refocus the block
         focusBlock(position, block.getContent().length());
@@ -2257,7 +2360,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
         adapter.notifyItemChanged(position);
         saveBlock(block);
 
-        Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
+       // Toast.makeText(this, "Style applied: " + style, Toast.LENGTH_SHORT).show();
 
         // Refocus the block
         focusBlock(position, block.getContent().length());
@@ -3081,7 +3184,7 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
             saveBlock(lastBlock);
         }
 
-        Toast.makeText(this, "✅ Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
+        //Toast.makeText(this, "Linked to " + item.getTitle(), Toast.LENGTH_SHORT).show();
     }
     @Override
     public void onLinkToPageClick(String pageId, String pageType) {
@@ -3092,12 +3195,12 @@ public class NoteActivity extends AppCompatActivity implements NoteBlockAdapter.
                 startActivityForResult(intent, REQUEST_BOOKMARKS);
                 break;
             case "todo":
-                // TODO: Navigate to todo
-                Toast.makeText(this, "Opening todo...", Toast.LENGTH_SHORT).show();
+
+             //   Toast.makeText(this, "Opening todo...", Toast.LENGTH_SHORT).show();
                 break;
             case "weekly":
-                // TODO: Navigate to weekly
-                Toast.makeText(this, "Opening weekly...", Toast.LENGTH_SHORT).show();
+
+               // Toast.makeText(this, "Opening weekly...", Toast.LENGTH_SHORT).show();
                 break;
         }
     }

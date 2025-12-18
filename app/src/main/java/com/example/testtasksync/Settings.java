@@ -135,16 +135,16 @@ public class Settings extends Fragment {
                     saveNotificationSetting(true);
                     // Re-schedule all existing tasks when enabling notifications
                     rescheduleAllNotifications();
-                    Toast.makeText(requireContext(),
-                            "Notifications enabled. Scheduling reminders...",
-                            Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(requireContext(),
+                           // "Notifications enabled. Scheduling reminders...",
+                         //   Toast.LENGTH_SHORT).show();
                 } else if (checkedId == R.id.rbNotificationOff) {
                     saveNotificationSetting(false);
                     // Cancel all existing notifications when disabled
                     NotificationHelper.cancelAllNotifications(requireContext());
-                    Toast.makeText(requireContext(),
-                            "Notifications disabled. All scheduled reminders cancelled.",
-                            Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(requireContext(),
+                     //       "Notifications disabled. All scheduled reminders cancelled.",
+                       //     Toast.LENGTH_SHORT).show();
                 }
             });
         }

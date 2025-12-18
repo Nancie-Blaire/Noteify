@@ -112,7 +112,7 @@ public class BiometricSetupActivity extends AppCompatActivity {
         String password = passwordInput.getText().toString();
         String confirmPassword = confirmPasswordInput.getText().toString();
 
-        Log.d(TAG, "🔐 Validating password (length: " + password.length() + ")");
+        Log.d(TAG, "Validating password (length: " + password.length() + ")");
 
         if (password.isEmpty() || confirmPassword.isEmpty()) {
             Toast.makeText(this, "Please enter password", Toast.LENGTH_SHORT).show();
@@ -131,7 +131,7 @@ public class BiometricSetupActivity extends AppCompatActivity {
 
         // Store password temporarily
         temporaryPassword = password;
-        Log.d(TAG, "✅ Password validated successfully");
+        Log.d(TAG, "Password validated successfully");
 
         // Check if biometric is available
         checkBiometricAvailability();
@@ -237,7 +237,7 @@ public class BiometricSetupActivity extends AppCompatActivity {
                         public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                             super.onAuthenticationSucceeded(result);
                             Log.d(TAG, "✅ Fingerprint authentication SUCCEEDED!");
-                            Toast.makeText(BiometricSetupActivity.this, "✅ Fingerprint verified!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(BiometricSetupActivity.this, "Fingerprint verified!", Toast.LENGTH_SHORT).show();
                             saveMasterPassword(true);
                         }
 
@@ -333,8 +333,8 @@ public class BiometricSetupActivity extends AppCompatActivity {
                     Log.d(TAG, "📊 Final state - biometric_enabled: " + enableBiometric);
 
                     String message = enableBiometric ?
-                            "✅ Security setup complete!\n🔒 Password + Fingerprint enabled" :
-                            "✅ Security setup complete!\n🔑 Password authentication enabled";
+                            "✅ Security setup complete!\n Password + Fingerprint enabled" :
+                            "✅ Security setup complete!\n Password authentication enabled";
 
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show();
 
@@ -354,7 +354,7 @@ public class BiometricSetupActivity extends AppCompatActivity {
                     if (btnSetupFingerprint != null) btnSetupFingerprint.setEnabled(true);
                     if (btnSkipFingerprint != null) btnSkipFingerprint.setEnabled(true);
                     tvBiometricStatus.setText("Failed to save. Please try again.");
-                    Toast.makeText(this, "❌ Failed to save: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Failed to save: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
     }
 }

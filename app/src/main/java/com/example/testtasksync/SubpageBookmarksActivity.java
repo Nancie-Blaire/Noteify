@@ -364,13 +364,13 @@ public class SubpageBookmarksActivity extends AppCompatActivity {
                 .collection("bookmarks").document(bookmark.getId())
                 .update(updates)
                 .addOnSuccessListener(aVoid -> {
-                    android.widget.Toast.makeText(this, "Bookmark updated",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                    //android.widget.Toast.makeText(this, "Bookmark updated",
+                           // android.widget.Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     // ✅ Still works offline - will sync when online
-                    android.widget.Toast.makeText(this, "Saved offline - will sync when online",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                    //android.widget.Toast.makeText(this, "Saved offline - will sync when online",
+                    //   android.widget.Toast.LENGTH_SHORT).show();
                 });
     }
 
@@ -409,13 +409,13 @@ public class SubpageBookmarksActivity extends AppCompatActivity {
                 .collection("bookmarks").document(bookmark.getId())
                 .delete()
                 .addOnSuccessListener(aVoid -> {
-                    android.widget.Toast.makeText(this, "Bookmark deleted",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                    //android.widget.Toast.makeText(this, "Bookmark deleted",
+                            //android.widget.Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e -> {
                     // ✅ Still works offline - will sync when online
-                    android.widget.Toast.makeText(this, "Deleted offline - will sync when online",
-                            android.widget.Toast.LENGTH_SHORT).show();
+                    //android.widget.Toast.makeText(this, "Deleted offline - will sync when online",
+                          //  android.widget.Toast.LENGTH_SHORT).show();
                 });
     }
 }

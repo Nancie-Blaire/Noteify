@@ -80,12 +80,25 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
 
             dueDateText.setText(dateStr);
 
+            // ✅ NEW: Check if overdue
+            boolean isOverdue = item.getDueDate().before(new Date());
+
             // Set category indicator color
             int color;
-            if ("todo".equals(item.getType())) {
-                color = itemView.getContext().getResources().getColor(R.color.todo_green);
+            if (isOverdue) {
+                // ✅ OVERDUE: Always show RED
+                color = itemView.getContext().getResources().getColor(R.color.overdue_color);
+                // ✅ Make due date text RED
+                dueDateText.setTextColor(itemView.getContext().getResources().getColor(R.color.overdue_color));
             } else {
-                color = itemView.getContext().getResources().getColor(R.color.weekly_blue);
+                // ✅ NOT OVERDUE: Use category colors
+                if ("todo".equals(item.getType())) {
+                    color = itemView.getContext().getResources().getColor(R.color.todo_green);
+                } else {
+                    color = itemView.getContext().getResources().getColor(R.color.weekly_blue);
+                }
+                // ✅ Keep due date text normal (gray)
+                dueDateText.setTextColor(itemView.getContext().getResources().getColor(android.R.color.darker_gray));
             }
             categoryIndicator.setBackgroundColor(color);
 
@@ -95,6 +108,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
                 }
             });
         }
+
 
         // ✅ NEW: Convert time format based on user preference
         private String convertTimeFormat(String time24, String format) {

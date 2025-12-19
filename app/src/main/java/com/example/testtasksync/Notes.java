@@ -424,7 +424,7 @@ public class Notes extends Fragment {
         TextView dayText6 = view.findViewById(R.id.dayText6);
         TextView dayText7 = view.findViewById(R.id.dayText7);
         TextView dayText8 = view.findViewById(R.id.dayText9);
-        TextView dayText9 = view.findViewById(R.id.dayText10);  // ✅ ADDED THIS
+        TextView dayText9 = view.findViewById(R.id.dayText10);
 
         // Fetch user's display name from Firestore
         db.collection("users")
@@ -470,10 +470,11 @@ public class Notes extends Fragment {
         int hour = calendar.get(java.util.Calendar.HOUR_OF_DAY);
         int minute = calendar.get(java.util.Calendar.MINUTE);
 
-        // Check if 24-hour format is enabled
-        boolean is24HourFormat = android.text.format.DateFormat.is24HourFormat(requireContext());
+        // Check user's time format preference from Settings
+        String timeFormat = Settings.getTimeFormat(requireContext());
+        boolean isMilitaryFormat = "military".equals(timeFormat);
 
-        if (is24HourFormat) {
+        if (isMilitaryFormat) {
             // Military time - hide AM/PM
             timeText.setText(String.format(Locale.getDefault(), "%02d", hour));
             amPmText.setVisibility(View.GONE);
@@ -505,7 +506,6 @@ public class Notes extends Fragment {
         String currentDay = daysOfWeek[dayOfWeek];
 
         // Split the day into individual characters and display vertically
-        // ✅ NOW WITH 9 TEXTVIEWS INSTEAD OF 8
         TextView[] dayTextViews = {dayText1, dayText2, dayText3, dayText4, dayText5, dayText6, dayText7, dayText8, dayText9};
 
         for (int i = 0; i < dayTextViews.length; i++) {

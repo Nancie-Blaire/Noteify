@@ -23,7 +23,7 @@
 
     <!-- Notification colors -->
     <color name="todo_green">#4CAF50</color>
-    <color name="weekly_blue">#75CEC6</color>
+    <color name="weekly_blue">#2196F3</color>
     <color name="overdue_color">#FF6B6B</color>
 
     <!-- You can change these to match your app's design -->

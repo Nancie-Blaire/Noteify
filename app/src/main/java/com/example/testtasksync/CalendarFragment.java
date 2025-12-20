@@ -2,6 +2,8 @@ package com.example.testtasksync;
 // COMMENT
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -60,6 +62,16 @@ public class CalendarFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (getActivity() != null && getActivity().getWindow() != null) {
+                getActivity().getWindow().setStatusBarColor(Color.parseColor("#f4e8df"));
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // This makes the status bar icons dark
+                    getActivity().getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                }
+            }
+        }
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();

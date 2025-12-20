@@ -93,7 +93,7 @@
 
                     <!-- Left side: Greeting text -->
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:layout_width="300dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:orientation="vertical">
@@ -102,13 +102,13 @@
                             android:id="@+id/greetingText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginBottom="3dp"
                             android:fontFamily="@font/syne"
                             android:letterSpacing="-0.02"
                             android:text="Hi,"
                             android:textColor="#000000"
                             android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="3dp"/>
+                            android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/userNameText"
@@ -139,48 +139,49 @@
                         android:layout_width="2dp"
                         android:layout_height="match_parent"
                         android:background="#ffffff"
-                        android:layout_marginStart="40dp"
-                        android:layout_marginEnd="30dp"/>
+                        android:layout_marginStart="20dp"
+                        android:layout_marginEnd="20dp"/>
 
                     <!-- Right side: Time (vertical) -->
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:gravity="center"
                         android:layout_gravity="center_vertical"
-                        android:layout_marginEnd="30dp">
+                        android:layout_marginEnd="20dp"
+                        android:gravity="center"
+                        android:orientation="vertical">
 
                         <TextView
                             android:id="@+id/timeText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="08"
                             android:fontFamily="@font/syne"
+                            android:text="08"
                             android:textColor="#000000"
                             android:textSize="16sp"
-                            android:textStyle="bold"/>
+                            android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/minuteText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="00"
+                            android:layout_marginTop="-5dp"
                             android:fontFamily="@font/syne"
+                            android:text="00"
                             android:textColor="#000000"
                             android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:layout_marginTop="-4dp"/>
+                            android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/amPmText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="AM"
+                            android:layout_marginTop="0dp"
                             android:fontFamily="@font/syne"
+                            android:text="AM"
                             android:textColor="#000000"
                             android:textSize="10sp"
-                            android:layout_marginTop="2dp"/>
+                            android:visibility="visible"/>
                     </LinearLayout>
 
                     <!-- Far Right: Day text (vertical) -->

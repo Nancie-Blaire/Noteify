@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,7 +36,8 @@ public class SecuritySettingsActivity extends AppCompatActivity {
     private static final String SECURITY_SETUP_COMPLETE = "security_setup_complete";
 
     private TextView tvSecurityStatus, tvBiometricStatus, tvPasswordStatus;
-    private Button btnEnableFingerprint, btnChangePassword, btnBack;
+    private Button btnEnableFingerprint, btnChangePassword;
+    ImageView btnBack;
     private FirebaseAuth auth;
     private FirebaseFirestore firestore;
 

@@ -27,9 +27,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:text="Welcome to Noteify"
-            android:textColor="#1E3A5F"
-            android:textSize="18sp"
+            android:text="Welcome to NOTEiFY!"
+            android:letterSpacing=".1"
+            android:fontFamily="@font/syne"
+            android:textColor="#000000"
+            android:textSize="15sp"
             android:textStyle="bold" />
 
         <TextView
@@ -37,9 +39,10 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:gravity="center"
-            android:text="Start creating your first note!"
-            android:textColor="#8DAAA6"
-            android:textSize="11sp"
+            android:text="Start creating your first note"
+            android:fontFamily="@font/syne"
+            android:textColor="#000000"
+            android:textSize="10sp"
             android:textStyle="bold" />
 
     </LinearLayout>

@@ -107,17 +107,17 @@
                             android:letterSpacing="-0.02"
                             android:text="Hi,"
                             android:textColor="#000000"
-                            android:textSize="20sp"
+                            android:textSize="15sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/userNameText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="-10dp"
+                            android:layout_marginTop="-5dp"
                             android:fontFamily="@font/syne"
                             android:letterSpacing="-0.02"
-                            android:text="Nancie!"
+                            android:text=""
                             android:textColor="#000000"
                             android:textSize="20sp"
                             android:textStyle="bold" />
@@ -126,12 +126,12 @@
                             android:id="@+id/quoteText"
                             android:layout_width="180dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="20dp"
                             android:fontFamily="@font/syne"
                             android:lineSpacingExtra="2dp"
-                            android:text="&quot;You don't have to see the whole staircase, just take the first step.&quot;"
+                            android:text="&quot;Life begins when you move your world out of your head and into your hands.&quot;"
                             android:textColor="#000000"
-                            android:textSize="12sp" />
+                            android:textSize="10sp" />
                     </LinearLayout>
 
                     <!-- Vertical divider -->
@@ -157,8 +157,9 @@
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/syne"
                             android:text="08"
+                            android:layout_marginTop="-5dp"
                             android:textColor="#000000"
-                            android:textSize="16sp"
+                            android:textSize="15sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -169,18 +170,18 @@
                             android:fontFamily="@font/syne"
                             android:text="00"
                             android:textColor="#000000"
-                            android:textSize="16sp"
+                            android:textSize="15sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/amPmText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="0dp"
+                            android:layout_marginTop="5dp"
                             android:fontFamily="@font/syne"
                             android:text="AM"
                             android:textColor="#000000"
-                            android:textSize="10sp"
+                            android:textSize="7sp"
                             android:visibility="visible"/>
                     </LinearLayout>
 
@@ -192,7 +193,7 @@
                         android:gravity="center"
                         android:layout_gravity="center_vertical"
                         android:layout_marginStart="0dp"
-                        android:layout_marginEnd="30dp">
+                        android:layout_marginEnd="10dp">
 
                         <TextView
                             android:id="@+id/dayText"
